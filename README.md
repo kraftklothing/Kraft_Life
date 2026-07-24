@@ -28,3 +28,18 @@ Open [http://localhost:5180](http://localhost:5180) **on the same machine** that
 - Bottom-right profile → settings / my account
 
 Data is stored in the browser (`localStorage`).
+
+## Vercel (permanent link)
+
+This repo is connected to the [kraft-life](https://vercel.com/kraftklothings-projects/kraft-life) project on Vercel. Every push to `master` triggers a production deploy.
+
+**Production URL:** https://kraft-life.vercel.app (or the domain shown under Vercel → Domains)
+
+### Connect Cursor to Vercel
+
+1. In Cursor, open **Settings → MCP** (or use the one-click install from [Vercel MCP docs](https://vercel.com/docs/mcp/vercel-mcp)).
+2. Confirm `.cursor/mcp.json` includes the Vercel server (already in this repo).
+3. Click **Needs login** next to the Vercel MCP server and sign in with your Vercel account.
+4. For **Cloud Agents**, also add Vercel under **Cursor Dashboard → Integrations & MCP** so agents can check deploys and logs.
+
+After merging to `master`, Vercel rebuilds automatically — no manual deploy step needed.
