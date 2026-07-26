@@ -1,13 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { isValidPin, verifyPin } from '../lib/pin'
-import type { VaultAppState } from '../lib/types'
+import { isValidPin, verifyPin } from './lib/pin'
+import type { VaultAppState } from './lib/types'
 import {
   isStorageConfigured,
   readVaultMeta,
   readVaultState,
   vaultConfigured,
   writeVaultState,
-} from '../lib/vault'
+} from './lib/vault'
 
 function readPin(req: VercelRequest): string {
   const header = req.headers['x-kraft-pin']

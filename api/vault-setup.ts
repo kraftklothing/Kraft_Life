@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { hashPin, isValidPin } from '../lib/pin'
-import type { VaultAppState } from '../lib/types'
+import { hashPin, isValidPin } from './lib/pin'
+import type { VaultAppState } from './lib/types'
 import {
   createVault,
   isStorageConfigured,
   vaultConfigured,
-} from '../lib/vault'
+} from './lib/vault'
 
 function defaultState(): VaultAppState {
   return {

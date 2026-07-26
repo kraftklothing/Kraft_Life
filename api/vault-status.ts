@@ -22,11 +22,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { vaultConfigured } = await import('../lib/vault')
+    const { vaultConfigured } = await import('./lib/vault')
     const configured = await vaultConfigured()
     return res.status(200).json({ configured, storageReady: true })
   } catch (error) {
     console.error('vault status error', error)
-    return res.status(500).json({ error: 'Could not read vault status' })
+    return res.status(503).json({
+      configured: false,
+      storageReady: false,
+      message: 'Cloud storage is not set up on Vercel yet.',
+    })
   }
 }
