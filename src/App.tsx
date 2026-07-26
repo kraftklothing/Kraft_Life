@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { addDays, formatDayHeading, toDateKey } from './dates'
 import { loadState, saveState } from './storage'
+import type { CloudSync } from './PinGate'
 import {
   isCompletedForDateView,
   isOccurrenceSatisfied,
@@ -202,8 +203,14 @@ function PencilIcon() {
   )
 }
 
-export default function App() {
-  const [state, setState] = useState<AppState>(() => loadState())
+export default function App({
+  initialState,
+  cloudSync,
+}: {
+  initialState?: AppState
+  cloudSync?: CloudSync
+}) {
+  const [state, setState] = useState<AppState>(() => initialState ?? loadState())
   const [viewDate, setViewDate] = useState(() => startToday())
   const [title, setTitle] = useState('')
   const [repetition, setRepetition] = useState<Repetition | ''>('')
@@ -263,7 +270,8 @@ export default function App() {
 
   useEffect(() => {
     saveState(state)
-  }, [state])
+    cloudSync?.scheduleSave(state)
+  }, [state, cloudSync])
 
   useEffect(() => {
     if (!toast) return
@@ -1596,6 +1604,18 @@ export default function App() {
                 </div>
               </div>
             </section>
+
+            {cloudSync?.pin ? (
+              <section className="task-group" aria-label="Cloud sync">
+                <h2 className="category-heading">Cloud sync</h2>
+                <p className="muted view-hint">
+                  Tasks save to the cloud automatically while you use Kraft Life.
+                </p>
+                <button type="button" className="btn lock-btn" onClick={cloudSync.lock}>
+                  Lock Kraft Life
+                </button>
+              </section>
+            ) : null}
           </div>
         </section>
       )}

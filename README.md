@@ -27,7 +27,22 @@ Open [http://localhost:5180](http://localhost:5180) **on the same machine** that
 - Task badges for repetition + category
 - Bottom-right profile → settings / my account
 
-Data is stored in the browser (`localStorage`).
+Data syncs to the cloud with a **private PIN** (no account). The same PIN on phone and PC loads the same tasks.
+
+## Cloud PIN setup (one-time on Vercel)
+
+Before cloud save works in production, connect Redis storage:
+
+1. Open [kraft-life on Vercel](https://vercel.com/kraftklothings-projects/kraft-life) → **Storage** (or **Integrations**) → add **Upstash for Redis**
+2. Create a database and **Connect to Project** → select **kraft-life**
+3. **Redeploy** the latest production deployment (Deployments → ⋯ → Redeploy)
+
+Then visit **https://kraft-life.vercel.app**, create your 4–6 digit PIN once, and use that same PIN on every device.
+
+- **Remember on this device** keeps you signed in on that phone/PC
+- **Settings → Lock Kraft Life** requires the PIN again (useful on shared devices)
+
+Local-only fallback: if Redis is not set up yet, the app still works with browser storage on that device.
 
 ## Vercel (permanent link)
 
