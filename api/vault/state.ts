@@ -1,15 +1,19 @@
-import { isValidPin, readJsonBody, readPinHeader, verifyPin } from '../../lib/server/pin'
-import type { VaultAppState } from '../../lib/server/types'
+import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { isValidPin, verifyPin } from '../lib/pin'
+import type { VaultAppState } from '../lib/types'
 import {
   isStorageConfigured,
   readVaultMeta,
   readVaultState,
   vaultConfigured,
   writeVaultState,
-} from '../../lib/server/vault'
+} from '../lib/vault'
 
-export const config = {
-  runtime: 'nodejs',
+function readPin(req: VercelRequest): string {
+  const header = req.headers['x-kraft-pin']
+  if (typeof header === 'string') return header.trim()
+  if (Array.isArray(header)) return header[0]?.trim() ?? ''
+  return ''
 }
 
 async function authorizePin(pin: string): Promise<boolean> {
@@ -18,67 +22,46 @@ async function authorizePin(pin: string): Promise<boolean> {
   return verifyPin(pin, meta.pinHash)
 }
 
-export async function GET(request: Request): Promise<Response> {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (!isStorageConfigured()) {
-      return Response.json(
-        { error: 'Cloud storage is not set up on Vercel yet.' },
-        { status: 503 },
-      )
+      return res.status(503).json({ error: 'Cloud storage is not set up on Vercel yet.' })
     }
 
     if (!(await vaultConfigured())) {
-      return Response.json({ error: 'No PIN has been set up yet.' }, { status: 404 })
+      return res.status(404).json({ error: 'No PIN has been set up yet.' })
     }
 
-    const pin = readPinHeader(request)
+    const pin = readPin(req)
     if (!isValidPin(pin)) {
-      return Response.json({ error: 'Invalid PIN.' }, { status: 401 })
+      return res.status(401).json({ error: 'Invalid PIN.' })
     }
 
     if (!(await authorizePin(pin))) {
-      return Response.json({ error: 'Wrong PIN.' }, { status: 401 })
+      return res.status(401).json({ error: 'Wrong PIN.' })
     }
 
-    const state = await readVaultState()
-    return Response.json({ state: state ?? null })
+    if (req.method === 'GET') {
+      const state = await readVaultState()
+      return res.status(200).json({ state: state ?? null })
+    }
+
+    if (req.method === 'PUT') {
+      const body = req.body as { state?: VaultAppState }
+      if (!body?.state || typeof body.state !== 'object') {
+        return res.status(400).json({ error: 'Missing state body' })
+      }
+
+      await writeVaultState(body.state)
+      return res.status(200).json({ ok: true })
+    }
+
+    res.setHeader('Allow', 'GET, PUT')
+    return res.status(405).json({ error: 'Method not allowed' })
   } catch (error) {
-    console.error('vault state GET error', error)
-    return Response.json({ error: 'Could not load your data' }, { status: 500 })
-  }
-}
-
-export async function PUT(request: Request): Promise<Response> {
-  try {
-    if (!isStorageConfigured()) {
-      return Response.json(
-        { error: 'Cloud storage is not set up on Vercel yet.' },
-        { status: 503 },
-      )
-    }
-
-    if (!(await vaultConfigured())) {
-      return Response.json({ error: 'No PIN has been set up yet.' }, { status: 404 })
-    }
-
-    const pin = readPinHeader(request)
-    if (!isValidPin(pin)) {
-      return Response.json({ error: 'Invalid PIN.' }, { status: 401 })
-    }
-
-    if (!(await authorizePin(pin))) {
-      return Response.json({ error: 'Wrong PIN.' }, { status: 401 })
-    }
-
-    const body = await readJsonBody<{ state?: VaultAppState }>(request)
-    if (!body?.state || typeof body.state !== 'object') {
-      return Response.json({ error: 'Missing state body' }, { status: 400 })
-    }
-
-    await writeVaultState(body.state)
-    return Response.json({ ok: true })
-  } catch (error) {
-    console.error('vault state PUT error', error)
-    return Response.json({ error: 'Could not save your data' }, { status: 500 })
+    console.error('vault state error', error)
+    return res.status(500).json({
+      error: req.method === 'GET' ? 'Could not load your data' : 'Could not save your data',
+    })
   }
 }

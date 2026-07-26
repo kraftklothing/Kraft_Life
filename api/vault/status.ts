@@ -1,26 +1,25 @@
-import { isStorageConfigured, vaultConfigured } from '../../lib/server/vault'
+import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { isStorageConfigured, vaultConfigured } from '../lib/vault'
 
-export const config = {
-  runtime: 'nodejs',
-}
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET')
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
 
-export async function GET(): Promise<Response> {
   try {
     if (!isStorageConfigured()) {
-      return Response.json(
-        {
-          configured: false,
-          storageReady: false,
-          message: 'Cloud storage is not set up on Vercel yet.',
-        },
-        { status: 503 },
-      )
+      return res.status(503).json({
+        configured: false,
+        storageReady: false,
+        message: 'Cloud storage is not set up on Vercel yet.',
+      })
     }
 
     const configured = await vaultConfigured()
-    return Response.json({ configured, storageReady: true })
+    return res.status(200).json({ configured, storageReady: true })
   } catch (error) {
     console.error('vault status error', error)
-    return Response.json({ error: 'Could not read vault status' }, { status: 500 })
+    return res.status(500).json({ error: 'Could not read vault status' })
   }
 }
