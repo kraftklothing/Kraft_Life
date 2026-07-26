@@ -73,10 +73,21 @@ export default function App() {
   const [newCategory, setNewCategory] = useState('')
   const [toast, setToast] = useState('')
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [swipeOffset, setSwipeOffset] = useState(0)
+  const [dayAnim, setDayAnim] = useState<'none' | 'from-left' | 'from-right'>(
+    'none',
+  )
 
   const formId = useId()
   const titleInputRef = useRef<HTMLInputElement>(null)
-  const swipeRef = useRef<{ x: number; y: number; active: boolean } | null>(null)
+  const swipeRef = useRef<{
+    x: number
+    y: number
+    active: boolean
+    locked: 'x' | 'y' | null
+    pointerId: number | null
+  } | null>(null)
+  const dayPaneRef = useRef<HTMLElement | null>(null)
   const dragRef = useRef<{
     id: string
     startY: number
@@ -216,19 +227,92 @@ export default function App() {
     setToast('Category removed')
   }
 
-  function onListPointerDown(event: ReactPointerEvent<HTMLElement>) {
-    if (event.pointerType === 'mouse' && event.button !== 0) return
-    swipeRef.current = { x: event.clientX, y: event.clientY, active: true }
+  function goToDay(delta: number) {
+    if (delta === 0) return
+    setDayAnim(delta > 0 ? 'from-right' : 'from-left')
+    setViewDate((d) => addDays(d, delta))
+    setSwipeOffset(0)
   }
 
-  function onListPointerUp(event: ReactPointerEvent<HTMLElement>) {
+  function isInteractiveTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof Element)) return false
+    return Boolean(
+      target.closest(
+        'button, a, input, select, textarea, label, .drag-handle, .add-panel',
+      ),
+    )
+  }
+
+  function onDayPointerDown(event: ReactPointerEvent<HTMLElement>) {
+    if (settingsOpen || dragRef.current) return
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    if (isInteractiveTarget(event.target)) return
+    swipeRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      active: true,
+      locked: null,
+      pointerId: event.pointerId,
+    }
+    setDayAnim('none')
+  }
+
+  function onDayPointerMove(event: ReactPointerEvent<HTMLElement>) {
     const start = swipeRef.current
-    swipeRef.current = null
-    if (!start?.active || dragRef.current) return
+    if (!start?.active || start.pointerId !== event.pointerId || dragRef.current) {
+      return
+    }
+
     const dx = event.clientX - start.x
     const dy = event.clientY - start.y
-    if (Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 1.35) return
-    setViewDate((d) => addDays(d, dx < 0 ? 1 : -1))
+
+    if (!start.locked) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return
+      start.locked = Math.abs(dx) > Math.abs(dy) * 1.1 ? 'x' : 'y'
+      if (start.locked === 'x') {
+        dayPaneRef.current?.setPointerCapture?.(event.pointerId)
+      }
+    }
+
+    if (start.locked !== 'x') return
+    event.preventDefault()
+    // Rubber-band a little so the day feels attached to the finger.
+    const dampened = Math.max(-140, Math.min(140, dx * 0.85))
+    setSwipeOffset(dampened)
+  }
+
+  function finishDaySwipe(clientX: number, pointerId: number) {
+    const start = swipeRef.current
+    swipeRef.current = null
+    if (!start?.active || start.pointerId !== pointerId || dragRef.current) {
+      setSwipeOffset(0)
+      return
+    }
+    if (start.locked !== 'x') {
+      setSwipeOffset(0)
+      return
+    }
+
+    const dx = clientX - start.x
+    const threshold = 56
+    if (dx <= -threshold) {
+      goToDay(1) // swipe left → next day
+    } else if (dx >= threshold) {
+      goToDay(-1) // swipe right → previous day
+    } else {
+      setSwipeOffset(0)
+    }
+  }
+
+  function onDayPointerUp(event: ReactPointerEvent<HTMLElement>) {
+    finishDaySwipe(event.clientX, event.pointerId)
+  }
+
+  function onDayPointerCancel(event: ReactPointerEvent<HTMLElement>) {
+    if (swipeRef.current?.pointerId === event.pointerId) {
+      swipeRef.current = null
+      setSwipeOffset(0)
+    }
   }
 
   function beginDrag(taskId: string, clientY: number) {
@@ -311,10 +395,8 @@ export default function App() {
         </div>
       </header>
 
-      <div className="day-header">
+      <div className="brand-block">
         <h1 className="brand">Kraft Life</h1>
-        <p className="day-label">{formatDayHeading(viewDate, todayKey)}</p>
-        <p className="hint">Swipe left or right to change days</p>
       </div>
 
       <form
@@ -421,17 +503,53 @@ export default function App() {
       </form>
 
       <section
+        key={viewKey}
+        ref={dayPaneRef}
+        className={`day-pane${dayAnim !== 'none' ? ` day-pane-${dayAnim}` : ''}${
+          swipeOffset !== 0 ? ' day-pane-dragging' : ''
+        }`}
         aria-label="Tasks for selected day"
-        onPointerDown={onListPointerDown}
-        onPointerUp={onListPointerUp}
-        onPointerCancel={() => {
-          swipeRef.current = null
-        }}
+        onPointerDown={onDayPointerDown}
+        onPointerMove={onDayPointerMove}
+        onPointerUp={onDayPointerUp}
+        onPointerCancel={onDayPointerCancel}
+        style={
+          swipeOffset !== 0
+            ? { transform: `translateX(${swipeOffset}px)` }
+            : undefined
+        }
       >
+        <div className="day-header">
+          <div className="day-nav">
+            <button
+              type="button"
+              className="day-nav-btn"
+              aria-label="Previous day"
+              onClick={() => goToDay(-1)}
+            >
+              ‹
+            </button>
+            <p className="day-label">{formatDayHeading(viewDate, todayKey)}</p>
+            <button
+              type="button"
+              className="day-nav-btn"
+              aria-label="Next day"
+              onClick={() => goToDay(1)}
+            >
+              ›
+            </button>
+          </div>
+          <p className="hint">Swipe left for next day · right for previous</p>
+        </div>
+
         {dayTasks.length === 0 ? (
           <div className="panel empty">
             <h2>Nothing listed yet</h2>
-            <p>Add what you want to finish {viewKey === todayKey ? 'today' : 'this day'}.</p>
+            <p>
+              Add what you want to finish{' '}
+              {viewKey === todayKey ? 'today' : 'this day'}.
+            </p>
+            <p className="empty-swipe-hint">Swipe sideways to change days</p>
           </div>
         ) : (
           <ul className="task-list">
@@ -472,6 +590,7 @@ export default function App() {
                       event.preventDefault()
                       event.stopPropagation()
                       swipeRef.current = null
+                      setSwipeOffset(0)
                       event.currentTarget.setPointerCapture?.(event.pointerId)
                       beginDrag(task.id, event.clientY)
                     }}
