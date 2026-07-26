@@ -100,6 +100,25 @@ function CheckIcon() {
   )
 }
 
+function PencilIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 20h4l10.5-10.5a1.5 1.5 0 0 0 0-2.12L16.62 5.5a1.5 1.5 0 0 0-2.12 0L4 16v4Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m13.5 6.5 4 4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState())
   const [viewDate, setViewDate] = useState(() => startToday())
@@ -109,6 +128,7 @@ export default function App() {
   const [categoryId, setCategoryId] = useState('')
   const [addError, setAddError] = useState('')
   const [addOpen, setAddOpen] = useState(false)
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [categoriesOpen, setCategoriesOpen] = useState(false)
   const [rewardsOpen, setRewardsOpen] = useState(false)
   const [newCategory, setNewCategory] = useState('')
@@ -197,7 +217,16 @@ export default function App() {
     setState((prev) => updater(prev))
   }
 
-  function handleAddTask(event: FormEvent<HTMLFormElement>) {
+  function resetComposerFields() {
+    setTitle('')
+    setRepetition('')
+    setCategoryId('')
+    setCustomEveryDays('2')
+    setAddError('')
+    setEditingTaskId(null)
+  }
+
+  function handleSaveTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     event.stopPropagation()
 
@@ -230,6 +259,28 @@ export default function App() {
       customRepeat = { everyDays: every }
     }
 
+    if (editingTaskId) {
+      updateState((prev) => ({
+        ...prev,
+        tasks: prev.tasks.map((task) =>
+          task.id === editingTaskId
+            ? {
+                ...task,
+                title: trimmed,
+                categoryId,
+                repetition,
+                customRepeat:
+                  repetition === 'custom' ? customRepeat : undefined,
+              }
+            : task,
+        ),
+      }))
+      resetComposerFields()
+      setAddOpen(false)
+      setToast('Task updated')
+      return
+    }
+
     const maxOrder = dayTasks.reduce((max, t) => Math.max(max, t.order), -1)
     const task: Task = {
       id: uid('task'),
@@ -244,25 +295,33 @@ export default function App() {
     }
 
     updateState((prev) => ({ ...prev, tasks: [...prev.tasks, task] }))
-    setTitle('')
-    setRepetition('')
-    setCategoryId('')
-    setCustomEveryDays('2')
-    setAddError('')
+    resetComposerFields()
     setAddOpen(false)
     setToast('Task added')
   }
 
   function openAddComposer() {
     setRewardsOpen(false)
+    resetComposerFields()
     setAddOpen(true)
+    window.setTimeout(() => titleInputRef.current?.focus(), 80)
+  }
+
+  function openEditComposer(task: Task) {
+    setRewardsOpen(false)
+    setEditingTaskId(task.id)
+    setTitle(task.title)
+    setRepetition(task.repetition)
+    setCategoryId(task.categoryId)
+    setCustomEveryDays(String(task.customRepeat?.everyDays ?? 2))
     setAddError('')
+    setAddOpen(true)
     window.setTimeout(() => titleInputRef.current?.focus(), 80)
   }
 
   function closeAddComposer() {
     setAddOpen(false)
-    setAddError('')
+    resetComposerFields()
   }
 
   function toggleComplete(taskId: string) {
@@ -665,21 +724,33 @@ export default function App() {
                             </span>
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          className="drag-handle"
-                          aria-label="Reorder task"
-                          onPointerDown={(event) => {
-                            event.preventDefault()
-                            event.stopPropagation()
-                            swipeRef.current = null
-                            setSwipeOffset(0)
-                            event.currentTarget.setPointerCapture?.(event.pointerId)
-                            beginDrag(task.id, event.clientY)
-                          }}
-                        >
-                          <BarsIcon />
-                        </button>
+                        <div className="task-actions">
+                          <button
+                            type="button"
+                            className="edit-btn"
+                            aria-label="Edit task"
+                            onClick={() => openEditComposer(task)}
+                          >
+                            <PencilIcon />
+                          </button>
+                          <button
+                            type="button"
+                            className="drag-handle"
+                            aria-label="Reorder task"
+                            onPointerDown={(event) => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                              swipeRef.current = null
+                              setSwipeOffset(0)
+                              event.currentTarget.setPointerCapture?.(
+                                event.pointerId,
+                              )
+                              beginDrag(task.id, event.clientY)
+                            }}
+                          >
+                            <BarsIcon />
+                          </button>
+                        </div>
                       </li>
                     )
                   })}
@@ -716,16 +787,16 @@ export default function App() {
         ) : (
           <form
             className="panel add-panel"
-            onSubmit={handleAddTask}
+            onSubmit={handleSaveTask}
             id={formId}
             noValidate
           >
             <div className="composer-header">
-              <h2>New task</h2>
+              <h2>{editingTaskId ? 'Edit task' : 'New task'}</h2>
               <button
                 type="button"
                 className="icon-btn"
-                aria-label="Close new task"
+                aria-label={editingTaskId ? 'Close edit task' : 'Close new task'}
                 onClick={closeAddComposer}
               >
                 ✕
@@ -817,7 +888,7 @@ export default function App() {
 
             <div className="add-actions">
               <button type="submit" className="btn btn-primary">
-                Add task
+                {editingTaskId ? 'Save task' : 'Add task'}
               </button>
               <button
                 type="button"

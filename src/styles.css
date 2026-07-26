@@ -430,15 +430,43 @@ button {
 .task-item {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  padding: 12px 12px 12px 14px;
+  padding: 12px 10px 12px 14px;
   background: var(--panel-solid);
   border: 1px solid var(--line);
   border-radius: 16px;
   box-shadow: 0 8px 20px rgba(26, 42, 40, 0.06);
   transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   user-select: none;
+}
+
+.task-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.edit-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(31, 77, 69, 0.1);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+
+.edit-btn:active {
+  transform: scale(0.96);
+}
+
+.edit-btn svg {
+  display: block;
 }
 
 .task-item.dragging {
@@ -574,7 +602,8 @@ button {
   color: #ffffff;
 }
 
-.task-item.vacation .drag-handle {
+.task-item.vacation .drag-handle,
+.task-item.vacation .edit-btn {
   background: rgba(255, 255, 255, 0.8);
   color: #9aa7a3;
 }
