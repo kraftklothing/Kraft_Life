@@ -1,4 +1,4 @@
-/** Server-side mirror of AppState — kept in api/ so routes do not import from src/. */
+/** Server-side mirror of AppState — kept server-side so routes do not import from src/. */
 export interface VaultAppState {
   tasks: unknown[]
   categories: unknown[]
