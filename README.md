@@ -37,7 +37,7 @@ Before cloud save works in production, connect Redis storage:
 2. Create a database and **Connect to Project** → select **kraft-life**
 3. **Redeploy** the latest production deployment (Deployments → ⋯ → Redeploy)
 
-Then visit **https://kraft-life.vercel.app**, create your 4–6 digit PIN once, and use that same PIN on every device.
+Then visit **https://kraft-life.vercel.app** → **Settings** (gear icon) → **Cloud sync** → create your 4–6 digit PIN once.
 
 - **Remember on this device** keeps you signed in on that phone/PC
 - **Settings → Lock Kraft Life** requires the PIN again (useful on shared devices)
