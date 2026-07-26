@@ -120,6 +120,31 @@ function ProjectIcon() {
   )
 }
 
+function TasksIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect
+        x="4"
+        y="4"
+        width="16"
+        height="16"
+        rx="3"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path
+        d="m8 12 2.5 2.5L16 9"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+type MainView = 'tasks' | 'projects' | 'rewards' | 'settings'
+
 function PlaneIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -175,9 +200,7 @@ export default function App() {
   const [addError, setAddError] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [rewardsOpen, setRewardsOpen] = useState(false)
-  const [mainView, setMainView] = useState<'tasks' | 'projects'>('tasks')
+  const [mainView, setMainView] = useState<MainView>('tasks')
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [newCategory, setNewCategory] = useState('')
   const [newRewardName, setNewRewardName] = useState('')
@@ -369,9 +392,15 @@ export default function App() {
     setToast('Task added')
   }
 
+  function goToView(view: MainView) {
+    setAddOpen(false)
+    setMainView(view)
+    if (view !== 'projects') setActiveProjectId(null)
+  }
+
   function openAddComposer() {
-    setRewardsOpen(false)
-    if (mainView === 'projects') {
+    if (mainView === 'settings') return
+    if (mainView === 'projects' || mainView === 'rewards') {
       setAddOpen(true)
       setAddError('')
       return
@@ -381,21 +410,7 @@ export default function App() {
     window.setTimeout(() => titleInputRef.current?.focus(), 80)
   }
 
-  function toggleProjectsView() {
-    setAddOpen(false)
-    setSettingsOpen(false)
-    setRewardsOpen(false)
-    if (mainView === 'projects') {
-      setMainView('tasks')
-      setActiveProjectId(null)
-      return
-    }
-    setMainView('projects')
-    setActiveProjectId(null)
-  }
-
   function openEditComposer(task: Task) {
-    setRewardsOpen(false)
     setMainView('tasks')
     setEditingTaskId(task.id)
     setTitle(task.title)
@@ -666,13 +681,7 @@ export default function App() {
   }
 
   function onDayPointerDown(event: ReactPointerEvent<HTMLElement>) {
-    if (
-      mainView !== 'tasks' ||
-      settingsOpen ||
-      rewardsOpen ||
-      addOpen ||
-      dragRef.current
-    ) {
+    if (mainView !== 'tasks' || addOpen || dragRef.current) {
       return
     }
     if (event.pointerType === 'mouse' && event.button !== 0) return
@@ -857,10 +866,7 @@ export default function App() {
           type="button"
           className="dollar-chip"
           aria-label={`${state.dollars} dollars — open rewards`}
-          onClick={() => {
-            setAddOpen(false)
-            setRewardsOpen(true)
-          }}
+          onClick={() => goToView('rewards')}
         >
           ${state.dollars}
         </button>
@@ -870,7 +876,7 @@ export default function App() {
         <h1 className="brand">Kraft Life</h1>
       </div>
 
-      {mainView === 'tasks' ? (
+      {mainView === 'tasks' && (
         <section
           key={viewKey}
           ref={dayPaneRef}
@@ -1019,7 +1025,9 @@ export default function App() {
             </div>
           )}
         </section>
-      ) : (
+      )}
+
+      {mainView === 'projects' && (
         <section className="day-pane projects-pane" aria-label="Projects">
           <div className="day-header">
             <div className="day-label-row projects-title-row">
@@ -1142,61 +1150,252 @@ export default function App() {
         </section>
       )}
 
+      {mainView === 'rewards' && (
+        <section className="day-pane" aria-label="Rewards">
+          <div className="day-header">
+            <div className="day-label-row projects-title-row">
+              <span className="day-nav-spacer" aria-hidden="true" />
+              <p className="day-label">Rewards</p>
+              <span className="day-nav-spacer" aria-hidden="true" />
+            </div>
+            <div className="day-divider" aria-hidden="true" />
+          </div>
+
+          <p className="rewards-balance-inline">
+            Balance: <strong>${state.dollars}</strong>
+          </p>
+
+          {state.rewards.length === 0 ? (
+            <div className="panel empty">
+              <h2>No rewards yet</h2>
+              <p>Tap the green plus to add a reward you can spend $ on.</p>
+            </div>
+          ) : (
+            <div className="task-groups">
+              <section className="task-group" aria-label="Spend rewards">
+                <h2 className="category-heading">Spend</h2>
+                <p className="muted reorder-hint view-hint">
+                  Drag the blue bars to reorder
+                </p>
+                <ul className="task-list">
+                  {state.rewards.map((reward) => (
+                    <li
+                      key={reward.id}
+                      className={`task-item reward-item${
+                        draggingRewardId === reward.id ? ' dragging' : ''
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        className="drag-handle"
+                        aria-label="Reorder reward"
+                        onPointerDown={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          event.currentTarget.setPointerCapture?.(event.pointerId)
+                          beginRewardDrag(reward.id, event.clientY)
+                        }}
+                      >
+                        <BarsIcon />
+                      </button>
+                      <div className="task-body">
+                        <p className="task-title">{reward.name}</p>
+                        <div className="badges">
+                          <span className="badge">${reward.cost}</span>
+                        </div>
+                      </div>
+                      <div className="task-actions">
+                        <button
+                          type="button"
+                          className="btn btn-primary spend-btn-inline"
+                          disabled={state.dollars < reward.cost}
+                          onClick={() => spendReward(reward)}
+                        >
+                          Spend
+                        </button>
+                        <button
+                          type="button"
+                          className="danger-btn"
+                          onClick={() => deleteReward(reward.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </div>
+          )}
+        </section>
+      )}
+
+      {mainView === 'settings' && (
+        <section className="day-pane" aria-label="Settings">
+          <div className="day-header">
+            <div className="day-label-row projects-title-row">
+              <span className="day-nav-spacer" aria-hidden="true" />
+              <p className="day-label">Settings</p>
+              <span className="day-nav-spacer" aria-hidden="true" />
+            </div>
+            <div className="day-divider" aria-hidden="true" />
+          </div>
+
+          <div className="task-groups">
+            <section className="task-group" aria-label="Categories">
+              <h2 className="category-heading">Categories</h2>
+              <p className="muted reorder-hint view-hint">
+                Drag the blue bars to change task list order. Tap a name to
+                rename.
+              </p>
+              <ul className="task-list">
+                {state.categories.map((cat) => (
+                  <li
+                    key={cat.id}
+                    className={`task-item category-item${
+                      draggingCategoryId === cat.id ? ' dragging' : ''
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      className="drag-handle"
+                      aria-label={`Reorder ${cat.name}`}
+                      onPointerDown={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        event.currentTarget.setPointerCapture?.(event.pointerId)
+                        beginCategoryDrag(cat.id, event.clientY)
+                      }}
+                    >
+                      <BarsIcon />
+                    </button>
+                    <input
+                      className="category-name-input in-row"
+                      value={cat.name}
+                      aria-label="Category name"
+                      onChange={(e) => {
+                        const value = e.target.value
+                        updateState((prev) => ({
+                          ...prev,
+                          categories: prev.categories.map((c) =>
+                            c.id === cat.id ? { ...c, name: value } : c,
+                          ),
+                        }))
+                      }}
+                      onBlur={(e) => renameCategory(cat.id, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          ;(e.target as HTMLInputElement).blur()
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="danger-btn"
+                      onClick={() => deleteCategory(cat.id)}
+                    >
+                      Delete
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <div className="panel add-inline-panel">
+                <div className="inline-add">
+                  <input
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    placeholder="New category"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        addCategory()
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={addCategory}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      )}
+
       <div className={`composer${addOpen ? ' composer-open' : ''}`}>
         {!addOpen ? (
-          <div className="composer-collapsed">
+          <nav className="composer-collapsed bottom-nav" aria-label="Main views">
+            {mainView !== 'settings' ? (
+              <button
+                type="button"
+                className="circle-btn plus-btn"
+                aria-label={
+                  mainView === 'projects'
+                    ? activeProject
+                      ? 'New step'
+                      : 'New project'
+                    : mainView === 'rewards'
+                      ? 'New reward'
+                      : 'New task'
+                }
+                onClick={openAddComposer}
+              >
+                <PlusIcon />
+              </button>
+            ) : (
+              <span className="nav-plus-spacer" aria-hidden="true" />
+            )}
+            <span className="nav-gap" aria-hidden="true" />
             <button
               type="button"
-              className="circle-btn plus-btn"
-              aria-label={
-                mainView === 'projects'
-                  ? activeProject
-                    ? 'New step'
-                    : 'New project'
-                  : 'New task'
-              }
-              onClick={openAddComposer}
+              className={`circle-btn tasks-btn${
+                mainView === 'tasks' ? ' active' : ''
+              }`}
+              aria-label="Tasks"
+              aria-pressed={mainView === 'tasks'}
+              onClick={() => goToView('tasks')}
             >
-              <PlusIcon />
+              <TasksIcon />
             </button>
             <button
               type="button"
               className={`circle-btn project-btn${
                 mainView === 'projects' ? ' active' : ''
               }`}
-              aria-label={
-                mainView === 'projects' ? 'Back to tasks' : 'Open projects'
-              }
+              aria-label="Projects"
               aria-pressed={mainView === 'projects'}
-              onClick={toggleProjectsView}
+              onClick={() => goToView('projects')}
             >
               <ProjectIcon />
             </button>
             <button
               type="button"
-              className="circle-btn gift-btn"
-              aria-label="Open rewards"
-              onClick={() => {
-                setAddOpen(false)
-                setSettingsOpen(false)
-                setRewardsOpen(true)
-              }}
+              className={`circle-btn gift-btn${
+                mainView === 'rewards' ? ' active' : ''
+              }`}
+              aria-label="Rewards"
+              aria-pressed={mainView === 'rewards'}
+              onClick={() => goToView('rewards')}
             >
               <GiftIcon />
             </button>
             <button
               type="button"
-              className="circle-btn settings-btn"
-              aria-label="Open settings"
-              onClick={() => {
-                setAddOpen(false)
-                setRewardsOpen(false)
-                setSettingsOpen(true)
-              }}
+              className={`circle-btn settings-btn${
+                mainView === 'settings' ? ' active' : ''
+              }`}
+              aria-label="Settings"
+              aria-pressed={mainView === 'settings'}
+              onClick={() => goToView('settings')}
             >
               <SettingsIcon />
             </button>
-          </div>
+          </nav>
         ) : mainView === 'projects' ? (
           <div className="panel add-panel">
             <div className="composer-header">
@@ -1277,6 +1476,52 @@ export default function App() {
                 </div>
               </>
             )}
+          </div>
+        ) : mainView === 'rewards' ? (
+          <div className="panel add-panel">
+            <div className="composer-header">
+              <h2>New reward</h2>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Close"
+                onClick={closeAddComposer}
+              >
+                ✕
+              </button>
+            </div>
+            <label>
+              Reward name
+              <input
+                value={newRewardName}
+                onChange={(e) => setNewRewardName(e.target.value)}
+                placeholder="What are you saving for?"
+                autoComplete="off"
+              />
+            </label>
+            <label>
+              Cost in $
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                step={1}
+                value={newRewardCost}
+                onChange={(e) => setNewRewardCost(e.target.value)}
+              />
+            </label>
+            <div className="add-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  addReward()
+                  setAddOpen(false)
+                }}
+              >
+                Add reward
+              </button>
+            </div>
           </div>
         ) : (
           <form
@@ -1388,220 +1633,6 @@ export default function App() {
           </form>
         )}
       </div>
-
-      {rewardsOpen ? (
-        <div
-          className="overlay"
-          role="presentation"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setRewardsOpen(false)
-          }}
-        >
-          <div
-            className="sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Rewards"
-          >
-            <div className="sheet-header">
-              <h2>Rewards</h2>
-              <button
-                type="button"
-                className="icon-btn"
-                aria-label="Close rewards"
-                onClick={() => setRewardsOpen(false)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <p className="rewards-balance">
-              Balance: <strong>${state.dollars}</strong>
-            </p>
-
-            <div className="settings-section">
-              <h3>Spend</h3>
-              <p className="muted reorder-hint">Drag the blue bars to reorder</p>
-              {state.rewards.length === 0 ? (
-                <p className="muted">No rewards yet — add one below.</p>
-              ) : (
-                state.rewards.map((reward) => (
-                  <div
-                    className={`reward-row${
-                      draggingRewardId === reward.id ? ' dragging' : ''
-                    }`}
-                    key={reward.id}
-                  >
-                    <button
-                      type="button"
-                      className="drag-handle"
-                      aria-label="Reorder reward"
-                      onPointerDown={(event) => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        event.currentTarget.setPointerCapture?.(event.pointerId)
-                        beginRewardDrag(reward.id, event.clientY)
-                      }}
-                    >
-                      <BarsIcon />
-                    </button>
-                    <div className="reward-main">
-                      <div className="reward-title-row">
-                        <strong>{reward.name}</strong>
-                        <span className="reward-cost">${reward.cost}</span>
-                      </div>
-                      <div className="reward-actions">
-                        <button
-                          type="button"
-                          className="btn btn-primary spend-btn"
-                          disabled={state.dollars < reward.cost}
-                          onClick={() => spendReward(reward)}
-                        >
-                          Spend
-                        </button>
-                        <button
-                          type="button"
-                          className="danger-btn"
-                          onClick={() => deleteReward(reward.id)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="settings-section">
-              <h3>Add reward</h3>
-              <div className="inline-add reward-add">
-                <input
-                  value={newRewardName}
-                  onChange={(e) => setNewRewardName(e.target.value)}
-                  placeholder="Reward name"
-                />
-                <input
-                  className="cost-input"
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  step={1}
-                  value={newRewardCost}
-                  onChange={(e) => setNewRewardCost(e.target.value)}
-                  aria-label="Cost in dollars"
-                />
-                <button type="button" className="btn btn-primary" onClick={addReward}>
-                  Add
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {settingsOpen ? (
-        <div
-          className="overlay"
-          role="presentation"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setSettingsOpen(false)
-          }}
-        >
-          <div
-            className="sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Settings"
-          >
-            <div className="sheet-header">
-              <h2>Settings</h2>
-              <button
-                type="button"
-                className="icon-btn"
-                aria-label="Close settings"
-                onClick={() => setSettingsOpen(false)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="settings-section">
-              <h3>Categories</h3>
-              <p className="muted reorder-hint">
-                Drag the blue bars to change the order on your task list. Tap a
-                name to rename.
-              </p>
-              {state.categories.map((cat) => (
-                <div
-                  className={`category-row${
-                    draggingCategoryId === cat.id ? ' dragging' : ''
-                  }`}
-                  key={cat.id}
-                >
-                  <button
-                    type="button"
-                    className="drag-handle"
-                    aria-label={`Reorder ${cat.name}`}
-                    onPointerDown={(event) => {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      event.currentTarget.setPointerCapture?.(event.pointerId)
-                      beginCategoryDrag(cat.id, event.clientY)
-                    }}
-                  >
-                    <BarsIcon />
-                  </button>
-                  <input
-                    className="category-name-input"
-                    value={cat.name}
-                    aria-label="Category name"
-                    onChange={(e) => {
-                      const value = e.target.value
-                      updateState((prev) => ({
-                        ...prev,
-                        categories: prev.categories.map((c) =>
-                          c.id === cat.id ? { ...c, name: value } : c,
-                        ),
-                      }))
-                    }}
-                    onBlur={(e) => renameCategory(cat.id, e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        ;(e.target as HTMLInputElement).blur()
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="danger-btn"
-                    onClick={() => deleteCategory(cat.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              ))}
-              <div className="inline-add">
-                <input
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value)}
-                  placeholder="New category"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      addCategory()
-                    }
-                  }}
-                />
-                <button type="button" className="btn btn-primary" onClick={addCategory}>
-                  Add
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {toast ? <div className="toast">{toast}</div> : null}
     </div>

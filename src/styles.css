@@ -270,13 +270,25 @@ button {
   pointer-events: auto;
 }
 
-.composer-collapsed {
+.composer-collapsed,
+.bottom-nav {
   display: flex;
   justify-content: center;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
+  flex-wrap: nowrap;
+  gap: 10px;
   animation: rise-in 0.35s ease both;
+}
+
+.nav-gap {
+  width: 18px;
+  flex-shrink: 0;
+}
+
+.nav-plus-spacer {
+  width: 58px;
+  height: 58px;
+  flex-shrink: 0;
 }
 
 .circle-btn {
@@ -311,10 +323,73 @@ button {
   border: 1px solid var(--line);
 }
 
+.tasks-btn {
+  background: var(--panel-solid);
+  color: var(--accent);
+  border: 1px solid var(--line);
+}
+
+.tasks-btn.active {
+  background: var(--accent);
+  color: #f7fffb;
+  border-color: var(--accent);
+}
+
 .project-btn.active {
   background: #1f6f8a;
   color: #f4fbff;
   border-color: #1f6f8a;
+}
+
+.gift-btn.active {
+  background: #b45309;
+  color: #fff8f1;
+  border-color: #b45309;
+}
+
+.settings-btn.active {
+  background: var(--ink-soft);
+  color: #f7fffb;
+  border-color: var(--ink-soft);
+}
+
+.rewards-balance-inline {
+  margin: 0 4px 4px;
+  text-align: center;
+  font-size: 1.05rem;
+}
+
+.view-hint {
+  margin: 0 4px 8px;
+}
+
+.reward-item,
+.category-item {
+  grid-template-columns: auto 1fr auto;
+}
+
+.spend-btn-inline {
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.spend-btn-inline:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.category-name-input.in-row {
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 1.02rem;
+  font-weight: 600;
+  padding: 8px 4px;
+}
+
+.add-inline-panel {
+  margin-top: 10px;
+  padding: 12px;
 }
 
 .projects-title-row {
