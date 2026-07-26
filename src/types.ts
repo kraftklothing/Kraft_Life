@@ -35,16 +35,19 @@ export interface Category {
   builtin: boolean
 }
 
-export interface Profile {
-  displayName: string
-  email: string
+export interface Reward {
+  id: string
+  name: string
+  cost: number
 }
 
 export interface AppState {
   tasks: Task[]
   categories: Category[]
   dollars: number
-  profile: Profile
+  rewards: Reward[]
+  /** Date keys (YYYY-MM-DD) with vacation mode on for that day only. */
+  vacationDays: Record<string, boolean>
   /** When true, header shows percent complete instead of counts. */
   showPercent: boolean
 }
@@ -53,6 +56,12 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'general', name: 'General', builtin: true },
   { id: 'personal', name: 'Personal', builtin: true },
   { id: 'work', name: 'Work', builtin: true },
+]
+
+export const DEFAULT_REWARDS: Reward[] = [
+  { id: 'coffee', name: 'Coffee treat', cost: 3 },
+  { id: 'movie', name: 'Movie night', cost: 8 },
+  { id: 'dinner', name: 'Nice dinner', cost: 15 },
 ]
 
 export const REPETITION_LABELS: Record<Repetition, string> = {

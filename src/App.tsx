@@ -15,6 +15,7 @@ import {
   type AppState,
   type Category,
   type Repetition,
+  type Reward,
   type Task,
 } from './types'
 
@@ -32,15 +33,53 @@ function BarsIcon() {
   )
 }
 
-function ProfileIcon() {
+function PlusIcon() {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="2" />
+    <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">
       <path
-        d="M4 20c1.5-3.5 4.2-5 8-5s6.5 1.5 8 5"
+        d="M14 6v16M6 14h16"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+function GiftIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M3 10h18v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V10Z"
         stroke="currentColor"
         strokeWidth="2"
-        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M3 10h18V8a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v2Z" stroke="currentColor" strokeWidth="2" />
+      <path d="M12 7v15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path
+        d="M12 7c-1.8-2.8-4.8-2.8-5.5-1.2C5.7 7.2 7.4 9 12 7Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 7c1.8-2.8 4.8-2.8 5.5-1.2C18.3 7.2 16.6 9 12 7Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function PlaneIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M10.5 12.5 3 10l1-2 7.5 1.5L17 3l2 1-3.5 8.5L22 15l-1 2-7.5-2.5L10 21l-2-1 2.5-7.5Z"
+        fill="currentColor"
       />
     </svg>
   )
@@ -70,8 +109,11 @@ export default function App() {
   const [categoryId, setCategoryId] = useState('')
   const [addError, setAddError] = useState('')
   const [addOpen, setAddOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [categoriesOpen, setCategoriesOpen] = useState(false)
+  const [rewardsOpen, setRewardsOpen] = useState(false)
   const [newCategory, setNewCategory] = useState('')
+  const [newRewardName, setNewRewardName] = useState('')
+  const [newRewardCost, setNewRewardCost] = useState('5')
   const [toast, setToast] = useState('')
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
@@ -97,6 +139,7 @@ export default function App() {
 
   const todayKey = toDateKey(startToday())
   const viewKey = toDateKey(viewDate)
+  const vacationOn = Boolean(state.vacationDays[viewKey])
 
   useEffect(() => {
     saveState(state)
@@ -182,6 +225,7 @@ export default function App() {
   }
 
   function openAddComposer() {
+    setRewardsOpen(false)
     setAddOpen(true)
     setAddError('')
     window.setTimeout(() => titleInputRef.current?.focus(), 80)
@@ -209,6 +253,52 @@ export default function App() {
       })
       return { ...prev, tasks, dollars }
     })
+  }
+
+  function toggleVacationMode() {
+    updateState((prev) => {
+      const next = { ...prev.vacationDays }
+      if (next[viewKey]) delete next[viewKey]
+      else next[viewKey] = true
+      return { ...prev, vacationDays: next }
+    })
+  }
+
+  function spendReward(reward: Reward) {
+    if (state.dollars < reward.cost) {
+      setToast(`Need $${reward.cost}`)
+      return
+    }
+    updateState((prev) => ({
+      ...prev,
+      dollars: prev.dollars - reward.cost,
+    }))
+    setToast(`Spent $${reward.cost} on ${reward.name}`)
+  }
+
+  function addReward() {
+    const name = newRewardName.trim()
+    const cost = Number.parseInt(newRewardCost, 10)
+    if (!name) {
+      setToast('Name your reward')
+      return
+    }
+    if (!Number.isFinite(cost) || cost < 1) {
+      setToast('Cost must be at least $1')
+      return
+    }
+    const reward: Reward = { id: uid('reward'), name, cost }
+    updateState((prev) => ({ ...prev, rewards: [...prev.rewards, reward] }))
+    setNewRewardName('')
+    setNewRewardCost('5')
+    setToast('Reward added')
+  }
+
+  function deleteReward(id: string) {
+    updateState((prev) => ({
+      ...prev,
+      rewards: prev.rewards.filter((r) => r.id !== id),
+    }))
   }
 
   function addCategory() {
@@ -249,13 +339,13 @@ export default function App() {
     if (!(target instanceof Element)) return false
     return Boolean(
       target.closest(
-        'button, a, input, select, textarea, label, .drag-handle, .add-panel',
+        'button, a, input, select, textarea, label, .drag-handle, .add-panel, .composer',
       ),
     )
   }
 
   function onDayPointerDown(event: ReactPointerEvent<HTMLElement>) {
-    if (settingsOpen || dragRef.current) return
+    if (categoriesOpen || rewardsOpen || addOpen || dragRef.current) return
     if (event.pointerType === 'mouse' && event.button !== 0) return
     if (isInteractiveTarget(event.target)) return
     swipeRef.current = {
@@ -287,7 +377,6 @@ export default function App() {
 
     if (start.locked !== 'x') return
     event.preventDefault()
-    // Rubber-band a little so the day feels attached to the finger.
     const dampened = Math.max(-140, Math.min(140, dx * 0.85))
     setSwipeOffset(dampened)
   }
@@ -306,24 +395,9 @@ export default function App() {
 
     const dx = clientX - start.x
     const threshold = 56
-    if (dx <= -threshold) {
-      goToDay(1) // swipe left → next day
-    } else if (dx >= threshold) {
-      goToDay(-1) // swipe right → previous day
-    } else {
-      setSwipeOffset(0)
-    }
-  }
-
-  function onDayPointerUp(event: ReactPointerEvent<HTMLElement>) {
-    finishDaySwipe(event.clientX, event.pointerId)
-  }
-
-  function onDayPointerCancel(event: ReactPointerEvent<HTMLElement>) {
-    if (swipeRef.current?.pointerId === event.pointerId) {
-      swipeRef.current = null
-      setSwipeOffset(0)
-    }
+    if (dx <= -threshold) goToDay(1)
+    else if (dx >= threshold) goToDay(-1)
+    else setSwipeOffset(0)
   }
 
   function beginDrag(taskId: string, clientY: number) {
@@ -383,7 +457,7 @@ export default function App() {
   }, [])
 
   return (
-    <div className="app">
+    <div className={`app${vacationOn ? ' vacation-day' : ''}`}>
       <header className="top-bar">
         <button
           type="button"
@@ -401,9 +475,17 @@ export default function App() {
             ? `${percent}% complete`
             : `${completedCount} done · ${remainingCount} left`}
         </button>
-        <div className="dollar-chip" aria-label={`${state.dollars} dollars earned`}>
+        <button
+          type="button"
+          className="dollar-chip"
+          aria-label={`${state.dollars} dollars — open rewards`}
+          onClick={() => {
+            setAddOpen(false)
+            setRewardsOpen(true)
+          }}
+        >
           ${state.dollars}
-        </div>
+        </button>
       </header>
 
       <div className="brand-block">
@@ -419,8 +501,13 @@ export default function App() {
         aria-label="Tasks for selected day"
         onPointerDown={onDayPointerDown}
         onPointerMove={onDayPointerMove}
-        onPointerUp={onDayPointerUp}
-        onPointerCancel={onDayPointerCancel}
+        onPointerUp={(e) => finishDaySwipe(e.clientX, e.pointerId)}
+        onPointerCancel={(e) => {
+          if (swipeRef.current?.pointerId === e.pointerId) {
+            swipeRef.current = null
+            setSwipeOffset(0)
+          }
+        }}
         style={
           swipeOffset !== 0
             ? { transform: `translateX(${swipeOffset}px)` }
@@ -437,7 +524,20 @@ export default function App() {
             >
               ‹
             </button>
-            <p className="day-label">{formatDayHeading(viewDate, todayKey)}</p>
+            <div className="day-label-row">
+              <p className="day-label">{formatDayHeading(viewDate, todayKey)}</p>
+              <button
+                type="button"
+                className={`plane-btn${vacationOn ? ' active' : ''}`}
+                aria-label={
+                  vacationOn ? 'Turn off vacation mode' : 'Turn on vacation mode'
+                }
+                aria-pressed={vacationOn}
+                onClick={toggleVacationMode}
+              >
+                <PlaneIcon />
+              </button>
+            </div>
             <button
               type="button"
               className="day-nav-btn"
@@ -447,17 +547,17 @@ export default function App() {
               ›
             </button>
           </div>
-          <p className="hint">Swipe left for next day · right for previous</p>
         </div>
+
+        {vacationOn ? <p className="vacation-banner">Vacation mode</p> : null}
 
         {dayTasks.length === 0 ? (
           <div className="panel empty">
             <h2>Nothing listed yet</h2>
             <p>
-              Tap <strong>New task</strong> at the bottom to add what you want
-              to finish {viewKey === todayKey ? 'today' : 'this day'}.
+              Tap the green plus at the bottom to add what you want to finish{' '}
+              {viewKey === todayKey ? 'today' : 'this day'}.
             </p>
-            <p className="empty-swipe-hint">Swipe sideways to change days</p>
           </div>
         ) : (
           <ul className="task-list">
@@ -468,7 +568,7 @@ export default function App() {
                   key={task.id}
                   className={`task-item${done ? ' completed' : ''}${
                     draggingId === task.id ? ' dragging' : ''
-                  }`}
+                  }${vacationOn ? ' vacation' : ''}`}
                 >
                   <button
                     type="button"
@@ -517,18 +617,22 @@ export default function App() {
           <div className="composer-collapsed">
             <button
               type="button"
-              className="new-task-btn"
+              className="circle-btn plus-btn"
+              aria-label="New task"
               onClick={openAddComposer}
             >
-              New task
+              <PlusIcon />
             </button>
             <button
               type="button"
-              className="fab-profile"
-              aria-label="Open profile and settings"
-              onClick={() => setSettingsOpen(true)}
+              className="circle-btn gift-btn"
+              aria-label="Open rewards"
+              onClick={() => {
+                setAddOpen(false)
+                setRewardsOpen(true)
+              }}
             >
-              <ProfileIcon />
+              <GiftIcon />
             </button>
           </div>
         ) : (
@@ -640,7 +744,7 @@ export default function App() {
               <button
                 type="button"
                 className="btn btn-ghost"
-                onClick={() => setSettingsOpen(true)}
+                onClick={() => setCategoriesOpen(true)}
               >
                 Categories
               </button>
@@ -649,67 +753,123 @@ export default function App() {
         )}
       </div>
 
-      {settingsOpen ? (
+      {rewardsOpen ? (
         <div
           className="overlay"
           role="presentation"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setSettingsOpen(false)
+            if (e.target === e.currentTarget) setRewardsOpen(false)
           }}
         >
           <div
             className="sheet"
             role="dialog"
             aria-modal="true"
-            aria-label="Settings and my account"
+            aria-label="Rewards"
           >
             <div className="sheet-header">
-              <h2>Settings / My account</h2>
+              <h2>Rewards</h2>
               <button
                 type="button"
                 className="icon-btn"
-                aria-label="Close settings"
-                onClick={() => setSettingsOpen(false)}
+                aria-label="Close rewards"
+                onClick={() => setRewardsOpen(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="rewards-balance">
+              Balance: <strong>${state.dollars}</strong>
+            </p>
+
+            <div className="settings-section">
+              <h3>Spend</h3>
+              {state.rewards.length === 0 ? (
+                <p className="muted">No rewards yet — add one below.</p>
+              ) : (
+                state.rewards.map((reward) => (
+                  <div className="reward-row" key={reward.id}>
+                    <div>
+                      <strong>{reward.name}</strong>
+                      <span className="reward-cost">${reward.cost}</span>
+                    </div>
+                    <div className="reward-actions">
+                      <button
+                        type="button"
+                        className="btn btn-primary spend-btn"
+                        disabled={state.dollars < reward.cost}
+                        onClick={() => spendReward(reward)}
+                      >
+                        Spend
+                      </button>
+                      <button
+                        type="button"
+                        className="danger-btn"
+                        onClick={() => deleteReward(reward.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="settings-section">
+              <h3>Add reward</h3>
+              <div className="inline-add reward-add">
+                <input
+                  value={newRewardName}
+                  onChange={(e) => setNewRewardName(e.target.value)}
+                  placeholder="Reward name"
+                />
+                <input
+                  className="cost-input"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  step={1}
+                  value={newRewardCost}
+                  onChange={(e) => setNewRewardCost(e.target.value)}
+                  aria-label="Cost in dollars"
+                />
+                <button type="button" className="btn btn-primary" onClick={addReward}>
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {categoriesOpen ? (
+        <div
+          className="overlay"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCategoriesOpen(false)
+          }}
+        >
+          <div
+            className="sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Categories"
+          >
+            <div className="sheet-header">
+              <h2>Categories</h2>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Close categories"
+                onClick={() => setCategoriesOpen(false)}
               >
                 ✕
               </button>
             </div>
 
             <div className="settings-section">
-              <h3>My account</h3>
-              <label>
-                Display name
-                <input
-                  value={state.profile.displayName}
-                  onChange={(e) =>
-                    updateState((prev) => ({
-                      ...prev,
-                      profile: { ...prev.profile, displayName: e.target.value },
-                    }))
-                  }
-                  placeholder="Your name"
-                  autoComplete="name"
-                />
-              </label>
-              <label>
-                Email
-                <input
-                  type="email"
-                  value={state.profile.email}
-                  onChange={(e) =>
-                    updateState((prev) => ({
-                      ...prev,
-                      profile: { ...prev.profile, email: e.target.value },
-                    }))
-                  }
-                  placeholder="you@example.com"
-                  autoComplete="email"
-                />
-              </label>
-            </div>
-
-            <div className="settings-section">
-              <h3>Categories</h3>
               {state.categories.map((cat) => (
                 <div className="category-row" key={cat.id}>
                   <span>
@@ -743,13 +903,6 @@ export default function App() {
                   Add
                 </button>
               </div>
-            </div>
-
-            <div className="settings-section">
-              <h3>Progress</h3>
-              <p style={{ margin: 0, color: 'var(--ink-soft)' }}>
-                Lifetime completions: <strong>${state.dollars}</strong>
-              </p>
             </div>
           </div>
         </div>

@@ -156,6 +156,49 @@ button {
   gap: 8px;
 }
 
+.day-label-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.plane-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink-soft);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.plane-btn:active {
+  transform: scale(0.96);
+}
+
+.plane-btn.active {
+  background: #1f6f8a;
+  border-color: #1f6f8a;
+  color: #f4fbff;
+}
+
+.vacation-banner {
+  margin: 4px 0 0;
+  text-align: center;
+  font-family: var(--font-brand);
+  font-size: clamp(2rem, 9vw, 2.8rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #1f6f8a;
+  line-height: 1.05;
+  animation: rise-in 0.28s ease both;
+}
+
 .day-nav-btn {
   width: 44px;
   height: 44px;
@@ -183,20 +226,6 @@ button {
   font-weight: 600;
 }
 
-.hint {
-  margin: 8px 0 0;
-  color: var(--ink-soft);
-  font-size: 0.8rem;
-  opacity: 0.85;
-}
-
-.empty-swipe-hint {
-  margin: 14px 0 0;
-  font-size: 0.85rem;
-  color: var(--accent-soft);
-  font-weight: 500;
-}
-
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -221,28 +250,37 @@ button {
 }
 
 .composer-collapsed {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
+  display: flex;
+  justify-content: center;
   align-items: center;
+  gap: 16px;
   animation: rise-in 0.35s ease both;
 }
 
-.new-task-btn {
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 16px 18px;
-  background: var(--accent);
-  color: #f7fffb;
-  font-weight: 700;
-  font-size: 1.05rem;
+.circle-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  display: grid;
+  place-items: center;
   box-shadow: var(--shadow);
-  transition: transform 0.15s ease, background 0.2s ease;
+  transition: transform 0.15s ease, filter 0.2s ease;
 }
 
-.new-task-btn:active {
-  transform: scale(0.98);
+.circle-btn:active {
+  transform: scale(0.96);
+}
+
+.plus-btn {
+  background: #2f9e6b;
+  color: #f4fff8;
+}
+
+.gift-btn {
+  background: var(--panel-solid);
+  color: #b45309;
+  border: 1px solid var(--line);
 }
 
 .composer-open .add-panel {
@@ -480,22 +518,95 @@ button {
   font-size: 0.95rem;
 }
 
-.fab-profile {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: 1px solid var(--line);
-  background: var(--panel-solid);
-  color: var(--accent);
-  box-shadow: var(--shadow);
-  display: grid;
-  place-items: center;
-  transition: transform 0.18s ease;
-  flex-shrink: 0;
+.task-item.vacation {
+  background: #ffffff;
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 10px 24px rgba(26, 42, 40, 0.05);
 }
 
-.fab-profile:active {
-  transform: scale(0.96);
+.task-item.vacation .task-title,
+.task-item.vacation .badge {
+  color: #7a8683;
+}
+
+.task-item.vacation .badge,
+.task-item.vacation .badge.rep {
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(122, 134, 131, 0.2);
+}
+
+.task-item.vacation .check {
+  border-color: #c5cecb;
+  background: #ffffff;
+}
+
+.task-item.vacation.completed .check {
+  background: #c5cecb;
+  border-color: #c5cecb;
+  color: #ffffff;
+}
+
+.task-item.vacation .drag-handle {
+  background: rgba(255, 255, 255, 0.8);
+  color: #9aa7a3;
+}
+
+.rewards-balance {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+
+.reward-row {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.reward-row > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.reward-cost {
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.reward-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.spend-btn {
+  flex: 1;
+  padding: 10px 14px;
+}
+
+.spend-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.reward-add {
+  grid-template-columns: 1fr 72px auto;
+}
+
+.cost-input {
+  text-align: center;
+}
+
+.muted {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.dollar-chip {
+  cursor: pointer;
 }
 
 .overlay {
