@@ -454,8 +454,8 @@ export default function App() {
           <div className="panel empty">
             <h2>Nothing listed yet</h2>
             <p>
-              Add what you want to finish{' '}
-              {viewKey === todayKey ? 'today' : 'this day'}.
+              Tap <strong>New task</strong> at the bottom to add what you want
+              to finish {viewKey === todayKey ? 'today' : 'this day'}.
             </p>
             <p className="empty-swipe-hint">Swipe sideways to change days</p>
           </div>
