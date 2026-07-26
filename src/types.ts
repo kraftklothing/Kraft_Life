@@ -31,8 +31,6 @@ export interface Task {
 export interface Category {
   id: CategoryId
   name: string
-  /** Built-in categories cannot be deleted. */
-  builtin: boolean
 }
 
 export interface Reward {
@@ -53,9 +51,9 @@ export interface AppState {
 }
 
 export const DEFAULT_CATEGORIES: Category[] = [
-  { id: 'general', name: 'General', builtin: true },
-  { id: 'personal', name: 'Personal', builtin: true },
-  { id: 'work', name: 'Work', builtin: true },
+  { id: 'general', name: 'General' },
+  { id: 'personal', name: 'Personal' },
+  { id: 'work', name: 'Work' },
 ]
 
 export const DEFAULT_REWARDS: Reward[] = [

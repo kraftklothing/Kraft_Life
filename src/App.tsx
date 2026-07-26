@@ -116,6 +116,7 @@ export default function App() {
   const [newRewardCost, setNewRewardCost] = useState('5')
   const [toast, setToast] = useState('')
   const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [draggingRewardId, setDraggingRewardId] = useState<string | null>(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
   const [dayAnim, setDayAnim] = useState<'none' | 'from-left' | 'from-right'>(
     'none',
@@ -132,6 +133,11 @@ export default function App() {
   } | null>(null)
   const dayPaneRef = useRef<HTMLElement | null>(null)
   const dragRef = useRef<{
+    id: string
+    startY: number
+    orderSnapshot: string[]
+  } | null>(null)
+  const rewardDragRef = useRef<{
     id: string
     startY: number
     orderSnapshot: string[]
@@ -156,13 +162,36 @@ export default function App() {
     return sortTasksForDay(applicable)
   }, [state.tasks, viewKey])
 
+  const groupedDayTasks = useMemo(() => {
+    const byCat = new Map<string, Task[]>()
+    for (const task of dayTasks) {
+      const list = byCat.get(task.categoryId) ?? []
+      list.push(task)
+      byCat.set(task.categoryId, list)
+    }
+
+    const groups: { id: string; name: string; tasks: Task[] }[] = []
+    for (const cat of state.categories) {
+      const tasks = byCat.get(cat.id)
+      if (!tasks?.length) continue
+      groups.push({ id: cat.id, name: cat.name, tasks: sortTasksForDay(tasks) })
+      byCat.delete(cat.id)
+    }
+    for (const [id, tasks] of byCat) {
+      if (!tasks.length) continue
+      groups.push({
+        id,
+        name: 'Uncategorized',
+        tasks: sortTasksForDay(tasks),
+      })
+    }
+    return groups
+  }, [dayTasks, state.categories])
+
   const completedCount = dayTasks.filter((t) => isCompletedOn(t, viewKey)).length
   const remainingCount = dayTasks.length - completedCount
   const percent =
     dayTasks.length === 0 ? 0 : Math.round((completedCount / dayTasks.length) * 100)
-
-  const categoryName = (id: string) =>
-    state.categories.find((c) => c.id === id)?.name ?? 'General'
 
   function updateState(updater: (prev: AppState) => AppState) {
     setState((prev) => updater(prev))
@@ -308,24 +337,37 @@ export default function App() {
       setToast('Category already exists')
       return
     }
-    const cat: Category = { id: uid('cat'), name, builtin: false }
+    const cat: Category = { id: uid('cat'), name }
     updateState((prev) => ({ ...prev, categories: [...prev.categories, cat] }))
     setNewCategory('')
     setToast('Category added')
   }
 
   function deleteCategory(id: string) {
-    const cat = state.categories.find((c) => c.id === id)
-    if (!cat || cat.builtin) return
+    if (state.categories.length <= 1) {
+      setToast('Keep at least one category')
+      return
+    }
+    const fallback = state.categories.find((c) => c.id !== id)?.id
+    if (!fallback) return
     updateState((prev) => ({
       ...prev,
       categories: prev.categories.filter((c) => c.id !== id),
       tasks: prev.tasks.map((t) =>
-        t.categoryId === id ? { ...t, categoryId: 'general' } : t,
+        t.categoryId === id ? { ...t, categoryId: fallback } : t,
       ),
     }))
-    if (categoryId === id) setCategoryId('general')
+    if (categoryId === id) setCategoryId(fallback)
     setToast('Category removed')
+  }
+
+  function beginRewardDrag(rewardId: string, clientY: number) {
+    rewardDragRef.current = {
+      id: rewardId,
+      startY: clientY,
+      orderSnapshot: state.rewards.map((r) => r.id),
+    }
+    setDraggingRewardId(rewardId)
   }
 
   function goToDay(delta: number) {
@@ -401,50 +443,80 @@ export default function App() {
   }
 
   function beginDrag(taskId: string, clientY: number) {
+    const task = dayTasks.find((t) => t.id === taskId)
+    if (!task) return
     dragRef.current = {
       id: taskId,
       startY: clientY,
-      orderSnapshot: dayTasks.map((t) => t.id),
+      orderSnapshot: dayTasks
+        .filter((t) => t.categoryId === task.categoryId)
+        .map((t) => t.id),
     }
     setDraggingId(taskId)
   }
 
   useEffect(() => {
-    function onMove(event: PointerEvent) {
-      const drag = dragRef.current
-      if (!drag) return
-      event.preventDefault()
-
-      const delta = event.clientY - drag.startY
-      const rowHeight = 72
+    function reorderSnapshot(
+      drag: { id: string; startY: number; orderSnapshot: string[] },
+      clientY: number,
+      rowHeight: number,
+    ): string[] | null {
+      const delta = clientY - drag.startY
       const from = drag.orderSnapshot.indexOf(drag.id)
-      if (from < 0) return
+      if (from < 0) return null
       let to = from + Math.round(delta / rowHeight)
       to = Math.max(0, Math.min(drag.orderSnapshot.length - 1, to))
-      if (to === from) return
-
+      if (to === from) return null
       const nextOrder = [...drag.orderSnapshot]
       const [moved] = nextOrder.splice(from, 1)
       nextOrder.splice(to, 0, moved)
       drag.orderSnapshot = nextOrder
-      drag.startY = event.clientY
+      drag.startY = clientY
+      return nextOrder
+    }
 
+    function onMove(event: PointerEvent) {
+      const taskDrag = dragRef.current
+      if (taskDrag) {
+        event.preventDefault()
+        const nextOrder = reorderSnapshot(taskDrag, event.clientY, 72)
+        if (!nextOrder) return
+        setState((prev) => {
+          const orderMap = new Map(nextOrder.map((id, index) => [id, index]))
+          return {
+            ...prev,
+            tasks: prev.tasks.map((task) =>
+              orderMap.has(task.id)
+                ? { ...task, order: orderMap.get(task.id)! }
+                : task,
+            ),
+          }
+        })
+        return
+      }
+
+      const rewardDrag = rewardDragRef.current
+      if (!rewardDrag) return
+      event.preventDefault()
+      const nextOrder = reorderSnapshot(rewardDrag, event.clientY, 88)
+      if (!nextOrder) return
       setState((prev) => {
-        const orderMap = new Map(nextOrder.map((id, index) => [id, index]))
-        return {
-          ...prev,
-          tasks: prev.tasks.map((task) =>
-            orderMap.has(task.id)
-              ? { ...task, order: orderMap.get(task.id)! }
-              : task,
-          ),
-        }
+        const byId = new Map(prev.rewards.map((r) => [r.id, r]))
+        const rewards = nextOrder
+          .map((id) => byId.get(id))
+          .filter((r): r is Reward => Boolean(r))
+        return { ...prev, rewards }
       })
     }
     function onUp() {
-      if (!dragRef.current) return
-      dragRef.current = null
-      setDraggingId(null)
+      if (dragRef.current) {
+        dragRef.current = null
+        setDraggingId(null)
+      }
+      if (rewardDragRef.current) {
+        rewardDragRef.current = null
+        setDraggingRewardId(null)
+      }
     }
     window.addEventListener('pointermove', onMove, { passive: false })
     window.addEventListener('pointerup', onUp)
@@ -560,55 +632,61 @@ export default function App() {
             </p>
           </div>
         ) : (
-          <ul className="task-list">
-            {dayTasks.map((task) => {
-              const done = isCompletedOn(task, viewKey)
-              return (
-                <li
-                  key={task.id}
-                  className={`task-item${done ? ' completed' : ''}${
-                    draggingId === task.id ? ' dragging' : ''
-                  }${vacationOn ? ' vacation' : ''}`}
-                >
-                  <button
-                    type="button"
-                    className="check"
-                    aria-label={done ? 'Mark incomplete' : 'Mark complete'}
-                    onClick={() => toggleComplete(task.id)}
-                  >
-                    <CheckIcon />
-                  </button>
-                  <div className="task-body">
-                    <p className="task-title">{task.title}</p>
-                    <div className="badges">
-                      <span className="badge rep">
-                        {REPETITION_LABELS[task.repetition]}
-                        {task.repetition === 'custom' && task.customRepeat
-                          ? ` · every ${task.customRepeat.everyDays}d`
-                          : ''}
-                      </span>
-                      <span className="badge">{categoryName(task.categoryId)}</span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="drag-handle"
-                    aria-label="Reorder task"
-                    onPointerDown={(event) => {
-                      event.preventDefault()
-                      event.stopPropagation()
-                      swipeRef.current = null
-                      setSwipeOffset(0)
-                      event.currentTarget.setPointerCapture?.(event.pointerId)
-                      beginDrag(task.id, event.clientY)
-                    }}
-                  >
-                    <BarsIcon />
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
+          <div className="task-groups">
+            {groupedDayTasks.map((group) => (
+              <section className="task-group" key={group.id} aria-label={group.name}>
+                <h2 className="category-heading">{group.name}</h2>
+                <ul className="task-list">
+                  {group.tasks.map((task) => {
+                    const done = isCompletedOn(task, viewKey)
+                    return (
+                      <li
+                        key={task.id}
+                        className={`task-item${done ? ' completed' : ''}${
+                          draggingId === task.id ? ' dragging' : ''
+                        }${vacationOn ? ' vacation' : ''}`}
+                      >
+                        <button
+                          type="button"
+                          className="check"
+                          aria-label={done ? 'Mark incomplete' : 'Mark complete'}
+                          onClick={() => toggleComplete(task.id)}
+                        >
+                          <CheckIcon />
+                        </button>
+                        <div className="task-body">
+                          <p className="task-title">{task.title}</p>
+                          <div className="badges">
+                            <span className="badge rep">
+                              {REPETITION_LABELS[task.repetition]}
+                              {task.repetition === 'custom' && task.customRepeat
+                                ? ` · every ${task.customRepeat.everyDays}d`
+                                : ''}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          className="drag-handle"
+                          aria-label="Reorder task"
+                          onPointerDown={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            swipeRef.current = null
+                            setSwipeOffset(0)
+                            event.currentTarget.setPointerCapture?.(event.pointerId)
+                            beginDrag(task.id, event.clientY)
+                          }}
+                        >
+                          <BarsIcon />
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            ))}
+          </div>
         )}
       </section>
 
@@ -785,31 +863,52 @@ export default function App() {
 
             <div className="settings-section">
               <h3>Spend</h3>
+              <p className="muted reorder-hint">Drag the blue bars to reorder</p>
               {state.rewards.length === 0 ? (
                 <p className="muted">No rewards yet — add one below.</p>
               ) : (
                 state.rewards.map((reward) => (
-                  <div className="reward-row" key={reward.id}>
-                    <div>
-                      <strong>{reward.name}</strong>
-                      <span className="reward-cost">${reward.cost}</span>
-                    </div>
-                    <div className="reward-actions">
-                      <button
-                        type="button"
-                        className="btn btn-primary spend-btn"
-                        disabled={state.dollars < reward.cost}
-                        onClick={() => spendReward(reward)}
-                      >
-                        Spend
-                      </button>
-                      <button
-                        type="button"
-                        className="danger-btn"
-                        onClick={() => deleteReward(reward.id)}
-                      >
-                        Delete
-                      </button>
+                  <div
+                    className={`reward-row${
+                      draggingRewardId === reward.id ? ' dragging' : ''
+                    }`}
+                    key={reward.id}
+                  >
+                    <button
+                      type="button"
+                      className="drag-handle"
+                      aria-label="Reorder reward"
+                      onPointerDown={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        event.currentTarget.setPointerCapture?.(event.pointerId)
+                        beginRewardDrag(reward.id, event.clientY)
+                      }}
+                    >
+                      <BarsIcon />
+                    </button>
+                    <div className="reward-main">
+                      <div className="reward-title-row">
+                        <strong>{reward.name}</strong>
+                        <span className="reward-cost">${reward.cost}</span>
+                      </div>
+                      <div className="reward-actions">
+                        <button
+                          type="button"
+                          className="btn btn-primary spend-btn"
+                          disabled={state.dollars < reward.cost}
+                          onClick={() => spendReward(reward)}
+                        >
+                          Spend
+                        </button>
+                        <button
+                          type="button"
+                          className="danger-btn"
+                          onClick={() => deleteReward(reward.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -872,26 +971,21 @@ export default function App() {
             <div className="settings-section">
               {state.categories.map((cat) => (
                 <div className="category-row" key={cat.id}>
-                  <span>
-                    {cat.name}
-                    {cat.builtin ? ' (default)' : ''}
-                  </span>
-                  {!cat.builtin ? (
-                    <button
-                      type="button"
-                      className="danger-btn"
-                      onClick={() => deleteCategory(cat.id)}
-                    >
-                      Delete
-                    </button>
-                  ) : null}
+                  <span>{cat.name}</span>
+                  <button
+                    type="button"
+                    className="danger-btn"
+                    onClick={() => deleteCategory(cat.id)}
+                  >
+                    Delete
+                  </button>
                 </div>
               ))}
               <div className="inline-add">
                 <input
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value)}
-                  placeholder="Custom category"
+                  placeholder="Category name"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault()
