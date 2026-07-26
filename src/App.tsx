@@ -9,7 +9,8 @@ import {
 } from 'react'
 import { addDays, formatDayHeading, toDateKey } from './dates'
 import { loadState, saveState } from './storage'
-import type { CloudSync } from './PinGate'
+import { useCloudSync } from './CloudSyncProvider'
+import CloudSyncSettings from './CloudSyncSettings'
 import {
   isCompletedForDateView,
   isOccurrenceSatisfied,
@@ -203,14 +204,9 @@ function PencilIcon() {
   )
 }
 
-export default function App({
-  initialState,
-  cloudSync,
-}: {
-  initialState?: AppState
-  cloudSync?: CloudSync
-}) {
-  const [state, setState] = useState<AppState>(() => initialState ?? loadState())
+export default function App() {
+  const { scheduleSave, takeLoadedState, cloudLoadCount } = useCloudSync()
+  const [state, setState] = useState<AppState>(() => loadState())
   const [viewDate, setViewDate] = useState(() => startToday())
   const [title, setTitle] = useState('')
   const [repetition, setRepetition] = useState<Repetition | ''>('')
@@ -270,8 +266,13 @@ export default function App({
 
   useEffect(() => {
     saveState(state)
-    cloudSync?.scheduleSave(state)
-  }, [state, cloudSync])
+    scheduleSave(state)
+  }, [state, scheduleSave])
+
+  useEffect(() => {
+    const loaded = takeLoadedState()
+    if (loaded) setState(loaded)
+  }, [cloudLoadCount, takeLoadedState])
 
   useEffect(() => {
     if (!toast) return
@@ -1605,17 +1606,7 @@ export default function App({
               </div>
             </section>
 
-            {cloudSync?.pin ? (
-              <section className="task-group" aria-label="Cloud sync">
-                <h2 className="category-heading">Cloud sync</h2>
-                <p className="muted view-hint">
-                  Tasks save to the cloud automatically while you use Kraft Life.
-                </p>
-                <button type="button" className="btn lock-btn" onClick={cloudSync.lock}>
-                  Lock Kraft Life
-                </button>
-              </section>
-            ) : null}
+            <CloudSyncSettings state={state} onCloudStateLoaded={setState} />
           </div>
         </section>
       )}
