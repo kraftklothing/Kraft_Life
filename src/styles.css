@@ -1169,3 +1169,97 @@ button {
     width: min(480px, 100%);
   }
 }
+
+.pin-screen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+
+.pin-card {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: rise-in 0.45s ease both;
+}
+
+.pin-kicker {
+  margin: 0;
+  font-family: var(--font-brand);
+  color: var(--accent-soft);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.78rem;
+}
+
+.pin-card h1 {
+  margin: 0;
+  font-family: var(--font-brand);
+  font-size: 1.65rem;
+}
+
+.pin-copy {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+
+.pin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pin-field span {
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+}
+
+.pin-field input {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--panel-solid);
+}
+
+.pin-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+}
+
+.pin-error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 0.92rem;
+}
+
+.pin-submit {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.cloud-banner {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 10px 14px;
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--ink);
+  background: rgba(255, 236, 196, 0.95);
+  border-bottom: 1px solid rgba(180, 120, 0, 0.25);
+}
+
+.lock-btn {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--panel-solid);
+  color: var(--ink);
+}
