@@ -19,7 +19,7 @@ async function parseJson<T>(response: Response): Promise<T> {
 }
 
 export async function fetchVaultStatus(): Promise<VaultStatus> {
-  const response = await fetch('/api/vault/status')
+  const response = await fetch('/api/vault-status')
   const data = (await response.json()) as VaultStatus & { error?: string }
 
   if (response.status === 503) {
@@ -40,7 +40,7 @@ export async function fetchVaultStatus(): Promise<VaultStatus> {
 }
 
 export async function setupVault(pin: string, state: AppState): Promise<void> {
-  const response = await fetch('/api/vault/setup', {
+  const response = await fetch('/api/vault-setup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pin, state }),
@@ -49,7 +49,7 @@ export async function setupVault(pin: string, state: AppState): Promise<void> {
 }
 
 export async function loadCloudState(pin: string): Promise<AppState> {
-  const response = await fetch('/api/vault/state', {
+  const response = await fetch('/api/vault-state', {
     headers: { [PIN_HEADER]: pin },
   })
   const data = await parseJson<{ state: AppState | null }>(response)
@@ -60,7 +60,7 @@ export async function loadCloudState(pin: string): Promise<AppState> {
 }
 
 export async function saveCloudState(pin: string, state: AppState): Promise<void> {
-  const response = await fetch('/api/vault/state', {
+  const response = await fetch('/api/vault-state', {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
