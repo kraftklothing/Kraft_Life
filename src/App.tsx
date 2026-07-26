@@ -69,6 +69,7 @@ export default function App() {
   const [customEveryDays, setCustomEveryDays] = useState('2')
   const [categoryId, setCategoryId] = useState('')
   const [addError, setAddError] = useState('')
+  const [addOpen, setAddOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [newCategory, setNewCategory] = useState('')
   const [toast, setToast] = useState('')
@@ -176,9 +177,19 @@ export default function App() {
     setCategoryId('')
     setCustomEveryDays('2')
     setAddError('')
+    setAddOpen(false)
     setToast('Task added')
-    // Keep focus usable on phone without jumping the viewport awkwardly.
-    window.setTimeout(() => titleInputRef.current?.blur(), 0)
+  }
+
+  function openAddComposer() {
+    setAddOpen(true)
+    setAddError('')
+    window.setTimeout(() => titleInputRef.current?.focus(), 80)
+  }
+
+  function closeAddComposer() {
+    setAddOpen(false)
+    setAddError('')
   }
 
   function toggleComplete(taskId: string) {
@@ -399,109 +410,6 @@ export default function App() {
         <h1 className="brand">Kraft Life</h1>
       </div>
 
-      <form
-        className="panel add-panel"
-        onSubmit={handleAddTask}
-        id={formId}
-        noValidate
-      >
-        <label htmlFor={`${formId}-title`}>
-          What do you want to complete?
-          <input
-            ref={titleInputRef}
-            id={`${formId}-title`}
-            name="title"
-            value={title}
-            onChange={(e) => {
-              setTitle(e.target.value)
-              if (addError) setAddError('')
-            }}
-            placeholder="Add a task for this day"
-            autoComplete="off"
-            enterKeyHint="done"
-          />
-        </label>
-
-        <div className="field-row">
-          <label htmlFor={`${formId}-rep`}>
-            Repetition
-            <select
-              id={`${formId}-rep`}
-              name="repetition"
-              value={repetition}
-              onChange={(e) => {
-                setRepetition(e.target.value as Repetition | '')
-                if (addError) setAddError('')
-              }}
-              required
-            >
-              <option value="" disabled>
-                Choose repetition
-              </option>
-              {(Object.keys(REPETITION_LABELS) as Repetition[]).map((key) => (
-                <option key={key} value={key}>
-                  {REPETITION_LABELS[key]}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label htmlFor={`${formId}-cat`}>
-            Category
-            <select
-              id={`${formId}-cat`}
-              name="category"
-              value={categoryId}
-              onChange={(e) => {
-                setCategoryId(e.target.value)
-                if (addError) setAddError('')
-              }}
-              required
-            >
-              <option value="" disabled>
-                Choose category
-              </option>
-              {state.categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        {repetition === 'custom' && (
-          <label htmlFor={`${formId}-custom`}>
-            Repeat every N days
-            <input
-              id={`${formId}-custom`}
-              name="customEveryDays"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              step={1}
-              value={customEveryDays}
-              onChange={(e) => setCustomEveryDays(e.target.value)}
-            />
-          </label>
-        )}
-
-        {addError ? <p className="error-text">{addError}</p> : null}
-
-        <div className="add-actions">
-          <button type="submit" className="btn btn-primary">
-            Add task
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => setSettingsOpen(true)}
-          >
-            Categories
-          </button>
-        </div>
-      </form>
-
       <section
         key={viewKey}
         ref={dayPaneRef}
@@ -604,14 +512,142 @@ export default function App() {
         )}
       </section>
 
-      <button
-        type="button"
-        className="fab-profile"
-        aria-label="Open profile and settings"
-        onClick={() => setSettingsOpen(true)}
-      >
-        <ProfileIcon />
-      </button>
+      <div className={`composer${addOpen ? ' composer-open' : ''}`}>
+        {!addOpen ? (
+          <div className="composer-collapsed">
+            <button
+              type="button"
+              className="new-task-btn"
+              onClick={openAddComposer}
+            >
+              New task
+            </button>
+            <button
+              type="button"
+              className="fab-profile"
+              aria-label="Open profile and settings"
+              onClick={() => setSettingsOpen(true)}
+            >
+              <ProfileIcon />
+            </button>
+          </div>
+        ) : (
+          <form
+            className="panel add-panel"
+            onSubmit={handleAddTask}
+            id={formId}
+            noValidate
+          >
+            <div className="composer-header">
+              <h2>New task</h2>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Close new task"
+                onClick={closeAddComposer}
+              >
+                ✕
+              </button>
+            </div>
+
+            <label htmlFor={`${formId}-title`}>
+              What do you want to complete?
+              <input
+                ref={titleInputRef}
+                id={`${formId}-title`}
+                name="title"
+                value={title}
+                onChange={(e) => {
+                  setTitle(e.target.value)
+                  if (addError) setAddError('')
+                }}
+                placeholder="Add a task for this day"
+                autoComplete="off"
+                enterKeyHint="done"
+              />
+            </label>
+
+            <div className="field-row">
+              <label htmlFor={`${formId}-rep`}>
+                Repetition
+                <select
+                  id={`${formId}-rep`}
+                  name="repetition"
+                  value={repetition}
+                  onChange={(e) => {
+                    setRepetition(e.target.value as Repetition | '')
+                    if (addError) setAddError('')
+                  }}
+                  required
+                >
+                  <option value="" disabled>
+                    Choose repetition
+                  </option>
+                  {(Object.keys(REPETITION_LABELS) as Repetition[]).map((key) => (
+                    <option key={key} value={key}>
+                      {REPETITION_LABELS[key]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label htmlFor={`${formId}-cat`}>
+                Category
+                <select
+                  id={`${formId}-cat`}
+                  name="category"
+                  value={categoryId}
+                  onChange={(e) => {
+                    setCategoryId(e.target.value)
+                    if (addError) setAddError('')
+                  }}
+                  required
+                >
+                  <option value="" disabled>
+                    Choose category
+                  </option>
+                  {state.categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            {repetition === 'custom' && (
+              <label htmlFor={`${formId}-custom`}>
+                Repeat every N days
+                <input
+                  id={`${formId}-custom`}
+                  name="customEveryDays"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  step={1}
+                  value={customEveryDays}
+                  onChange={(e) => setCustomEveryDays(e.target.value)}
+                />
+              </label>
+            )}
+
+            {addError ? <p className="error-text">{addError}</p> : null}
+
+            <div className="add-actions">
+              <button type="submit" className="btn btn-primary">
+                Add task
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setSettingsOpen(true)}
+              >
+                Categories
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
 
       {settingsOpen ? (
         <div

@@ -60,7 +60,7 @@ button {
   margin: 0 auto;
   min-height: 100dvh;
   padding: max(12px, env(safe-area-inset-top)) 16px
-    calc(88px + env(safe-area-inset-bottom));
+    calc(108px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -205,11 +205,70 @@ button {
   backdrop-filter: blur(12px);
 }
 
+.composer {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: min(560px, 100%);
+  z-index: 25;
+  padding: 0 16px calc(12px + env(safe-area-inset-bottom));
+  pointer-events: none;
+}
+
+.composer > * {
+  pointer-events: auto;
+}
+
+.composer-collapsed {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  animation: rise-in 0.35s ease both;
+}
+
+.new-task-btn {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px 18px;
+  background: var(--accent);
+  color: #f7fffb;
+  font-weight: 700;
+  font-size: 1.05rem;
+  box-shadow: var(--shadow);
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+
+.new-task-btn:active {
+  transform: scale(0.98);
+}
+
+.composer-open .add-panel {
+  animation: sheet-up 0.28s ease both;
+  max-height: min(78dvh, 640px);
+  overflow: auto;
+}
+
+.composer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.composer-header h2 {
+  margin: 0;
+  font-family: var(--font-brand);
+  font-size: 1.35rem;
+  color: var(--accent);
+}
+
 .add-panel {
   padding: 14px;
   display: grid;
   gap: 10px;
-  animation: rise-in 0.55s ease 0.08s both;
 }
 
 .add-panel label {
@@ -422,20 +481,17 @@ button {
 }
 
 .fab-profile {
-  position: fixed;
-  right: max(16px, env(safe-area-inset-right));
-  bottom: max(16px, env(safe-area-inset-bottom));
   width: 56px;
   height: 56px;
   border-radius: 50%;
   border: 1px solid var(--line);
-  background: var(--accent);
-  color: #f7fffb;
+  background: var(--panel-solid);
+  color: var(--accent);
   box-shadow: var(--shadow);
   display: grid;
   place-items: center;
-  z-index: 20;
   transition: transform 0.18s ease;
+  flex-shrink: 0;
 }
 
 .fab-profile:active {
