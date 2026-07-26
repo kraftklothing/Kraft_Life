@@ -288,6 +288,12 @@ button {
   border: 1px solid var(--line);
 }
 
+.settings-btn {
+  background: var(--panel-solid);
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+}
+
 .composer-open .add-panel {
   animation: sheet-up 0.28s ease both;
   max-height: min(78dvh, 640px);
@@ -763,17 +769,37 @@ button {
 }
 
 .category-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
+  background: #fff;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.category-row span {
+.category-row.dragging {
+  opacity: 0.55;
+  transform: scale(1.01);
+}
+
+.category-name-input {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 8px 10px;
   font-weight: 600;
+  color: var(--ink);
+  background: transparent;
+  outline: none;
+}
+
+.category-name-input:focus {
+  border-color: var(--accent-soft);
+  background: #fff;
+  box-shadow: 0 0 0 3px var(--accent-wash);
 }
 
 .danger-btn {

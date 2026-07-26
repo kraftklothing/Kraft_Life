@@ -74,6 +74,24 @@ function GiftIcon() {
   )
 }
 
+function SettingsIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path
+        d="M19.4 13a7.7 7.7 0 0 0 .05-1l2.05-1.55-2-3.45-2.4.8a7.4 7.4 0 0 0-1.75-1L15 4h-4l-.35 2.8a7.4 7.4 0 0 0-1.75 1l-2.4-.8-2 3.45L6.55 12a7.7 7.7 0 0 0 0 2l-2.05 1.55 2 3.45 2.4-.8a7.4 7.4 0 0 0 1.75 1L11 22h4l.35-2.8a7.4 7.4 0 0 0 1.75-1l2.4.8 2-3.45L19.4 13Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 function PlaneIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -129,7 +147,7 @@ export default function App() {
   const [addError, setAddError] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
-  const [categoriesOpen, setCategoriesOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [rewardsOpen, setRewardsOpen] = useState(false)
   const [newCategory, setNewCategory] = useState('')
   const [newRewardName, setNewRewardName] = useState('')
@@ -137,6 +155,7 @@ export default function App() {
   const [toast, setToast] = useState('')
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [draggingRewardId, setDraggingRewardId] = useState<string | null>(null)
+  const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
   const [dayAnim, setDayAnim] = useState<'none' | 'from-left' | 'from-right'>(
     'none',
@@ -158,6 +177,11 @@ export default function App() {
     orderSnapshot: string[]
   } | null>(null)
   const rewardDragRef = useRef<{
+    id: string
+    startY: number
+    orderSnapshot: string[]
+  } | null>(null)
+  const categoryDragRef = useRef<{
     id: string
     startY: number
     orderSnapshot: string[]
@@ -420,6 +444,24 @@ export default function App() {
     setToast('Category removed')
   }
 
+  function renameCategory(id: string, name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const clash = state.categories.some(
+      (c) => c.id !== id && c.name.toLowerCase() === trimmed.toLowerCase(),
+    )
+    if (clash) {
+      setToast('Category already exists')
+      return
+    }
+    updateState((prev) => ({
+      ...prev,
+      categories: prev.categories.map((c) =>
+        c.id === id ? { ...c, name: trimmed } : c,
+      ),
+    }))
+  }
+
   function beginRewardDrag(rewardId: string, clientY: number) {
     rewardDragRef.current = {
       id: rewardId,
@@ -427,6 +469,15 @@ export default function App() {
       orderSnapshot: state.rewards.map((r) => r.id),
     }
     setDraggingRewardId(rewardId)
+  }
+
+  function beginCategoryDrag(categoryIdToDrag: string, clientY: number) {
+    categoryDragRef.current = {
+      id: categoryIdToDrag,
+      startY: clientY,
+      orderSnapshot: state.categories.map((c) => c.id),
+    }
+    setDraggingCategoryId(categoryIdToDrag)
   }
 
   function goToDay(delta: number) {
@@ -446,7 +497,7 @@ export default function App() {
   }
 
   function onDayPointerDown(event: ReactPointerEvent<HTMLElement>) {
-    if (categoriesOpen || rewardsOpen || addOpen || dragRef.current) return
+    if (settingsOpen || rewardsOpen || addOpen || dragRef.current) return
     if (event.pointerType === 'mouse' && event.button !== 0) return
     if (isInteractiveTarget(event.target)) return
     swipeRef.current = {
@@ -555,16 +606,31 @@ export default function App() {
       }
 
       const rewardDrag = rewardDragRef.current
-      if (!rewardDrag) return
+      if (rewardDrag) {
+        event.preventDefault()
+        const nextOrder = reorderSnapshot(rewardDrag, event.clientY, 88)
+        if (!nextOrder) return
+        setState((prev) => {
+          const byId = new Map(prev.rewards.map((r) => [r.id, r]))
+          const rewards = nextOrder
+            .map((id) => byId.get(id))
+            .filter((r): r is Reward => Boolean(r))
+          return { ...prev, rewards }
+        })
+        return
+      }
+
+      const categoryDrag = categoryDragRef.current
+      if (!categoryDrag) return
       event.preventDefault()
-      const nextOrder = reorderSnapshot(rewardDrag, event.clientY, 88)
+      const nextOrder = reorderSnapshot(categoryDrag, event.clientY, 64)
       if (!nextOrder) return
       setState((prev) => {
-        const byId = new Map(prev.rewards.map((r) => [r.id, r]))
-        const rewards = nextOrder
+        const byId = new Map(prev.categories.map((c) => [c.id, c]))
+        const categories = nextOrder
           .map((id) => byId.get(id))
-          .filter((r): r is Reward => Boolean(r))
-        return { ...prev, rewards }
+          .filter((c): c is Category => Boolean(c))
+        return { ...prev, categories }
       })
     }
     function onUp() {
@@ -575,6 +641,10 @@ export default function App() {
       if (rewardDragRef.current) {
         rewardDragRef.current = null
         setDraggingRewardId(null)
+      }
+      if (categoryDragRef.current) {
+        categoryDragRef.current = null
+        setDraggingCategoryId(null)
       }
     }
     window.addEventListener('pointermove', onMove, { passive: false })
@@ -778,10 +848,23 @@ export default function App() {
               aria-label="Open rewards"
               onClick={() => {
                 setAddOpen(false)
+                setSettingsOpen(false)
                 setRewardsOpen(true)
               }}
             >
               <GiftIcon />
+            </button>
+            <button
+              type="button"
+              className="circle-btn settings-btn"
+              aria-label="Open settings"
+              onClick={() => {
+                setAddOpen(false)
+                setRewardsOpen(false)
+                setSettingsOpen(true)
+              }}
+            >
+              <SettingsIcon />
             </button>
           </div>
         ) : (
@@ -889,13 +972,6 @@ export default function App() {
             <div className="add-actions">
               <button type="submit" className="btn btn-primary">
                 {editingTaskId ? 'Save task' : 'Add task'}
-              </button>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => setCategoriesOpen(true)}
-              >
-                Categories
               </button>
             </div>
           </form>
@@ -1013,36 +1089,79 @@ export default function App() {
         </div>
       ) : null}
 
-      {categoriesOpen ? (
+      {settingsOpen ? (
         <div
           className="overlay"
           role="presentation"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setCategoriesOpen(false)
+            if (e.target === e.currentTarget) setSettingsOpen(false)
           }}
         >
           <div
             className="sheet"
             role="dialog"
             aria-modal="true"
-            aria-label="Categories"
+            aria-label="Settings"
           >
             <div className="sheet-header">
-              <h2>Categories</h2>
+              <h2>Settings</h2>
               <button
                 type="button"
                 className="icon-btn"
-                aria-label="Close categories"
-                onClick={() => setCategoriesOpen(false)}
+                aria-label="Close settings"
+                onClick={() => setSettingsOpen(false)}
               >
                 ✕
               </button>
             </div>
 
             <div className="settings-section">
+              <h3>Categories</h3>
+              <p className="muted reorder-hint">
+                Drag the blue bars to change the order on your task list. Tap a
+                name to rename.
+              </p>
               {state.categories.map((cat) => (
-                <div className="category-row" key={cat.id}>
-                  <span>{cat.name}</span>
+                <div
+                  className={`category-row${
+                    draggingCategoryId === cat.id ? ' dragging' : ''
+                  }`}
+                  key={cat.id}
+                >
+                  <button
+                    type="button"
+                    className="drag-handle"
+                    aria-label={`Reorder ${cat.name}`}
+                    onPointerDown={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      event.currentTarget.setPointerCapture?.(event.pointerId)
+                      beginCategoryDrag(cat.id, event.clientY)
+                    }}
+                  >
+                    <BarsIcon />
+                  </button>
+                  <input
+                    className="category-name-input"
+                    value={cat.name}
+                    aria-label="Category name"
+                    onChange={(e) => {
+                      const value = e.target.value
+                      updateState((prev) => ({
+                        ...prev,
+                        categories: prev.categories.map((c) =>
+                          c.id === cat.id ? { ...c, name: value } : c,
+                        ),
+                      }))
+                    }}
+                    onBlur={(e) => renameCategory(cat.id, e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        ;(e.target as HTMLInputElement).blur()
+                      }
+                    }}
+                  />
                   <button
                     type="button"
                     className="danger-btn"
@@ -1056,7 +1175,7 @@ export default function App() {
                 <input
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value)}
-                  placeholder="Category name"
+                  placeholder="New category"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault()
