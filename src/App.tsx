@@ -177,7 +177,7 @@ export default function App() {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [rewardsOpen, setRewardsOpen] = useState(false)
-  const [projectsOpen, setProjectsOpen] = useState(false)
+  const [mainView, setMainView] = useState<'tasks' | 'projects'>('tasks')
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [newCategory, setNewCategory] = useState('')
   const [newRewardName, setNewRewardName] = useState('')
@@ -371,9 +371,27 @@ export default function App() {
 
   function openAddComposer() {
     setRewardsOpen(false)
+    if (mainView === 'projects') {
+      setAddOpen(true)
+      setAddError('')
+      return
+    }
     resetComposerFields()
     setAddOpen(true)
     window.setTimeout(() => titleInputRef.current?.focus(), 80)
+  }
+
+  function toggleProjectsView() {
+    setAddOpen(false)
+    setSettingsOpen(false)
+    setRewardsOpen(false)
+    if (mainView === 'projects') {
+      setMainView('tasks')
+      setActiveProjectId(null)
+      return
+    }
+    setMainView('projects')
+    setActiveProjectId(null)
   }
 
   function openEditComposer(task: Task) {
@@ -647,7 +665,13 @@ export default function App() {
   }
 
   function onDayPointerDown(event: ReactPointerEvent<HTMLElement>) {
-    if (settingsOpen || rewardsOpen || projectsOpen || addOpen || dragRef.current) {
+    if (
+      mainView !== 'tasks' ||
+      settingsOpen ||
+      rewardsOpen ||
+      addOpen ||
+      dragRef.current
+    ) {
       return
     }
     if (event.pointerType === 'mouse' && event.button !== 0) return
@@ -845,147 +869,277 @@ export default function App() {
         <h1 className="brand">Kraft Life</h1>
       </div>
 
-      <section
-        key={viewKey}
-        ref={dayPaneRef}
-        className={`day-pane${dayAnim !== 'none' ? ` day-pane-${dayAnim}` : ''}${
-          swipeOffset !== 0 ? ' day-pane-dragging' : ''
-        }`}
-        aria-label="Tasks for selected day"
-        onPointerDown={onDayPointerDown}
-        onPointerMove={onDayPointerMove}
-        onPointerUp={(e) => finishDaySwipe(e.clientX, e.pointerId)}
-        onPointerCancel={(e) => {
-          if (swipeRef.current?.pointerId === e.pointerId) {
-            swipeRef.current = null
-            setSwipeOffset(0)
+      {mainView === 'tasks' ? (
+        <section
+          key={viewKey}
+          ref={dayPaneRef}
+          className={`day-pane${dayAnim !== 'none' ? ` day-pane-${dayAnim}` : ''}${
+            swipeOffset !== 0 ? ' day-pane-dragging' : ''
+          }`}
+          aria-label="Tasks for selected day"
+          onPointerDown={onDayPointerDown}
+          onPointerMove={onDayPointerMove}
+          onPointerUp={(e) => finishDaySwipe(e.clientX, e.pointerId)}
+          onPointerCancel={(e) => {
+            if (swipeRef.current?.pointerId === e.pointerId) {
+              swipeRef.current = null
+              setSwipeOffset(0)
+            }
+          }}
+          style={
+            swipeOffset !== 0
+              ? { transform: `translateX(${swipeOffset}px)` }
+              : undefined
           }
-        }}
-        style={
-          swipeOffset !== 0
-            ? { transform: `translateX(${swipeOffset}px)` }
-            : undefined
-        }
-      >
-        <div className="day-header">
-          <div className="day-nav">
-            <button
-              type="button"
-              className="day-nav-btn"
-              aria-label="Previous day"
-              onClick={() => goToDay(-1)}
-            >
-              ‹
-            </button>
-            <div className="day-label-row">
-              <p className="day-label">{formatDayHeading(viewDate, todayKey)}</p>
+        >
+          <div className="day-header">
+            <div className="day-nav">
               <button
                 type="button"
-                className={`plane-btn${vacationOn ? ' active' : ''}`}
-                aria-label={
-                  vacationOn ? 'Turn off vacation mode' : 'Turn on vacation mode'
-                }
-                aria-pressed={vacationOn}
-                onClick={toggleVacationMode}
+                className="day-nav-btn"
+                aria-label="Previous day"
+                onClick={() => goToDay(-1)}
               >
-                <PlaneIcon />
+                ‹
+              </button>
+              <div className="day-label-row">
+                <p className="day-label">{formatDayHeading(viewDate, todayKey)}</p>
+                <button
+                  type="button"
+                  className={`plane-btn${vacationOn ? ' active' : ''}`}
+                  aria-label={
+                    vacationOn ? 'Turn off vacation mode' : 'Turn on vacation mode'
+                  }
+                  aria-pressed={vacationOn}
+                  onClick={toggleVacationMode}
+                >
+                  <PlaneIcon />
+                </button>
+              </div>
+              <button
+                type="button"
+                className="day-nav-btn"
+                aria-label="Next day"
+                onClick={() => goToDay(1)}
+              >
+                ›
               </button>
             </div>
-            <button
-              type="button"
-              className="day-nav-btn"
-              aria-label="Next day"
-              onClick={() => goToDay(1)}
-            >
-              ›
-            </button>
+            <div className="day-divider" aria-hidden="true" />
           </div>
-          <div className="day-divider" aria-hidden="true" />
-        </div>
 
-        {vacationOn ? <p className="vacation-banner">Vacation mode</p> : null}
+          {vacationOn ? <p className="vacation-banner">Vacation mode</p> : null}
 
-        {dayTasks.length === 0 ? (
-          <div className="panel empty">
-            <h2>Nothing listed yet</h2>
-            <p>
-              Tap the green plus at the bottom to add what you want to finish{' '}
-              {viewKey === todayKey ? 'today' : 'this day'}.
-            </p>
+          {dayTasks.length === 0 ? (
+            <div className="panel empty">
+              <h2>Nothing listed yet</h2>
+              <p>
+                Tap the green plus at the bottom to add what you want to finish{' '}
+                {viewKey === todayKey ? 'today' : 'this day'}.
+              </p>
+            </div>
+          ) : (
+            <div className="task-groups">
+              {groupedDayTasks.map((group, groupIndex) => (
+                <section
+                  className="task-group"
+                  key={group.id}
+                  aria-label={group.name}
+                >
+                  {groupIndex > 0 ? (
+                    <div className="category-divider" aria-hidden="true" />
+                  ) : null}
+                  <h2 className="category-heading">{group.name}</h2>
+                  <ul className="task-list">
+                    {group.tasks.map((task) => {
+                      const done = isCompletedForDateView(task, viewKey)
+                      return (
+                        <li
+                          key={task.id}
+                          className={`task-item${done ? ' completed' : ''}${
+                            draggingId === task.id ? ' dragging' : ''
+                          }${vacationOn ? ' vacation' : ''}`}
+                        >
+                          <button
+                            type="button"
+                            className="check"
+                            aria-label={
+                              done ? 'Mark incomplete' : 'Mark complete'
+                            }
+                            onClick={() => toggleComplete(task.id)}
+                          >
+                            <CheckIcon />
+                          </button>
+                          <div className="task-body">
+                            <p className="task-title">{task.title}</p>
+                            <div className="badges">
+                              <span className="badge rep">
+                                {REPETITION_LABELS[task.repetition]}
+                                {task.repetition === 'custom' &&
+                                task.customRepeat
+                                  ? ` · every ${task.customRepeat.everyDays}d`
+                                  : ''}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="task-actions">
+                            <button
+                              type="button"
+                              className="edit-btn"
+                              aria-label="Edit task"
+                              onClick={() => openEditComposer(task)}
+                            >
+                              <PencilIcon />
+                            </button>
+                            <button
+                              type="button"
+                              className="drag-handle"
+                              aria-label="Reorder task"
+                              onPointerDown={(event) => {
+                                event.preventDefault()
+                                event.stopPropagation()
+                                swipeRef.current = null
+                                setSwipeOffset(0)
+                                event.currentTarget.setPointerCapture?.(
+                                  event.pointerId,
+                                )
+                                beginDrag(task.id, event.clientY)
+                              }}
+                            >
+                              <BarsIcon />
+                            </button>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="day-pane projects-pane" aria-label="Projects">
+          <div className="day-header">
+            <div className="day-label-row projects-title-row">
+              {activeProject ? (
+                <button
+                  type="button"
+                  className="day-nav-btn"
+                  aria-label="Back to all projects"
+                  onClick={() => setActiveProjectId(null)}
+                >
+                  ‹
+                </button>
+              ) : (
+                <span className="day-nav-spacer" aria-hidden="true" />
+              )}
+              <p className="day-label">
+                {activeProject ? activeProject.name : 'Projects'}
+              </p>
+              <span className="day-nav-spacer" aria-hidden="true" />
+            </div>
+            <div className="day-divider" aria-hidden="true" />
           </div>
-        ) : (
-          <div className="task-groups">
-            {groupedDayTasks.map((group, groupIndex) => (
-              <section className="task-group" key={group.id} aria-label={group.name}>
-                {groupIndex > 0 ? (
-                  <div className="category-divider" aria-hidden="true" />
-                ) : null}
-                <h2 className="category-heading">{group.name}</h2>
+
+          {!activeProject ? (
+            sortedProjects.length === 0 ? (
+              <div className="panel empty">
+                <h2>No projects yet</h2>
+                <p>Tap the green plus to create a project.</p>
+              </div>
+            ) : (
+              <div className="task-groups">
+                <section className="task-group" aria-label="Your projects">
+                  <h2 className="category-heading">Your projects</h2>
+                  <ul className="task-list">
+                    {sortedProjects.map((project) => {
+                      const done = project.steps.filter((s) => s.completed).length
+                      const total = project.steps.length
+                      return (
+                        <li className="task-item project-item" key={project.id}>
+                          <button
+                            type="button"
+                            className="project-main-btn"
+                            onClick={() => setActiveProjectId(project.id)}
+                          >
+                            <p className="task-title">{project.name}</p>
+                            <div className="badges">
+                              <span className="badge rep">
+                                {total === 0
+                                  ? 'No steps yet'
+                                  : `${done}/${total} steps`}
+                              </span>
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            className="danger-btn"
+                            onClick={() => deleteProject(project.id)}
+                          >
+                            Delete
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </section>
+              </div>
+            )
+          ) : activeProject.steps.length === 0 ? (
+            <div className="panel empty">
+              <h2>No steps yet</h2>
+              <p>Tap the green plus to add a step with a $ reward.</p>
+            </div>
+          ) : (
+            <div className="task-groups">
+              <section className="task-group" aria-label="Project steps">
+                <h2 className="category-heading">Steps</h2>
                 <ul className="task-list">
-                  {group.tasks.map((task) => {
-                    const done = isCompletedForDateView(task, viewKey)
-                    return (
+                  {[...activeProject.steps]
+                    .sort((a, b) => a.order - b.order)
+                    .map((step) => (
                       <li
-                        key={task.id}
-                        className={`task-item${done ? ' completed' : ''}${
-                          draggingId === task.id ? ' dragging' : ''
-                        }${vacationOn ? ' vacation' : ''}`}
+                        key={step.id}
+                        className={`task-item${step.completed ? ' completed' : ''}`}
                       >
                         <button
                           type="button"
                           className="check"
-                          aria-label={done ? 'Mark incomplete' : 'Mark complete'}
-                          onClick={() => toggleComplete(task.id)}
+                          aria-label={
+                            step.completed
+                              ? 'Mark step incomplete'
+                              : 'Mark step complete'
+                          }
+                          onClick={() =>
+                            toggleProjectStep(activeProject.id, step.id)
+                          }
                         >
                           <CheckIcon />
                         </button>
                         <div className="task-body">
-                          <p className="task-title">{task.title}</p>
+                          <p className="task-title">{step.title}</p>
                           <div className="badges">
-                            <span className="badge rep">
-                              {REPETITION_LABELS[task.repetition]}
-                              {task.repetition === 'custom' && task.customRepeat
-                                ? ` · every ${task.customRepeat.everyDays}d`
-                                : ''}
-                            </span>
+                            <span className="badge">+${step.dollars}</span>
                           </div>
                         </div>
-                        <div className="task-actions">
-                          <button
-                            type="button"
-                            className="edit-btn"
-                            aria-label="Edit task"
-                            onClick={() => openEditComposer(task)}
-                          >
-                            <PencilIcon />
-                          </button>
-                          <button
-                            type="button"
-                            className="drag-handle"
-                            aria-label="Reorder task"
-                            onPointerDown={(event) => {
-                              event.preventDefault()
-                              event.stopPropagation()
-                              swipeRef.current = null
-                              setSwipeOffset(0)
-                              event.currentTarget.setPointerCapture?.(
-                                event.pointerId,
-                              )
-                              beginDrag(task.id, event.clientY)
-                            }}
-                          >
-                            <BarsIcon />
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          className="danger-btn"
+                          onClick={() =>
+                            deleteProjectStep(activeProject.id, step.id)
+                          }
+                        >
+                          Delete
+                        </button>
                       </li>
-                    )
-                  })}
+                    ))}
                 </ul>
               </section>
-            ))}
-          </div>
-        )}
-      </section>
+            </div>
+          )}
+        </section>
+      )}
 
       <div className={`composer${addOpen ? ' composer-open' : ''}`}>
         {!addOpen ? (
@@ -993,21 +1147,27 @@ export default function App() {
             <button
               type="button"
               className="circle-btn plus-btn"
-              aria-label="New task"
+              aria-label={
+                mainView === 'projects'
+                  ? activeProject
+                    ? 'New step'
+                    : 'New project'
+                  : 'New task'
+              }
               onClick={openAddComposer}
             >
               <PlusIcon />
             </button>
             <button
               type="button"
-              className="circle-btn project-btn"
-              aria-label="Open projects"
-              onClick={() => {
-                setAddOpen(false)
-                setSettingsOpen(false)
-                setRewardsOpen(false)
-                setProjectsOpen(true)
-              }}
+              className={`circle-btn project-btn${
+                mainView === 'projects' ? ' active' : ''
+              }`}
+              aria-label={
+                mainView === 'projects' ? 'Back to tasks' : 'Open projects'
+              }
+              aria-pressed={mainView === 'projects'}
+              onClick={toggleProjectsView}
             >
               <ProjectIcon />
             </button>
@@ -1018,7 +1178,6 @@ export default function App() {
               onClick={() => {
                 setAddOpen(false)
                 setSettingsOpen(false)
-                setProjectsOpen(false)
                 setRewardsOpen(true)
               }}
             >
@@ -1031,12 +1190,92 @@ export default function App() {
               onClick={() => {
                 setAddOpen(false)
                 setRewardsOpen(false)
-                setProjectsOpen(false)
                 setSettingsOpen(true)
               }}
             >
               <SettingsIcon />
             </button>
+          </div>
+        ) : mainView === 'projects' ? (
+          <div className="panel add-panel">
+            <div className="composer-header">
+              <h2>{activeProject ? 'New step' : 'New project'}</h2>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Close"
+                onClick={closeAddComposer}
+              >
+                ✕
+              </button>
+            </div>
+            {activeProject ? (
+              <>
+                <label>
+                  Step name
+                  <input
+                    value={newStepTitle}
+                    onChange={(e) => setNewStepTitle(e.target.value)}
+                    placeholder="What needs to get done?"
+                    autoComplete="off"
+                  />
+                </label>
+                <label>
+                  $ when completed
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    step={1}
+                    value={newStepDollars}
+                    onChange={(e) => setNewStepDollars(e.target.value)}
+                  />
+                </label>
+                <div className="add-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      addProjectStep(activeProject.id)
+                      setAddOpen(false)
+                    }}
+                  >
+                    Add step
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <label>
+                  Project name
+                  <input
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder="Name this project"
+                    autoComplete="off"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        addProject()
+                        setAddOpen(false)
+                      }
+                    }}
+                  />
+                </label>
+                <div className="add-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      addProject()
+                      setAddOpen(false)
+                    }}
+                  >
+                    Add project
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <form
@@ -1148,186 +1387,6 @@ export default function App() {
           </form>
         )}
       </div>
-
-      {projectsOpen ? (
-        <div
-          className="overlay"
-          role="presentation"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setProjectsOpen(false)
-              setActiveProjectId(null)
-            }
-          }}
-        >
-          <div
-            className="sheet"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Projects"
-          >
-            <div className="sheet-header">
-              <h2>{activeProject ? activeProject.name : 'Projects'}</h2>
-              <button
-                type="button"
-                className="icon-btn"
-                aria-label="Close projects"
-                onClick={() => {
-                  setProjectsOpen(false)
-                  setActiveProjectId(null)
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            {!activeProject ? (
-              <>
-                <div className="settings-section">
-                  <h3>Your projects</h3>
-                  {sortedProjects.length === 0 ? (
-                    <p className="muted">No projects yet — add one below.</p>
-                  ) : (
-                    sortedProjects.map((project) => {
-                      const done = project.steps.filter((s) => s.completed).length
-                      const total = project.steps.length
-                      return (
-                        <div className="project-row" key={project.id}>
-                          <button
-                            type="button"
-                            className="project-open-btn"
-                            onClick={() => setActiveProjectId(project.id)}
-                          >
-                            <strong>{project.name}</strong>
-                            <span className="muted">
-                              {total === 0
-                                ? 'No steps yet'
-                                : `${done}/${total} steps`}
-                            </span>
-                          </button>
-                          <button
-                            type="button"
-                            className="danger-btn"
-                            onClick={() => deleteProject(project.id)}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
-                <div className="settings-section">
-                  <h3>Add project</h3>
-                  <div className="inline-add">
-                    <input
-                      value={newProjectName}
-                      onChange={(e) => setNewProjectName(e.target.value)}
-                      placeholder="Project name"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          addProject()
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={addProject}
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  className="btn btn-ghost back-btn"
-                  onClick={() => setActiveProjectId(null)}
-                >
-                  ← All projects
-                </button>
-                <div className="settings-section">
-                  <h3>Steps</h3>
-                  <p className="muted reorder-hint">
-                    Complete a step to earn its $ amount.
-                  </p>
-                  {activeProject.steps.length === 0 ? (
-                    <p className="muted">No steps yet — add one below.</p>
-                  ) : (
-                    [...activeProject.steps]
-                      .sort((a, b) => a.order - b.order)
-                      .map((step) => (
-                        <div
-                          className={`step-row${step.completed ? ' completed' : ''}`}
-                          key={step.id}
-                        >
-                          <button
-                            type="button"
-                            className="check"
-                            aria-label={
-                              step.completed
-                                ? 'Mark step incomplete'
-                                : 'Mark step complete'
-                            }
-                            onClick={() =>
-                              toggleProjectStep(activeProject.id, step.id)
-                            }
-                          >
-                            <CheckIcon />
-                          </button>
-                          <div className="step-main">
-                            <strong>{step.title}</strong>
-                            <span className="reward-cost">+${step.dollars}</span>
-                          </div>
-                          <button
-                            type="button"
-                            className="danger-btn"
-                            onClick={() =>
-                              deleteProjectStep(activeProject.id, step.id)
-                            }
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      ))
-                  )}
-                </div>
-                <div className="settings-section">
-                  <h3>Add step</h3>
-                  <div className="inline-add reward-add">
-                    <input
-                      value={newStepTitle}
-                      onChange={(e) => setNewStepTitle(e.target.value)}
-                      placeholder="Step name"
-                    />
-                    <input
-                      className="cost-input"
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      step={1}
-                      value={newStepDollars}
-                      onChange={(e) => setNewStepDollars(e.target.value)}
-                      aria-label="Dollars for completing step"
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={() => addProjectStep(activeProject.id)}
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      ) : null}
 
       {rewardsOpen ? (
         <div

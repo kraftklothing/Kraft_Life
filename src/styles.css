@@ -311,6 +311,39 @@ button {
   border: 1px solid var(--line);
 }
 
+.project-btn.active {
+  background: #1f6f8a;
+  color: #f4fbff;
+  border-color: #1f6f8a;
+}
+
+.projects-title-row {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+}
+
+.day-nav-spacer {
+  width: 44px;
+  height: 44px;
+}
+
+.project-item {
+  grid-template-columns: 1fr auto;
+}
+
+.project-main-btn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: inherit;
+}
+
 .settings-btn {
   background: var(--panel-solid);
   color: var(--ink-soft);
