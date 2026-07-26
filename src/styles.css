@@ -96,6 +96,15 @@ button {
   font-size: 0.95rem;
 }
 
+.stat-chip-static {
+  cursor: default;
+  pointer-events: none;
+}
+
+.stat-chip-spacer {
+  min-width: 64px;
+}
+
 .stat-chip:active,
 .dollar-chip:active {
   transform: scale(0.97);
@@ -433,10 +442,93 @@ button {
   border-color: var(--ink-soft);
 }
 
+.rewards-balance-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 4px 8px;
+  flex-wrap: wrap;
+}
+
 .rewards-balance-inline {
-  margin: 0 4px 4px;
+  margin: 0;
   text-align: center;
   font-size: 1.05rem;
+}
+
+.rewards-balance-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.balance-edit-panel,
+.ledger-panel {
+  margin: 0 4px 12px;
+  padding: 14px 16px;
+}
+
+.balance-edit-panel label {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.ledger-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 10px;
+}
+
+.ledger-received {
+  color: var(--accent);
+}
+
+.ledger-used {
+  color: var(--ink-soft);
+}
+
+.ledger-empty {
+  margin: 0;
+}
+
+.ledger-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.ledger-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.92rem;
+}
+
+.ledger-label {
+  color: var(--ink);
+  min-width: 0;
+}
+
+.ledger-amount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.ledger-amount.positive {
+  color: var(--accent);
+}
+
+.ledger-amount.negative {
+  color: var(--ink-soft);
 }
 
 .view-hint {

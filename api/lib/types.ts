@@ -8,6 +8,7 @@ export interface VaultAppState {
   goals: unknown[]
   vacationDays: Record<string, boolean>
   showPercent: boolean
+  dollarLedger?: unknown[]
 }
 
 export interface VaultMeta {

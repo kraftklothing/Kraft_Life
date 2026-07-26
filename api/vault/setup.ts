@@ -25,6 +25,7 @@ function defaultState(): VaultAppState {
     goals: [],
     vacationDays: {},
     showPercent: false,
+    dollarLedger: [],
   }
 }
 

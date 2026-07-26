@@ -67,6 +67,19 @@ export interface Goal {
   createdAt: number
 }
 
+export type DollarLedgerKind = 'earned' | 'spent' | 'adjusted'
+
+/** One balance change — amount is signed (+ earned / − spent or clawback). */
+export interface DollarLedgerEntry {
+  id: string
+  at: number
+  /** Local date YYYY-MM-DD the change belongs to. */
+  dateKey: string
+  amount: number
+  kind: DollarLedgerKind
+  label: string
+}
+
 export interface AppState {
   tasks: Task[]
   categories: Category[]
@@ -78,6 +91,8 @@ export interface AppState {
   vacationDays: Record<string, boolean>
   /** When true, header shows percent complete instead of counts. */
   showPercent: boolean
+  /** Recent $ earned / spent / balance edits (newest last). */
+  dollarLedger: DollarLedgerEntry[]
 }
 
 export const DEFAULT_CATEGORIES: Category[] = [

@@ -8,7 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { addDays, formatDayHeading, toDateKey } from './dates'
-import { loadState, saveState } from './storage'
+import { appendLedgerEntry, loadState, normalizeState, saveState } from './storage'
 import { useCloudSync } from './CloudSyncProvider'
 import CloudSyncSettings from './CloudSyncSettings'
 import {
@@ -204,6 +204,21 @@ function PencilIcon() {
   )
 }
 
+function ClockIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="2" />
+      <path
+        d="M12 7.5V12l3 2"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 export default function App() {
   const { scheduleSave, takeLoadedState, cloudLoadCount } = useCloudSync()
   const [state, setState] = useState<AppState>(() => loadState())
@@ -226,6 +241,9 @@ export default function App() {
   const [newStepDollars, setNewStepDollars] = useState('5')
   const [newGoalName, setNewGoalName] = useState('')
   const [toast, setToast] = useState('')
+  const [balanceEditOpen, setBalanceEditOpen] = useState(false)
+  const [balanceDraft, setBalanceDraft] = useState('')
+  const [ledgerOpen, setLedgerOpen] = useState(false)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [draggingRewardId, setDraggingRewardId] = useState<string | null>(null)
   const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null)
@@ -271,7 +289,7 @@ export default function App() {
 
   useEffect(() => {
     const loaded = takeLoadedState()
-    if (loaded) setState(loaded)
+    if (loaded) setState(normalizeState(loaded))
   }, [cloudLoadCount, takeLoadedState])
 
   useEffect(() => {
@@ -337,6 +355,23 @@ export default function App() {
   const remainingCount = dayTasks.length - completedCount
   const percent =
     dayTasks.length === 0 ? 0 : Math.round((completedCount / dayTasks.length) * 100)
+
+  const todayLedger = useMemo(() => {
+    return state.dollarLedger
+      .filter((entry) => entry.dateKey === todayKey)
+      .slice()
+      .reverse()
+  }, [state.dollarLedger, todayKey])
+
+  const todayLedgerTotals = useMemo(() => {
+    let received = 0
+    let used = 0
+    for (const entry of todayLedger) {
+      if (entry.amount > 0) received += entry.amount
+      else if (entry.amount < 0) used += -entry.amount
+    }
+    return { received, used }
+  }, [todayLedger])
 
   function updateState(updater: (prev: AppState) => AppState) {
     setState((prev) => updater(prev))
@@ -482,6 +517,7 @@ export default function App() {
   function toggleComplete(taskId: string) {
     updateState((prev) => {
       let dollars = prev.dollars
+      let dollarLedger = prev.dollarLedger
       const tasks = prev.tasks.map((task) => {
         if (task.id !== taskId) return task
         const occurrence = occurrenceForDate(task, viewKey)
@@ -498,10 +534,16 @@ export default function App() {
         } else {
           nextCompletions[viewKey] = true
           dollars += 1
+          dollarLedger = appendLedgerEntry(dollarLedger, {
+            dateKey: viewKey,
+            amount: 1,
+            kind: 'earned',
+            label: task.title,
+          })
         }
         return { ...task, completions: nextCompletions }
       })
-      return { ...prev, tasks, dollars }
+      return { ...prev, tasks, dollars, dollarLedger }
     })
   }
 
@@ -574,20 +616,41 @@ export default function App() {
     const today = toDateKey(startToday())
     updateState((prev) => {
       let dollars = prev.dollars
+      let dollarLedger = prev.dollarLedger
       const projects = prev.projects.map((project) => {
         if (project.id !== projectId) return project
         const steps = project.steps.map((step) => {
           if (step.id !== stepId) return step
+          const label = `${project.name}: ${step.title}`
           if (step.completed) {
-            dollars = Math.max(0, dollars - step.dollars)
+            if (step.dollars > 0) {
+              const clawback = Math.min(dollars, step.dollars)
+              dollars = Math.max(0, dollars - step.dollars)
+              if (clawback > 0) {
+                dollarLedger = appendLedgerEntry(dollarLedger, {
+                  dateKey: today,
+                  amount: -clawback,
+                  kind: 'earned',
+                  label: `Undo · ${label}`,
+                })
+              }
+            }
             return { ...step, completed: false, completedOn: null }
           }
           dollars += step.dollars
+          if (step.dollars > 0) {
+            dollarLedger = appendLedgerEntry(dollarLedger, {
+              dateKey: today,
+              amount: step.dollars,
+              kind: 'earned',
+              label,
+            })
+          }
           return { ...step, completed: true, completedOn: today }
         })
         return { ...project, steps }
       })
-      return { ...prev, projects, dollars }
+      return { ...prev, projects, dollars, dollarLedger }
     })
   }
 
@@ -654,20 +717,31 @@ export default function App() {
   }
 
   function deleteProjectStep(projectId: string, stepId: string) {
+    const today = toDateKey(startToday())
     updateState((prev) => {
       let dollars = prev.dollars
+      let dollarLedger = prev.dollarLedger
       const projects = prev.projects.map((project) => {
         if (project.id !== projectId) return project
         const removed = project.steps.find((s) => s.id === stepId)
-        if (removed?.completed) {
+        if (removed?.completed && removed.dollars > 0) {
+          const clawback = Math.min(dollars, removed.dollars)
           dollars = Math.max(0, dollars - removed.dollars)
+          if (clawback > 0) {
+            dollarLedger = appendLedgerEntry(dollarLedger, {
+              dateKey: today,
+              amount: -clawback,
+              kind: 'earned',
+              label: `Removed · ${project.name}: ${removed.title}`,
+            })
+          }
         }
         return {
           ...project,
           steps: project.steps.filter((s) => s.id !== stepId),
         }
       })
-      return { ...prev, projects, dollars }
+      return { ...prev, projects, dollars, dollarLedger }
     })
   }
 
@@ -685,11 +759,49 @@ export default function App() {
       setToast(`Need $${reward.cost}`)
       return
     }
+    const today = toDateKey(startToday())
     updateState((prev) => ({
       ...prev,
       dollars: prev.dollars - reward.cost,
+      dollarLedger: appendLedgerEntry(prev.dollarLedger, {
+        dateKey: today,
+        amount: -reward.cost,
+        kind: 'spent',
+        label: reward.name,
+      }),
     }))
     setToast(`Spent $${reward.cost} on ${reward.name}`)
+  }
+
+  function openBalanceEdit() {
+    setBalanceDraft(String(state.dollars))
+    setBalanceEditOpen(true)
+    setLedgerOpen(false)
+  }
+
+  function saveBalanceEdit() {
+    const next = Number.parseInt(balanceDraft, 10)
+    if (!Number.isFinite(next) || next < 0) {
+      setToast('Balance must be 0 or more')
+      return
+    }
+    const today = toDateKey(startToday())
+    updateState((prev) => {
+      const delta = next - prev.dollars
+      if (delta === 0) return prev
+      return {
+        ...prev,
+        dollars: next,
+        dollarLedger: appendLedgerEntry(prev.dollarLedger, {
+          dateKey: today,
+          amount: delta,
+          kind: 'adjusted',
+          label: 'Balance edit',
+        }),
+      }
+    })
+    setBalanceEditOpen(false)
+    setToast(`Balance set to $${next}`)
   }
 
   function addReward() {
@@ -966,22 +1078,41 @@ export default function App() {
   return (
     <div className={`app${vacationOn ? ' vacation-day' : ''}`}>
       <header className="top-bar">
-        <button
-          type="button"
-          className="stat-chip"
-          onClick={() =>
-            updateState((prev) => ({ ...prev, showPercent: !prev.showPercent }))
-          }
-          aria-label={
-            state.showPercent
-              ? 'Show completed and remaining counts'
-              : 'Show percent complete'
-          }
-        >
-          {state.showPercent
-            ? `${percent}% complete`
-            : `${completedCount} done · ${remainingCount} left`}
-        </button>
+        {mainView === 'tasks' ? (
+          <button
+            type="button"
+            className="stat-chip"
+            onClick={() =>
+              updateState((prev) => ({
+                ...prev,
+                showPercent: !prev.showPercent,
+              }))
+            }
+            aria-label={
+              state.showPercent
+                ? 'Show completed and remaining counts'
+                : 'Show percent complete'
+            }
+          >
+            {state.showPercent
+              ? `${percent}% complete`
+              : `${completedCount} done · ${remainingCount} left`}
+          </button>
+        ) : mainView === 'projects' ? (
+          <span className="stat-chip stat-chip-static">
+            {sortedProjects.length === 1
+              ? '1 project on the go'
+              : `${sortedProjects.length} projects on the go`}
+          </span>
+        ) : mainView === 'goals' ? (
+          <span className="stat-chip stat-chip-static">
+            {sortedGoals.length === 1
+              ? '1 goal on the go'
+              : `${sortedGoals.length} goals on the go`}
+          </span>
+        ) : (
+          <span className="stat-chip-spacer" aria-hidden="true" />
+        )}
         <button
           type="button"
           className="dollar-chip"
@@ -1443,9 +1574,105 @@ export default function App() {
             <div className="day-divider" aria-hidden="true" />
           </div>
 
-          <p className="rewards-balance-inline">
-            Balance: <strong>${state.dollars}</strong>
-          </p>
+          <div className="rewards-balance-row">
+            <p className="rewards-balance-inline">
+              Balance: <strong>${state.dollars}</strong>
+            </p>
+            <div className="rewards-balance-actions">
+              <button
+                type="button"
+                className="edit-btn"
+                aria-label="Edit balance"
+                aria-expanded={balanceEditOpen}
+                onClick={() => {
+                  if (balanceEditOpen) setBalanceEditOpen(false)
+                  else openBalanceEdit()
+                }}
+              >
+                <PencilIcon />
+              </button>
+              <button
+                type="button"
+                className="edit-btn"
+                aria-label="Today's points history"
+                aria-expanded={ledgerOpen}
+                onClick={() => {
+                  setLedgerOpen((open) => !open)
+                  setBalanceEditOpen(false)
+                }}
+              >
+                <ClockIcon />
+              </button>
+            </div>
+          </div>
+
+          {balanceEditOpen && (
+            <div className="panel balance-edit-panel">
+              <label>
+                Set balance
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  step={1}
+                  value={balanceDraft}
+                  onChange={(e) => setBalanceDraft(e.target.value)}
+                  autoFocus
+                />
+              </label>
+              <div className="add-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={saveBalanceEdit}
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setBalanceEditOpen(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {ledgerOpen && (
+            <div className="panel ledger-panel" aria-label="Today's points">
+              <div className="ledger-summary">
+                <span className="ledger-received">
+                  +${todayLedgerTotals.received} received
+                </span>
+                <span className="ledger-used">
+                  −${todayLedgerTotals.used} used
+                </span>
+              </div>
+              {todayLedger.length === 0 ? (
+                <p className="muted ledger-empty">No points activity today yet.</p>
+              ) : (
+                <ul className="ledger-list">
+                  {todayLedger.map((entry) => (
+                    <li key={entry.id} className="ledger-item">
+                      <span className="ledger-label">{entry.label}</span>
+                      <span
+                        className={
+                          entry.amount >= 0
+                            ? 'ledger-amount positive'
+                            : 'ledger-amount negative'
+                        }
+                      >
+                        {entry.amount >= 0
+                          ? `+$${entry.amount}`
+                          : `−$${Math.abs(entry.amount)}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {state.rewards.length === 0 ? (
             <div className="panel empty">

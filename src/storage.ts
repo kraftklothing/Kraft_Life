@@ -3,6 +3,7 @@ import {
   DEFAULT_REWARDS,
   type AppState,
   type Category,
+  type DollarLedgerEntry,
   type Goal,
   type Project,
   type ProjectStep,
@@ -10,6 +11,7 @@ import {
 } from './types'
 
 const STORAGE_KEY = 'kraft-life-v1'
+const MAX_LEDGER_ENTRIES = 400
 
 function normalizeCategories(raw: unknown): Category[] | null {
   if (!Array.isArray(raw) || raw.length === 0) return null
@@ -122,7 +124,55 @@ function normalizeGoals(raw: unknown): Goal[] {
   return goals.sort((a, b) => a.order - b.order)
 }
 
-export function loadState(): AppState {
+function normalizeDollarLedger(raw: unknown): DollarLedgerEntry[] {
+  if (!Array.isArray(raw)) return []
+  const entries: DollarLedgerEntry[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const e = item as {
+      id?: unknown
+      at?: unknown
+      dateKey?: unknown
+      amount?: unknown
+      kind?: unknown
+      label?: unknown
+    }
+    if (typeof e.id !== 'string' || typeof e.dateKey !== 'string') continue
+    if (typeof e.label !== 'string') continue
+    const at = typeof e.at === 'number' ? e.at : Number(e.at)
+    const amount = typeof e.amount === 'number' ? e.amount : Number(e.amount)
+    if (!Number.isFinite(at) || !Number.isFinite(amount)) continue
+    if (e.kind !== 'earned' && e.kind !== 'spent' && e.kind !== 'adjusted') {
+      continue
+    }
+    entries.push({
+      id: e.id,
+      at,
+      dateKey: e.dateKey,
+      amount: Math.trunc(amount),
+      kind: e.kind,
+      label: e.label,
+    })
+  }
+  return entries.slice(-MAX_LEDGER_ENTRIES)
+}
+
+export function appendLedgerEntry(
+  ledger: DollarLedgerEntry[],
+  entry: Omit<DollarLedgerEntry, 'id' | 'at'> & { id?: string; at?: number },
+): DollarLedgerEntry[] {
+  const next: DollarLedgerEntry = {
+    id: entry.id ?? `ledger_${Math.random().toString(36).slice(2, 10)}`,
+    at: entry.at ?? Date.now(),
+    dateKey: entry.dateKey,
+    amount: entry.amount,
+    kind: entry.kind,
+    label: entry.label,
+  }
+  return [...ledger, next].slice(-MAX_LEDGER_ENTRIES)
+}
+
+export function normalizeState(raw: Partial<AppState> | null | undefined): AppState {
   const fallback: AppState = {
     tasks: [],
     categories: DEFAULT_CATEGORIES,
@@ -132,29 +182,36 @@ export function loadState(): AppState {
     goals: [],
     vacationDays: {},
     showPercent: false,
+    dollarLedger: [],
   }
+  if (!raw || typeof raw !== 'object') return fallback
 
+  const categories = normalizeCategories(raw.categories) ?? DEFAULT_CATEGORIES
+  const rewards = normalizeRewards(raw.rewards)
+  return {
+    tasks: Array.isArray(raw.tasks) ? raw.tasks : [],
+    categories,
+    dollars: typeof raw.dollars === 'number' ? raw.dollars : 0,
+    rewards: rewards !== null ? rewards : DEFAULT_REWARDS,
+    projects: normalizeProjects(raw.projects),
+    goals: normalizeGoals(raw.goals),
+    vacationDays:
+      raw.vacationDays && typeof raw.vacationDays === 'object'
+        ? raw.vacationDays
+        : {},
+    showPercent: Boolean(raw.showPercent),
+    dollarLedger: normalizeDollarLedger(raw.dollarLedger),
+  }
+}
+
+export function loadState(): AppState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return fallback
+    if (!raw) return normalizeState(null)
     const parsed = JSON.parse(raw) as Partial<AppState>
-    const categories = normalizeCategories(parsed.categories) ?? DEFAULT_CATEGORIES
-    const rewards = normalizeRewards(parsed.rewards)
-    return {
-      tasks: parsed.tasks ?? [],
-      categories,
-      dollars: typeof parsed.dollars === 'number' ? parsed.dollars : 0,
-      rewards: rewards !== null ? rewards : DEFAULT_REWARDS,
-      projects: normalizeProjects(parsed.projects),
-      goals: normalizeGoals(parsed.goals),
-      vacationDays:
-        parsed.vacationDays && typeof parsed.vacationDays === 'object'
-          ? parsed.vacationDays
-          : {},
-      showPercent: Boolean(parsed.showPercent),
-    }
+    return normalizeState(parsed)
   } catch {
-    return fallback
+    return normalizeState(null)
   }
 }
 
