@@ -20,7 +20,23 @@ async function parseJson<T>(response: Response): Promise<T> {
 
 export async function fetchVaultStatus(): Promise<VaultStatus> {
   const response = await fetch('/api/vault/status')
-  return parseJson<VaultStatus>(response)
+  const data = (await response.json()) as VaultStatus & { error?: string }
+
+  if (response.status === 503) {
+    return {
+      configured: false,
+      storageReady: false,
+      message: data.message ?? 'Cloud storage is not set up on Vercel yet.',
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      typeof data.error === 'string' ? data.error : `Request failed (${response.status})`,
+    )
+  }
+
+  return data
 }
 
 export async function setupVault(pin: string, state: AppState): Promise<void> {

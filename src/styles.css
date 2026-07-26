@@ -1237,3 +1237,30 @@ button {
 .cloud-sync-settings .lock-btn {
   width: 100%;
 }
+
+.cloud-notice {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 236, 196, 0.85);
+  border: 1px solid rgba(180, 120, 0, 0.22);
+}
+
+.cloud-notice p {
+  margin: 0 0 8px;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.cloud-steps {
+  margin: 0 0 10px 18px;
+  padding: 0;
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+
+.cloud-link {
+  display: inline-block;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+}

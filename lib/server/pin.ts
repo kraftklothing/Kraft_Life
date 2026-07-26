@@ -17,3 +17,11 @@ export function verifyPin(pin: string, storedHash: string): boolean {
 export function isValidPin(pin: string): boolean {
   return /^\d{4,6}$/.test(pin)
 }
+
+export function readPinHeader(request: Request): string {
+  return request.headers.get('x-kraft-pin')?.trim() ?? ''
+}
+
+export async function readJsonBody<T>(request: Request): Promise<T> {
+  return (await request.json()) as T
+}

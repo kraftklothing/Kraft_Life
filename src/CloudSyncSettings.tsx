@@ -2,6 +2,9 @@ import { useState, type FormEvent } from 'react'
 import { useCloudSync } from './CloudSyncProvider'
 import type { AppState } from './types'
 
+const VERCEL_STORAGE_URL =
+  'https://vercel.com/kraftklothings-projects/kraft-life/stores'
+
 interface CloudSyncSettingsProps {
   state: AppState
   onCloudStateLoaded: (state: AppState) => void
@@ -48,13 +51,7 @@ export default function CloudSyncSettings({
     <section className="task-group cloud-sync-settings" aria-label="Cloud sync">
       <h2 className="category-heading">Cloud sync</h2>
 
-      {!cloud.storageReady ? (
-        <p className="muted view-hint">
-          Cloud save is not set up on Vercel yet. Tasks still save on this device.
-          Connect Upstash Redis in your Vercel project, redeploy, then create a PIN
-          here.
-        </p>
-      ) : cloud.unlocked ? (
+      {cloud.unlocked ? (
         <>
           <p className="cloud-status cloud-status-on">Connected — tasks save to the cloud.</p>
           <p className="muted view-hint">
@@ -66,6 +63,14 @@ export default function CloudSyncSettings({
         </>
       ) : cloud.vaultConfigured ? (
         <form className="cloud-sync-form" onSubmit={handleUnlock}>
+          {!cloud.storageReady ? (
+            <div className="cloud-notice">
+              <p>Cloud storage still needs to be connected on Vercel before sync works.</p>
+              <a className="cloud-link" href={VERCEL_STORAGE_URL} target="_blank" rel="noreferrer">
+                Open Vercel Storage setup
+              </a>
+            </div>
+          ) : null}
           <p className="muted view-hint">
             Enter your PIN to load and save tasks in the cloud.
           </p>
@@ -89,16 +94,38 @@ export default function CloudSyncSettings({
             Remember on this device
           </label>
           {cloud.error ? <p className="pin-error">{cloud.error}</p> : null}
-          <button type="submit" className="btn btn-primary pin-submit" disabled={cloud.busy}>
+          <button
+            type="submit"
+            className="btn btn-primary pin-submit"
+            disabled={cloud.busy || !cloud.storageReady}
+          >
             {cloud.busy ? 'Opening…' : 'Connect cloud sync'}
           </button>
         </form>
       ) : (
         <form className="cloud-sync-form" onSubmit={handleSetup}>
-          <p className="muted view-hint">
-            Create a 4–6 digit PIN to save tasks in the cloud. No account needed — use
-            the same PIN on every device.
-          </p>
+          {!cloud.storageReady ? (
+            <div className="cloud-notice">
+              <p>
+                One quick Vercel step is needed before cloud save works. Tasks still
+                save on this device until then.
+              </p>
+              <ol className="cloud-steps">
+                <li>Open Vercel Storage below</li>
+                <li>Add <strong>Upstash for Redis</strong></li>
+                <li>Connect it to <strong>kraft-life</strong></li>
+                <li>Redeploy, then come back here</li>
+              </ol>
+              <a className="cloud-link" href={VERCEL_STORAGE_URL} target="_blank" rel="noreferrer">
+                Open Vercel Storage setup
+              </a>
+            </div>
+          ) : (
+            <p className="muted view-hint">
+              Create a 4–6 digit PIN to save tasks in the cloud. No account needed — use
+              the same PIN on every device.
+            </p>
+          )}
           <label className="pin-field">
             <span>Create PIN (4–6 digits)</span>
             <input
@@ -132,7 +159,11 @@ export default function CloudSyncSettings({
             Remember on this device
           </label>
           {cloud.error ? <p className="pin-error">{cloud.error}</p> : null}
-          <button type="submit" className="btn btn-primary pin-submit" disabled={cloud.busy}>
+          <button
+            type="submit"
+            className="btn btn-primary pin-submit"
+            disabled={cloud.busy || !cloud.storageReady}
+          >
             {cloud.busy ? 'Saving…' : 'Save tasks to the cloud'}
           </button>
         </form>
