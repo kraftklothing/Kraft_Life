@@ -17,10 +17,12 @@ import {
   sortTasksForDay,
   taskVisibleOnDate,
 } from './taskLogic'
+import { goalProgressedOnDate } from './goalLogic'
 import {
   REPETITION_LABELS,
   type AppState,
   type Category,
+  type Goal,
   type Project,
   type ProjectStep,
   type Repetition,
@@ -143,7 +145,17 @@ function TasksIcon() {
   )
 }
 
-type MainView = 'tasks' | 'projects' | 'rewards' | 'settings'
+function TargetIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="2" />
+      <circle cx="12" cy="12" r="4.5" stroke="currentColor" strokeWidth="2" />
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+    </svg>
+  )
+}
+
+type MainView = 'tasks' | 'projects' | 'goals' | 'rewards' | 'settings'
 
 function PlaneIcon() {
   return (
@@ -202,12 +214,14 @@ export default function App() {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [mainView, setMainView] = useState<MainView>('tasks')
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
+  const [activeGoalId, setActiveGoalId] = useState<string | null>(null)
   const [newCategory, setNewCategory] = useState('')
   const [newRewardName, setNewRewardName] = useState('')
   const [newRewardCost, setNewRewardCost] = useState('5')
   const [newProjectName, setNewProjectName] = useState('')
   const [newStepTitle, setNewStepTitle] = useState('')
   const [newStepDollars, setNewStepDollars] = useState('5')
+  const [newGoalName, setNewGoalName] = useState('')
   const [toast, setToast] = useState('')
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [draggingRewardId, setDraggingRewardId] = useState<string | null>(null)
@@ -270,6 +284,16 @@ export default function App() {
   const activeProject = useMemo(
     () => sortedProjects.find((p) => p.id === activeProjectId) ?? null,
     [sortedProjects, activeProjectId],
+  )
+
+  const sortedGoals = useMemo(
+    () => [...state.goals].sort((a, b) => a.order - b.order),
+    [state.goals],
+  )
+
+  const activeGoal = useMemo(
+    () => sortedGoals.find((g) => g.id === activeGoalId) ?? null,
+    [sortedGoals, activeGoalId],
   )
 
   const groupedDayTasks = useMemo(() => {
@@ -396,11 +420,16 @@ export default function App() {
     setAddOpen(false)
     setMainView(view)
     if (view !== 'projects') setActiveProjectId(null)
+    if (view !== 'goals') setActiveGoalId(null)
   }
 
   function openAddComposer() {
     if (mainView === 'settings') return
-    if (mainView === 'projects' || mainView === 'rewards') {
+    if (
+      mainView === 'projects' ||
+      mainView === 'rewards' ||
+      mainView === 'goals'
+    ) {
       setAddOpen(true)
       setAddError('')
       return
@@ -477,6 +506,10 @@ export default function App() {
     updateState((prev) => ({
       ...prev,
       projects: prev.projects.filter((p) => p.id !== id),
+      goals: prev.goals.map((goal) => ({
+        ...goal,
+        projectIds: goal.projectIds.filter((pid) => pid !== id),
+      })),
     }))
     if (activeProjectId === id) setActiveProjectId(null)
     setToast('Project deleted')
@@ -503,6 +536,7 @@ export default function App() {
           title,
           dollars,
           completed: false,
+          completedOn: null,
           order: maxOrder + 1,
         }
         return { ...project, steps: [...project.steps, step] }
@@ -514,6 +548,7 @@ export default function App() {
   }
 
   function toggleProjectStep(projectId: string, stepId: string) {
+    const today = toDateKey(startToday())
     updateState((prev) => {
       let dollars = prev.dollars
       const projects = prev.projects.map((project) => {
@@ -522,15 +557,77 @@ export default function App() {
           if (step.id !== stepId) return step
           if (step.completed) {
             dollars = Math.max(0, dollars - step.dollars)
-            return { ...step, completed: false }
+            return { ...step, completed: false, completedOn: null }
           }
           dollars += step.dollars
-          return { ...step, completed: true }
+          return { ...step, completed: true, completedOn: today }
         })
         return { ...project, steps }
       })
       return { ...prev, projects, dollars }
     })
+  }
+
+  function addGoal() {
+    const name = newGoalName.trim()
+    if (!name) {
+      setToast('Name your goal')
+      return
+    }
+    const maxOrder = state.goals.reduce((max, g) => Math.max(max, g.order), -1)
+    const goal: Goal = {
+      id: uid('goal'),
+      name,
+      order: maxOrder + 1,
+      taskIds: [],
+      projectIds: [],
+      createdAt: Date.now(),
+    }
+    updateState((prev) => ({ ...prev, goals: [...prev.goals, goal] }))
+    setNewGoalName('')
+    setActiveGoalId(goal.id)
+    setToast('Goal added')
+  }
+
+  function deleteGoal(id: string) {
+    updateState((prev) => ({
+      ...prev,
+      goals: prev.goals.filter((g) => g.id !== id),
+    }))
+    if (activeGoalId === id) setActiveGoalId(null)
+    setToast('Goal deleted')
+  }
+
+  function toggleGoalTask(goalId: string, taskId: string) {
+    updateState((prev) => ({
+      ...prev,
+      goals: prev.goals.map((goal) => {
+        if (goal.id !== goalId) return goal
+        const has = goal.taskIds.includes(taskId)
+        return {
+          ...goal,
+          taskIds: has
+            ? goal.taskIds.filter((id) => id !== taskId)
+            : [...goal.taskIds, taskId],
+        }
+      }),
+    }))
+  }
+
+  function toggleGoalProject(goalId: string, projectId: string) {
+    updateState((prev) => ({
+      ...prev,
+      goals: prev.goals.map((goal) => {
+        if (goal.id !== goalId) return goal
+        const has = goal.projectIds.includes(projectId)
+        return {
+          ...goal,
+          projectIds: has
+            ? goal.projectIds.filter((id) => id !== projectId)
+            : [...goal.projectIds, projectId],
+        }
+      }),
+    }))
   }
 
   function deleteProjectStep(projectId: string, stepId: string) {
@@ -1150,6 +1247,168 @@ export default function App() {
         </section>
       )}
 
+      {mainView === 'goals' && (
+        <section className="day-pane" aria-label="Goals">
+          <div className="day-header">
+            <div className="day-label-row projects-title-row">
+              {activeGoal ? (
+                <button
+                  type="button"
+                  className="day-nav-btn"
+                  aria-label="Back to all goals"
+                  onClick={() => setActiveGoalId(null)}
+                >
+                  ‹
+                </button>
+              ) : (
+                <span className="day-nav-spacer" aria-hidden="true" />
+              )}
+              <p className="day-label">
+                {activeGoal ? activeGoal.name : 'Goals'}
+              </p>
+              <span className="day-nav-spacer" aria-hidden="true" />
+            </div>
+            <div className="day-divider" aria-hidden="true" />
+          </div>
+
+          {!activeGoal ? (
+            sortedGoals.length === 0 ? (
+              <div className="panel empty">
+                <h2>No goals yet</h2>
+                <p>Tap the green plus to add a goal, then link tasks and projects.</p>
+              </div>
+            ) : (
+              <div className="task-groups">
+                <section className="task-group" aria-label="Your goals">
+                  <h2 className="category-heading">Your goals</h2>
+                  <p className="muted reorder-hint view-hint">
+                    Turns green today when you complete a linked task or project
+                    step.
+                  </p>
+                  <ul className="task-list">
+                    {sortedGoals.map((goal) => {
+                      const progressed = goalProgressedOnDate(
+                        goal,
+                        state,
+                        todayKey,
+                      )
+                      const bullets = [
+                        ...goal.taskIds.map((id) => {
+                          const task = state.tasks.find((t) => t.id === id)
+                          return task ? `Task: ${task.title}` : null
+                        }),
+                        ...goal.projectIds.map((id) => {
+                          const project = state.projects.find((p) => p.id === id)
+                          return project ? `Project: ${project.name}` : null
+                        }),
+                      ].filter((item): item is string => Boolean(item))
+
+                      return (
+                        <li
+                          key={goal.id}
+                          className={`task-item goal-item${
+                            progressed ? ' goal-progressed' : ''
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            className="project-main-btn"
+                            onClick={() => setActiveGoalId(goal.id)}
+                          >
+                            <p className="task-title">{goal.name}</p>
+                            {bullets.length === 0 ? (
+                              <div className="badges">
+                                <span className="badge rep">Nothing linked yet</span>
+                              </div>
+                            ) : (
+                              <ul className="goal-bullets">
+                                {bullets.map((line, index) => (
+                                  <li key={`${goal.id}-${index}`}>{line}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            className="danger-btn"
+                            onClick={() => deleteGoal(goal.id)}
+                          >
+                            Delete
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </section>
+              </div>
+            )
+          ) : (
+            <div className="task-groups">
+              <section className="task-group" aria-label="Linked work">
+                <h2 className="category-heading">Linked work</h2>
+                <p className="muted reorder-hint view-hint">
+                  Tap to assign or unassign tasks and projects for this goal.
+                </p>
+                {goalProgressedOnDate(activeGoal, state, todayKey) ? (
+                  <p className="goal-today-note">Progressed today ✓</p>
+                ) : (
+                  <p className="muted view-hint">No progress on this goal today yet.</p>
+                )}
+
+                <h3 className="subheading">Tasks</h3>
+                {state.tasks.length === 0 ? (
+                  <p className="muted view-hint">No tasks to link yet.</p>
+                ) : (
+                  <ul className="task-list">
+                    {state.tasks.map((task) => {
+                      const linked = activeGoal.taskIds.includes(task.id)
+                      return (
+                        <li key={task.id} className="task-item assign-item">
+                          <button
+                            type="button"
+                            className={`assign-btn${linked ? ' linked' : ''}`}
+                            onClick={() => toggleGoalTask(activeGoal.id, task.id)}
+                          >
+                            <span className="assign-mark">{linked ? '●' : '○'}</span>
+                            <span className="task-title">{task.title}</span>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+
+                <div className="category-divider" aria-hidden="true" />
+                <h3 className="subheading">Projects</h3>
+                {sortedProjects.length === 0 ? (
+                  <p className="muted view-hint">No projects to link yet.</p>
+                ) : (
+                  <ul className="task-list">
+                    {sortedProjects.map((project) => {
+                      const linked = activeGoal.projectIds.includes(project.id)
+                      return (
+                        <li key={project.id} className="task-item assign-item">
+                          <button
+                            type="button"
+                            className={`assign-btn${linked ? ' linked' : ''}`}
+                            onClick={() =>
+                              toggleGoalProject(activeGoal.id, project.id)
+                            }
+                          >
+                            <span className="assign-mark">{linked ? '●' : '○'}</span>
+                            <span className="task-title">{project.name}</span>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </section>
+            </div>
+          )}
+        </section>
+      )}
+
       {mainView === 'rewards' && (
         <section className="day-pane" aria-label="Rewards">
           <div className="day-header">
@@ -1339,9 +1598,11 @@ export default function App() {
                     ? activeProject
                       ? 'New step'
                       : 'New project'
-                    : mainView === 'rewards'
-                      ? 'New reward'
-                      : 'New task'
+                    : mainView === 'goals'
+                      ? 'New goal'
+                      : mainView === 'rewards'
+                        ? 'New reward'
+                        : 'New task'
                 }
                 onClick={openAddComposer}
               >
@@ -1372,6 +1633,17 @@ export default function App() {
               onClick={() => goToView('projects')}
             >
               <ProjectIcon />
+            </button>
+            <button
+              type="button"
+              className={`circle-btn goals-btn${
+                mainView === 'goals' ? ' active' : ''
+              }`}
+              aria-label="Goals"
+              aria-pressed={mainView === 'goals'}
+              onClick={() => goToView('goals')}
+            >
+              <TargetIcon />
             </button>
             <button
               type="button"
@@ -1476,6 +1748,48 @@ export default function App() {
                 </div>
               </>
             )}
+          </div>
+        ) : mainView === 'goals' ? (
+          <div className="panel add-panel">
+            <div className="composer-header">
+              <h2>New goal</h2>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Close"
+                onClick={closeAddComposer}
+              >
+                ✕
+              </button>
+            </div>
+            <label>
+              Goal name
+              <input
+                value={newGoalName}
+                onChange={(e) => setNewGoalName(e.target.value)}
+                placeholder="What are you working toward?"
+                autoComplete="off"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addGoal()
+                    setAddOpen(false)
+                  }
+                }}
+              />
+            </label>
+            <div className="add-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  addGoal()
+                  setAddOpen(false)
+                }}
+              >
+                Add goal
+              </button>
+            </div>
           </div>
         ) : mainView === 'rewards' ? (
           <div className="panel add-panel">

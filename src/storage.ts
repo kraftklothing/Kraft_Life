@@ -3,6 +3,7 @@ import {
   DEFAULT_REWARDS,
   type AppState,
   type Category,
+  type Goal,
   type Project,
   type ProjectStep,
   type Reward,
@@ -46,16 +47,20 @@ function normalizeSteps(raw: unknown): ProjectStep[] {
       title?: unknown
       dollars?: unknown
       completed?: unknown
+      completedOn?: unknown
       order?: unknown
     }
     if (typeof s.id !== 'string' || typeof s.title !== 'string') return
     const dollars = typeof s.dollars === 'number' ? s.dollars : Number(s.dollars)
     if (!Number.isFinite(dollars) || dollars < 0) return
+    const completed = Boolean(s.completed)
     steps.push({
       id: s.id,
       title: s.title,
       dollars: Math.floor(dollars),
-      completed: Boolean(s.completed),
+      completed,
+      completedOn:
+        completed && typeof s.completedOn === 'string' ? s.completedOn : null,
       order: typeof s.order === 'number' ? s.order : index,
     })
   })
@@ -86,6 +91,37 @@ function normalizeProjects(raw: unknown): Project[] {
   return projects.sort((a, b) => a.order - b.order)
 }
 
+function normalizeStringIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw.filter((id): id is string => typeof id === 'string')
+}
+
+function normalizeGoals(raw: unknown): Goal[] {
+  if (!Array.isArray(raw)) return []
+  const goals: Goal[] = []
+  raw.forEach((item, index) => {
+    if (!item || typeof item !== 'object') return
+    const g = item as {
+      id?: unknown
+      name?: unknown
+      order?: unknown
+      taskIds?: unknown
+      projectIds?: unknown
+      createdAt?: unknown
+    }
+    if (typeof g.id !== 'string' || typeof g.name !== 'string') return
+    goals.push({
+      id: g.id,
+      name: g.name,
+      order: typeof g.order === 'number' ? g.order : index,
+      taskIds: normalizeStringIds(g.taskIds),
+      projectIds: normalizeStringIds(g.projectIds),
+      createdAt: typeof g.createdAt === 'number' ? g.createdAt : Date.now(),
+    })
+  })
+  return goals.sort((a, b) => a.order - b.order)
+}
+
 export function loadState(): AppState {
   const fallback: AppState = {
     tasks: [],
@@ -93,6 +129,7 @@ export function loadState(): AppState {
     dollars: 0,
     rewards: DEFAULT_REWARDS,
     projects: [],
+    goals: [],
     vacationDays: {},
     showPercent: false,
   }
@@ -109,6 +146,7 @@ export function loadState(): AppState {
       dollars: typeof parsed.dollars === 'number' ? parsed.dollars : 0,
       rewards: rewards !== null ? rewards : DEFAULT_REWARDS,
       projects: normalizeProjects(parsed.projects),
+      goals: normalizeGoals(parsed.goals),
       vacationDays:
         parsed.vacationDays && typeof parsed.vacationDays === 'object'
           ? parsed.vacationDays

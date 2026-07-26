@@ -286,14 +286,18 @@ button {
 }
 
 .nav-plus-spacer {
-  width: 58px;
-  height: 58px;
+  width: 52px;
+  height: 52px;
   flex-shrink: 0;
 }
 
+.nav-gap {
+  width: 12px;
+}
+
 .circle-btn {
-  width: 58px;
-  height: 58px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   border: none;
   display: grid;
@@ -339,6 +343,86 @@ button {
   background: #1f6f8a;
   color: #f4fbff;
   border-color: #1f6f8a;
+}
+
+.goals-btn {
+  background: var(--panel-solid);
+  color: #9a3412;
+  border: 1px solid var(--line);
+}
+
+.goals-btn.active {
+  background: #9a3412;
+  color: #fff7ed;
+  border-color: #9a3412;
+}
+
+.goal-item {
+  grid-template-columns: 1fr auto;
+  align-items: start;
+}
+
+.goal-item.goal-progressed {
+  background: #e7f7ee;
+  border-color: rgba(47, 158, 107, 0.45);
+  box-shadow: 0 8px 20px rgba(47, 158, 107, 0.12);
+}
+
+.goal-item.goal-progressed .task-title {
+  color: #1f6b45;
+}
+
+.goal-bullets {
+  margin: 4px 0 0;
+  padding-left: 1.1rem;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  font-weight: 500;
+  display: grid;
+  gap: 2px;
+}
+
+.goal-today-note {
+  margin: 0 4px 10px;
+  color: #1f6b45;
+  font-weight: 700;
+}
+
+.subheading {
+  margin: 8px 4px 6px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.assign-item {
+  grid-template-columns: 1fr;
+  padding: 0;
+  overflow: hidden;
+}
+
+.assign-btn {
+  width: 100%;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  text-align: left;
+  color: inherit;
+}
+
+.assign-btn.linked {
+  background: rgba(47, 158, 107, 0.1);
+}
+
+.assign-mark {
+  color: var(--accent-soft);
+  font-size: 1.1rem;
+  line-height: 1;
 }
 
 .gift-btn.active {
