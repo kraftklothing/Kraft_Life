@@ -1,4 +1,12 @@
-import { DEFAULT_CATEGORIES, DEFAULT_REWARDS, type AppState, type Category, type Reward } from './types'
+import {
+  DEFAULT_CATEGORIES,
+  DEFAULT_REWARDS,
+  type AppState,
+  type Category,
+  type Project,
+  type ProjectStep,
+  type Reward,
+} from './types'
 
 const STORAGE_KEY = 'kraft-life-v1'
 
@@ -28,12 +36,63 @@ function normalizeRewards(raw: unknown): Reward[] | null {
   return rewards
 }
 
+function normalizeSteps(raw: unknown): ProjectStep[] {
+  if (!Array.isArray(raw)) return []
+  const steps: ProjectStep[] = []
+  raw.forEach((item, index) => {
+    if (!item || typeof item !== 'object') return
+    const s = item as {
+      id?: unknown
+      title?: unknown
+      dollars?: unknown
+      completed?: unknown
+      order?: unknown
+    }
+    if (typeof s.id !== 'string' || typeof s.title !== 'string') return
+    const dollars = typeof s.dollars === 'number' ? s.dollars : Number(s.dollars)
+    if (!Number.isFinite(dollars) || dollars < 0) return
+    steps.push({
+      id: s.id,
+      title: s.title,
+      dollars: Math.floor(dollars),
+      completed: Boolean(s.completed),
+      order: typeof s.order === 'number' ? s.order : index,
+    })
+  })
+  return steps.sort((a, b) => a.order - b.order)
+}
+
+function normalizeProjects(raw: unknown): Project[] {
+  if (!Array.isArray(raw)) return []
+  const projects: Project[] = []
+  raw.forEach((item, index) => {
+    if (!item || typeof item !== 'object') return
+    const p = item as {
+      id?: unknown
+      name?: unknown
+      order?: unknown
+      steps?: unknown
+      createdAt?: unknown
+    }
+    if (typeof p.id !== 'string' || typeof p.name !== 'string') return
+    projects.push({
+      id: p.id,
+      name: p.name,
+      order: typeof p.order === 'number' ? p.order : index,
+      steps: normalizeSteps(p.steps),
+      createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
+    })
+  })
+  return projects.sort((a, b) => a.order - b.order)
+}
+
 export function loadState(): AppState {
   const fallback: AppState = {
     tasks: [],
     categories: DEFAULT_CATEGORIES,
     dollars: 0,
     rewards: DEFAULT_REWARDS,
+    projects: [],
     vacationDays: {},
     showPercent: false,
   }
@@ -48,8 +107,8 @@ export function loadState(): AppState {
       tasks: parsed.tasks ?? [],
       categories,
       dollars: typeof parsed.dollars === 'number' ? parsed.dollars : 0,
-      // Preserve an empty rewards list if the user cleared them all.
       rewards: rewards !== null ? rewards : DEFAULT_REWARDS,
+      projects: normalizeProjects(parsed.projects),
       vacationDays:
         parsed.vacationDays && typeof parsed.vacationDays === 'object'
           ? parsed.vacationDays

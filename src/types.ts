@@ -39,11 +39,29 @@ export interface Reward {
   cost: number
 }
 
+export interface ProjectStep {
+  id: string
+  title: string
+  /** Dollars awarded when this step is completed. */
+  dollars: number
+  completed: boolean
+  order: number
+}
+
+export interface Project {
+  id: string
+  name: string
+  order: number
+  steps: ProjectStep[]
+  createdAt: number
+}
+
 export interface AppState {
   tasks: Task[]
   categories: Category[]
   dollars: number
   rewards: Reward[]
+  projects: Project[]
   /** Date keys (YYYY-MM-DD) with vacation mode on for that day only. */
   vacationDays: Record<string, boolean>
   /** When true, header shows percent complete instead of counts. */

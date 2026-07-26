@@ -9,11 +9,20 @@ import {
 } from 'react'
 import { addDays, formatDayHeading, toDateKey } from './dates'
 import { loadState, saveState } from './storage'
-import { isCompletedOn, sortTasksForDay, taskAppliesOnDate } from './taskLogic'
+import {
+  isCompletedForDateView,
+  isOccurrenceSatisfied,
+  nextOccurrence,
+  occurrenceForDate,
+  sortTasksForDay,
+  taskVisibleOnDate,
+} from './taskLogic'
 import {
   REPETITION_LABELS,
   type AppState,
   type Category,
+  type Project,
+  type ProjectStep,
   type Repetition,
   type Reward,
   type Task,
@@ -92,6 +101,25 @@ function SettingsIcon() {
   )
 }
 
+function ProjectIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M3 11h18"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
 function PlaneIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -149,9 +177,14 @@ export default function App() {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [rewardsOpen, setRewardsOpen] = useState(false)
+  const [projectsOpen, setProjectsOpen] = useState(false)
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [newCategory, setNewCategory] = useState('')
   const [newRewardName, setNewRewardName] = useState('')
   const [newRewardCost, setNewRewardCost] = useState('5')
+  const [newProjectName, setNewProjectName] = useState('')
+  const [newStepTitle, setNewStepTitle] = useState('')
+  const [newStepDollars, setNewStepDollars] = useState('5')
   const [toast, setToast] = useState('')
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [draggingRewardId, setDraggingRewardId] = useState<string | null>(null)
@@ -202,9 +235,19 @@ export default function App() {
   }, [toast])
 
   const dayTasks = useMemo(() => {
-    const applicable = state.tasks.filter((task) => taskAppliesOnDate(task, viewKey))
+    const applicable = state.tasks.filter((task) => taskVisibleOnDate(task, viewKey))
     return sortTasksForDay(applicable)
   }, [state.tasks, viewKey])
+
+  const sortedProjects = useMemo(
+    () => [...state.projects].sort((a, b) => a.order - b.order),
+    [state.projects],
+  )
+
+  const activeProject = useMemo(
+    () => sortedProjects.find((p) => p.id === activeProjectId) ?? null,
+    [sortedProjects, activeProjectId],
+  )
 
   const groupedDayTasks = useMemo(() => {
     const byCat = new Map<string, Task[]>()
@@ -232,7 +275,9 @@ export default function App() {
     return groups
   }, [dayTasks, state.categories])
 
-  const completedCount = dayTasks.filter((t) => isCompletedOn(t, viewKey)).length
+  const completedCount = dayTasks.filter((t) =>
+    isCompletedForDateView(t, viewKey),
+  ).length
   const remainingCount = dayTasks.length - completedCount
   const percent =
     dayTasks.length === 0 ? 0 : Math.round((completedCount / dayTasks.length) * 100)
@@ -353,10 +398,17 @@ export default function App() {
       let dollars = prev.dollars
       const tasks = prev.tasks.map((task) => {
         if (task.id !== taskId) return task
-        const currently = Boolean(task.completions[viewKey])
+        const occurrence = occurrenceForDate(task, viewKey)
+        if (!occurrence) return task
+        const satisfied = isOccurrenceSatisfied(task, occurrence)
         const nextCompletions = { ...task.completions }
-        if (currently) {
-          delete nextCompletions[viewKey]
+        if (satisfied) {
+          const next = nextOccurrence(task, occurrence)
+          for (const key of Object.keys(nextCompletions)) {
+            if (key < occurrence) continue
+            if (next && key >= next) continue
+            delete nextCompletions[key]
+          }
         } else {
           nextCompletions[viewKey] = true
           dollars += 1
@@ -364,6 +416,104 @@ export default function App() {
         return { ...task, completions: nextCompletions }
       })
       return { ...prev, tasks, dollars }
+    })
+  }
+
+  function addProject() {
+    const name = newProjectName.trim()
+    if (!name) {
+      setToast('Name your project')
+      return
+    }
+    const maxOrder = state.projects.reduce((max, p) => Math.max(max, p.order), -1)
+    const project: Project = {
+      id: uid('project'),
+      name,
+      order: maxOrder + 1,
+      steps: [],
+      createdAt: Date.now(),
+    }
+    updateState((prev) => ({ ...prev, projects: [...prev.projects, project] }))
+    setNewProjectName('')
+    setActiveProjectId(project.id)
+    setToast('Project added')
+  }
+
+  function deleteProject(id: string) {
+    updateState((prev) => ({
+      ...prev,
+      projects: prev.projects.filter((p) => p.id !== id),
+    }))
+    if (activeProjectId === id) setActiveProjectId(null)
+    setToast('Project deleted')
+  }
+
+  function addProjectStep(projectId: string) {
+    const title = newStepTitle.trim()
+    const dollars = Number.parseInt(newStepDollars, 10)
+    if (!title) {
+      setToast('Name the step')
+      return
+    }
+    if (!Number.isFinite(dollars) || dollars < 0) {
+      setToast('Step $ must be 0 or more')
+      return
+    }
+    updateState((prev) => ({
+      ...prev,
+      projects: prev.projects.map((project) => {
+        if (project.id !== projectId) return project
+        const maxOrder = project.steps.reduce((max, s) => Math.max(max, s.order), -1)
+        const step: ProjectStep = {
+          id: uid('step'),
+          title,
+          dollars,
+          completed: false,
+          order: maxOrder + 1,
+        }
+        return { ...project, steps: [...project.steps, step] }
+      }),
+    }))
+    setNewStepTitle('')
+    setNewStepDollars('5')
+    setToast('Step added')
+  }
+
+  function toggleProjectStep(projectId: string, stepId: string) {
+    updateState((prev) => {
+      let dollars = prev.dollars
+      const projects = prev.projects.map((project) => {
+        if (project.id !== projectId) return project
+        const steps = project.steps.map((step) => {
+          if (step.id !== stepId) return step
+          if (step.completed) {
+            dollars = Math.max(0, dollars - step.dollars)
+            return { ...step, completed: false }
+          }
+          dollars += step.dollars
+          return { ...step, completed: true }
+        })
+        return { ...project, steps }
+      })
+      return { ...prev, projects, dollars }
+    })
+  }
+
+  function deleteProjectStep(projectId: string, stepId: string) {
+    updateState((prev) => {
+      let dollars = prev.dollars
+      const projects = prev.projects.map((project) => {
+        if (project.id !== projectId) return project
+        const removed = project.steps.find((s) => s.id === stepId)
+        if (removed?.completed) {
+          dollars = Math.max(0, dollars - removed.dollars)
+        }
+        return {
+          ...project,
+          steps: project.steps.filter((s) => s.id !== stepId),
+        }
+      })
+      return { ...prev, projects, dollars }
     })
   }
 
@@ -497,7 +647,9 @@ export default function App() {
   }
 
   function onDayPointerDown(event: ReactPointerEvent<HTMLElement>) {
-    if (settingsOpen || rewardsOpen || addOpen || dragRef.current) return
+    if (settingsOpen || rewardsOpen || projectsOpen || addOpen || dragRef.current) {
+      return
+    }
     if (event.pointerType === 'mouse' && event.button !== 0) return
     if (isInteractiveTarget(event.target)) return
     swipeRef.current = {
@@ -748,6 +900,7 @@ export default function App() {
               ›
             </button>
           </div>
+          <div className="day-divider" aria-hidden="true" />
         </div>
 
         {vacationOn ? <p className="vacation-banner">Vacation mode</p> : null}
@@ -762,12 +915,15 @@ export default function App() {
           </div>
         ) : (
           <div className="task-groups">
-            {groupedDayTasks.map((group) => (
+            {groupedDayTasks.map((group, groupIndex) => (
               <section className="task-group" key={group.id} aria-label={group.name}>
+                {groupIndex > 0 ? (
+                  <div className="category-divider" aria-hidden="true" />
+                ) : null}
                 <h2 className="category-heading">{group.name}</h2>
                 <ul className="task-list">
                   {group.tasks.map((task) => {
-                    const done = isCompletedOn(task, viewKey)
+                    const done = isCompletedForDateView(task, viewKey)
                     return (
                       <li
                         key={task.id}
@@ -844,11 +1000,25 @@ export default function App() {
             </button>
             <button
               type="button"
+              className="circle-btn project-btn"
+              aria-label="Open projects"
+              onClick={() => {
+                setAddOpen(false)
+                setSettingsOpen(false)
+                setRewardsOpen(false)
+                setProjectsOpen(true)
+              }}
+            >
+              <ProjectIcon />
+            </button>
+            <button
+              type="button"
               className="circle-btn gift-btn"
               aria-label="Open rewards"
               onClick={() => {
                 setAddOpen(false)
                 setSettingsOpen(false)
+                setProjectsOpen(false)
                 setRewardsOpen(true)
               }}
             >
@@ -861,6 +1031,7 @@ export default function App() {
               onClick={() => {
                 setAddOpen(false)
                 setRewardsOpen(false)
+                setProjectsOpen(false)
                 setSettingsOpen(true)
               }}
             >
@@ -977,6 +1148,186 @@ export default function App() {
           </form>
         )}
       </div>
+
+      {projectsOpen ? (
+        <div
+          className="overlay"
+          role="presentation"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setProjectsOpen(false)
+              setActiveProjectId(null)
+            }
+          }}
+        >
+          <div
+            className="sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Projects"
+          >
+            <div className="sheet-header">
+              <h2>{activeProject ? activeProject.name : 'Projects'}</h2>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Close projects"
+                onClick={() => {
+                  setProjectsOpen(false)
+                  setActiveProjectId(null)
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {!activeProject ? (
+              <>
+                <div className="settings-section">
+                  <h3>Your projects</h3>
+                  {sortedProjects.length === 0 ? (
+                    <p className="muted">No projects yet — add one below.</p>
+                  ) : (
+                    sortedProjects.map((project) => {
+                      const done = project.steps.filter((s) => s.completed).length
+                      const total = project.steps.length
+                      return (
+                        <div className="project-row" key={project.id}>
+                          <button
+                            type="button"
+                            className="project-open-btn"
+                            onClick={() => setActiveProjectId(project.id)}
+                          >
+                            <strong>{project.name}</strong>
+                            <span className="muted">
+                              {total === 0
+                                ? 'No steps yet'
+                                : `${done}/${total} steps`}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            className="danger-btn"
+                            onClick={() => deleteProject(project.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+                <div className="settings-section">
+                  <h3>Add project</h3>
+                  <div className="inline-add">
+                    <input
+                      value={newProjectName}
+                      onChange={(e) => setNewProjectName(e.target.value)}
+                      placeholder="Project name"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          addProject()
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={addProject}
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-ghost back-btn"
+                  onClick={() => setActiveProjectId(null)}
+                >
+                  ← All projects
+                </button>
+                <div className="settings-section">
+                  <h3>Steps</h3>
+                  <p className="muted reorder-hint">
+                    Complete a step to earn its $ amount.
+                  </p>
+                  {activeProject.steps.length === 0 ? (
+                    <p className="muted">No steps yet — add one below.</p>
+                  ) : (
+                    [...activeProject.steps]
+                      .sort((a, b) => a.order - b.order)
+                      .map((step) => (
+                        <div
+                          className={`step-row${step.completed ? ' completed' : ''}`}
+                          key={step.id}
+                        >
+                          <button
+                            type="button"
+                            className="check"
+                            aria-label={
+                              step.completed
+                                ? 'Mark step incomplete'
+                                : 'Mark step complete'
+                            }
+                            onClick={() =>
+                              toggleProjectStep(activeProject.id, step.id)
+                            }
+                          >
+                            <CheckIcon />
+                          </button>
+                          <div className="step-main">
+                            <strong>{step.title}</strong>
+                            <span className="reward-cost">+${step.dollars}</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="danger-btn"
+                            onClick={() =>
+                              deleteProjectStep(activeProject.id, step.id)
+                            }
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ))
+                  )}
+                </div>
+                <div className="settings-section">
+                  <h3>Add step</h3>
+                  <div className="inline-add reward-add">
+                    <input
+                      value={newStepTitle}
+                      onChange={(e) => setNewStepTitle(e.target.value)}
+                      placeholder="Step name"
+                    />
+                    <input
+                      className="cost-input"
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      step={1}
+                      value={newStepDollars}
+                      onChange={(e) => setNewStepDollars(e.target.value)}
+                      aria-label="Dollars for completing step"
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => addProjectStep(activeProject.id)}
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       {rewardsOpen ? (
         <div
