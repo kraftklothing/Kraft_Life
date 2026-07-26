@@ -396,6 +396,7 @@ export default function App() {
 
   function openEditComposer(task: Task) {
     setRewardsOpen(false)
+    setMainView('tasks')
     setEditingTaskId(task.id)
     setTitle(task.title)
     setRepetition(task.repetition)
