@@ -456,6 +456,20 @@ export default function App() {
     resetComposerFields()
   }
 
+  function deleteTask(taskId: string) {
+    updateState((prev) => ({
+      ...prev,
+      tasks: prev.tasks.filter((task) => task.id !== taskId),
+      goals: prev.goals.map((goal) => ({
+        ...goal,
+        taskIds: goal.taskIds.filter((id) => id !== taskId),
+      })),
+    }))
+    resetComposerFields()
+    setAddOpen(false)
+    setToast('Task deleted')
+  }
+
   function toggleComplete(taskId: string) {
     updateState((prev) => {
       let dollars = prev.dollars
@@ -1943,6 +1957,15 @@ export default function App() {
               <button type="submit" className="btn btn-primary">
                 {editingTaskId ? 'Save task' : 'Add task'}
               </button>
+              {editingTaskId ? (
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => deleteTask(editingTaskId)}
+                >
+                  Delete
+                </button>
+              ) : null}
             </div>
           </form>
         )}
