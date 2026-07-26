@@ -11,7 +11,9 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5180](http://localhost:5180).
+Open [http://localhost:5180](http://localhost:5180) **on the same machine** that is running the server.
+
+> Cloud Agent note: `localhost` on your phone/PC will not reach the agent VM. Use the public preview link from the agent chat, or take remote desktop control of the agent and open the app there.
 
 ## Features
 
