@@ -1,5 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+<<<<<<< Updated upstream
 import { isStorageConfigured, vaultConfigured } from '../lib/vault'
+=======
+
+function isStorageConfigured(): boolean {
+  return Boolean(
+    (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) ||
+      (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN),
+  )
+}
+>>>>>>> Stashed changes
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -8,6 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
+<<<<<<< Updated upstream
     if (!isStorageConfigured()) {
       return res.status(503).json({
         configured: false,
@@ -16,6 +27,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     }
 
+=======
+    const { vaultConfigured } = await import('../lib/vault')
+>>>>>>> Stashed changes
     const configured = await vaultConfigured()
     return res.status(200).json({ configured, storageReady: true })
   } catch (error) {
