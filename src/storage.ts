@@ -7,6 +7,7 @@ import {
   type DollarLedgerEntry,
   type FocusTimer,
   type Goal,
+  type PendingDelivery,
   type Project,
   type ProjectStep,
   type Reward,
@@ -194,6 +195,32 @@ function normalizeTimers(raw: unknown): FocusTimer[] | null {
   return timers.sort((a, b) => a.order - b.order)
 }
 
+function normalizePendingDeliveries(raw: unknown): PendingDelivery[] {
+  if (!Array.isArray(raw)) return []
+  const deliveries: PendingDelivery[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const d = item as {
+      id?: unknown
+      rewardId?: unknown
+      rewardName?: unknown
+      cost?: unknown
+      createdAt?: unknown
+    }
+    if (typeof d.id !== 'string' || typeof d.rewardName !== 'string') continue
+    const cost = typeof d.cost === 'number' ? d.cost : Number(d.cost)
+    if (!Number.isFinite(cost) || cost < 1) continue
+    deliveries.push({
+      id: d.id,
+      rewardId: typeof d.rewardId === 'string' ? d.rewardId : '',
+      rewardName: d.rewardName,
+      cost: Math.floor(cost),
+      createdAt: typeof d.createdAt === 'number' ? d.createdAt : Date.now(),
+    })
+  }
+  return deliveries
+}
+
 function normalizeDollarLedger(raw: unknown): DollarLedgerEntry[] {
   if (!Array.isArray(raw)) return []
   const entries: DollarLedgerEntry[] = []
@@ -251,6 +278,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     projects: [],
     goals: [],
     timers: DEFAULT_TIMERS,
+    pendingDeliveries: [],
     vacationDays: {},
     showPercent: false,
     dollarLedger: [],
@@ -268,6 +296,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     projects: normalizeProjects(raw.projects),
     goals: normalizeGoals(raw.goals),
     timers: timers !== null ? timers : DEFAULT_TIMERS,
+    pendingDeliveries: normalizePendingDeliveries(raw.pendingDeliveries),
     vacationDays:
       raw.vacationDays && typeof raw.vacationDays === 'object'
         ? raw.vacationDays
