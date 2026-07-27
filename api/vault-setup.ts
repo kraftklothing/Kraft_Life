@@ -111,6 +111,7 @@ function defaultState() {
       },
     ],
     vacationDays: {},
+    workMode: false,
     showPercent: false,
     dollarLedger: [],
     pendingDeliveries: [],

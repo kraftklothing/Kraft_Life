@@ -318,3 +318,27 @@ export function sortTasksForDay(tasks: Task[]): Task[] {
     return a.createdAt - b.createdAt
   })
 }
+
+/** Categories that still show during vacation mode (High / Events). */
+export function isVacationKeepCategoryName(name: string): boolean {
+  const n = name.trim().toLowerCase()
+  if (n === 'high' || n === 'events') return true
+  if (n === 'high priority' || n.startsWith('high ')) return true
+  return false
+}
+
+export function taskVisibleInVacationMode(
+  task: Task,
+  categories: { id: string; name: string }[],
+): boolean {
+  if (task.categoryIds.length === 0) return false
+  const byId = new Map(categories.map((c) => [c.id, c]))
+  return task.categoryIds.some((id) => {
+    const cat = byId.get(id)
+    return cat ? isVacationKeepCategoryName(cat.name) : false
+  })
+}
+
+export function taskVisibleInWorkMode(task: Task): boolean {
+  return task.visibleInWorkMode !== false
+}

@@ -21,6 +21,8 @@ import {
   recordCompletionStreak,
   sortTasksForDay,
   taskVisibleOnDate,
+  taskVisibleInVacationMode,
+  taskVisibleInWorkMode,
 } from './taskLogic'
 import { goalProgressedOnDate } from './goalLogic'
 import CategorySettingsPanel from './CategorySettingsPanel'
@@ -179,6 +181,34 @@ function PlaneIcon() {
   )
 }
 
+function BriefcaseIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M8 7V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <rect
+        x="3"
+        y="7"
+        width="18"
+        height="13"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path
+        d="M3 12h18"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
 function CheckIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
@@ -279,6 +309,7 @@ export default function App() {
   const [repetition, setRepetition] = useState<Repetition | ''>('')
   const [customEveryDays, setCustomEveryDays] = useState('2')
   const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>([])
+  const [visibleInWorkMode, setVisibleInWorkMode] = useState(true)
   const [categoryIds, setCategoryIds] = useState<string[]>([])
   const [addError, setAddError] = useState('')
   const [addOpen, setAddOpen] = useState(false)
@@ -379,6 +410,7 @@ export default function App() {
   const todayKey = toDateKey(startToday())
   const viewKey = toDateKey(viewDate)
   const vacationOn = Boolean(state.vacationDays[viewKey])
+  const workModeOn = state.workMode
 
   useEffect(() => {
     saveState(state)
@@ -408,9 +440,25 @@ export default function App() {
   }, [runningTimerId])
 
   const dayTasks = useMemo(() => {
-    const applicable = state.tasks.filter((task) => taskVisibleOnDate(task, viewKey))
+    const applicable = state.tasks.filter((task) => {
+      if (!taskVisibleOnDate(task, viewKey)) return false
+      if (
+        vacationOn &&
+        !taskVisibleInVacationMode(task, state.taskCategories)
+      ) {
+        return false
+      }
+      if (workModeOn && !taskVisibleInWorkMode(task)) return false
+      return true
+    })
     return sortTasksForDay(applicable)
-  }, [state.tasks, viewKey])
+  }, [
+    state.tasks,
+    state.taskCategories,
+    viewKey,
+    vacationOn,
+    workModeOn,
+  ])
 
   const sortedProjects = useMemo(
     () => [...state.projects].sort((a, b) => a.order - b.order),
@@ -592,6 +640,7 @@ export default function App() {
     setCategoryIds([])
     setCustomEveryDays('2')
     setSelectedWeekdays([])
+    setVisibleInWorkMode(true)
     setAddError('')
     setEditingTaskId(null)
     setEditingTimerId(null)
@@ -685,6 +734,7 @@ export default function App() {
                 categoryIds: selectedCategories,
                 repetition,
                 customRepeat: keepsCustomRepeat ? customRepeat : undefined,
+                visibleInWorkMode,
               }
             : task,
         ),
@@ -704,6 +754,7 @@ export default function App() {
       customRepeat,
       startDate: viewKey,
       completions: {},
+      visibleInWorkMode,
       order: maxOrder + 1,
       createdAt: Date.now(),
     }
@@ -769,6 +820,7 @@ export default function App() {
     setCategoryIds([...task.categoryIds])
     setCustomEveryDays(String(task.customRepeat?.everyDays ?? 2))
     setSelectedWeekdays([...(task.customRepeat?.weekdays ?? [])])
+    setVisibleInWorkMode(task.visibleInWorkMode !== false)
     setAddError('')
     setAddOpen(true)
     window.setTimeout(() => titleInputRef.current?.focus(), 80)
@@ -1126,6 +1178,10 @@ export default function App() {
       else next[viewKey] = true
       return { ...prev, vacationDays: next }
     })
+  }
+
+  function toggleWorkMode() {
+    updateState((prev) => ({ ...prev, workMode: !prev.workMode }))
   }
 
   function spendReward(reward: Reward) {
@@ -1864,17 +1920,32 @@ export default function App() {
               </button>
               <div className="day-label-row">
                 <p className="day-label">{formatDayHeading(viewDate, todayKey)}</p>
-                <button
-                  type="button"
-                  className={`plane-btn${vacationOn ? ' active' : ''}`}
-                  aria-label={
-                    vacationOn ? 'Turn off vacation mode' : 'Turn on vacation mode'
-                  }
-                  aria-pressed={vacationOn}
-                  onClick={toggleVacationMode}
-                >
-                  <PlaneIcon />
-                </button>
+                <div className="mode-btns">
+                  <button
+                    type="button"
+                    className={`plane-btn${vacationOn ? ' active' : ''}`}
+                    aria-label={
+                      vacationOn
+                        ? 'Turn off vacation mode'
+                        : 'Turn on vacation mode'
+                    }
+                    aria-pressed={vacationOn}
+                    onClick={toggleVacationMode}
+                  >
+                    <PlaneIcon />
+                  </button>
+                  <button
+                    type="button"
+                    className={`plane-btn${workModeOn ? ' active' : ''}`}
+                    aria-label={
+                      workModeOn ? 'Turn off work mode' : 'Turn on work mode'
+                    }
+                    aria-pressed={workModeOn}
+                    onClick={toggleWorkMode}
+                  >
+                    <BriefcaseIcon />
+                  </button>
+                </div>
               </div>
               <button
                 type="button"
@@ -1889,6 +1960,7 @@ export default function App() {
           </div>
 
           {vacationOn ? <p className="vacation-banner">Vacation mode</p> : null}
+          {workModeOn ? <p className="work-banner">Work mode</p> : null}
 
           {dayTasks.length === 0 ? (
             <div className="panel empty">
@@ -3326,6 +3398,15 @@ export default function App() {
                 </div>
               </fieldset>
             ) : null}
+
+            <label className="work-mode-option">
+              <input
+                type="checkbox"
+                checked={visibleInWorkMode}
+                onChange={(e) => setVisibleInWorkMode(e.target.checked)}
+              />
+              <span>Visible in work mode</span>
+            </label>
 
             {addError ? <p className="error-text">{addError}</p> : null}
 

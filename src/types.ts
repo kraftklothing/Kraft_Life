@@ -31,6 +31,8 @@ export interface Task {
   startDate: string
   /** Per-day completion map keyed by YYYY-MM-DD. */
   completions: Record<string, boolean>
+  /** When false, hidden while work mode is on. Defaults to true. */
+  visibleInWorkMode: boolean
   /** Sort order within a day view (lower = higher). */
   order: number
   createdAt: number
@@ -119,6 +121,8 @@ export interface AppState {
   pendingDeliveries: PendingDelivery[]
   /** Date keys (YYYY-MM-DD) with vacation mode on for that day only. */
   vacationDays: Record<string, boolean>
+  /** When true, tasks marked not visible in work mode are hidden. */
+  workMode: boolean
   /** When true, header shows percent complete instead of counts. */
   showPercent: boolean
   /** Recent $ earned / spent / balance edits (newest last). */
