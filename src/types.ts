@@ -1,6 +1,7 @@
 export type Repetition =
   | 'daily'
   | 'weekly'
+  | 'weekdays'
   | 'monthly'
   | 'yearly'
   | 'custom'
@@ -10,8 +11,13 @@ export type Repetition =
 export type CategoryId = string
 
 export interface CustomRepeat {
-  /** Repeat every N days (minimum 1). */
-  everyDays: number
+  /** Repeat every N days (minimum 1). Used by custom / after_completion. */
+  everyDays?: number
+  /**
+   * Days of the week for weekdays repetition.
+   * 0 = Sunday … 6 = Saturday (Date#getDay).
+   */
+  weekdays?: number[]
 }
 
 export interface Task {
@@ -151,9 +157,21 @@ export const DEFAULT_TIMERS: FocusTimer[] = [
 export const REPETITION_LABELS: Record<Repetition, string> = {
   daily: 'Daily',
   weekly: 'Weekly',
+  weekdays: 'Days of the week',
   monthly: 'Monthly',
   yearly: 'Yearly',
   custom: 'Every N days',
   after_completion: 'Days in between',
   none: 'Does not repeat',
 }
+
+/** Short labels for weekday toggles, Sunday-first to match Date#getDay. */
+export const WEEKDAY_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: 'Sun' },
+  { value: 1, label: 'Mon' },
+  { value: 2, label: 'Tue' },
+  { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' },
+  { value: 5, label: 'Fri' },
+  { value: 6, label: 'Sat' },
+]

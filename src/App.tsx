@@ -26,6 +26,7 @@ import { goalProgressedOnDate } from './goalLogic'
 import CategorySettingsPanel from './CategorySettingsPanel'
 import {
   REPETITION_LABELS,
+  WEEKDAY_OPTIONS,
   type AppState,
   type Category,
   type FocusTimer,
@@ -277,6 +278,7 @@ export default function App() {
   const [title, setTitle] = useState('')
   const [repetition, setRepetition] = useState<Repetition | ''>('')
   const [customEveryDays, setCustomEveryDays] = useState('2')
+  const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>([])
   const [categoryIds, setCategoryIds] = useState<string[]>([])
   const [addError, setAddError] = useState('')
   const [addOpen, setAddOpen] = useState(false)
@@ -589,6 +591,7 @@ export default function App() {
     setRepetition('')
     setCategoryIds([])
     setCustomEveryDays('2')
+    setSelectedWeekdays([])
     setAddError('')
     setEditingTaskId(null)
     setEditingTimerId(null)
@@ -610,6 +613,15 @@ export default function App() {
   function toggleComposerCategory(id: string) {
     setCategoryIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    )
+    if (addError) setAddError('')
+  }
+
+  function toggleComposerWeekday(day: number) {
+    setSelectedWeekdays((prev) =>
+      prev.includes(day)
+        ? prev.filter((item) => item !== day)
+        : [...prev, day].sort((a, b) => a - b),
     )
     if (addError) setAddError('')
   }
@@ -649,6 +661,18 @@ export default function App() {
       }
       customRepeat = { everyDays: every }
     }
+    if (repetition === 'weekdays') {
+      if (selectedWeekdays.length === 0) {
+        setAddError('Pick at least one day of the week.')
+        return
+      }
+      customRepeat = { weekdays: [...selectedWeekdays] }
+    }
+
+    const keepsCustomRepeat =
+      repetition === 'custom' ||
+      repetition === 'after_completion' ||
+      repetition === 'weekdays'
 
     if (editingTaskId) {
       updateState((prev) => ({
@@ -660,10 +684,7 @@ export default function App() {
                 title: trimmed,
                 categoryIds: selectedCategories,
                 repetition,
-                customRepeat:
-                  repetition === 'custom' || repetition === 'after_completion'
-                    ? customRepeat
-                    : undefined,
+                customRepeat: keepsCustomRepeat ? customRepeat : undefined,
               }
             : task,
         ),
@@ -747,6 +768,7 @@ export default function App() {
     setRepetition(task.repetition)
     setCategoryIds([...task.categoryIds])
     setCustomEveryDays(String(task.customRepeat?.everyDays ?? 2))
+    setSelectedWeekdays([...(task.customRepeat?.weekdays ?? [])])
     setAddError('')
     setAddOpen(true)
     window.setTimeout(() => titleInputRef.current?.focus(), 80)
@@ -3275,6 +3297,34 @@ export default function App() {
                 After you complete it, it stays hidden for that many days, then
                 shows each day until you complete it again.
               </p>
+            ) : null}
+            {repetition === 'weekdays' ? (
+              <fieldset className="category-multi weekday-multi">
+                <legend>Show on</legend>
+                <p className="muted category-multi-hint">
+                  Pick the days this task should appear — for example Sun–Thu.
+                </p>
+                <div className="weekday-multi-list">
+                  {WEEKDAY_OPTIONS.map((day) => {
+                    const checked = selectedWeekdays.includes(day.value)
+                    return (
+                      <label
+                        key={day.value}
+                        className={`weekday-multi-option${
+                          checked ? ' selected' : ''
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleComposerWeekday(day.value)}
+                        />
+                        <span>{day.label}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </fieldset>
             ) : null}
 
             {addError ? <p className="error-text">{addError}</p> : null}

@@ -116,6 +116,31 @@ function normalizeStringIds(raw: unknown): string[] {
   return raw.filter((id): id is string => typeof id === 'string')
 }
 
+function normalizeCustomRepeat(raw: unknown): Task['customRepeat'] | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const c = raw as { everyDays?: unknown; weekdays?: unknown }
+  const result: NonNullable<Task['customRepeat']> = {}
+  if (typeof c.everyDays === 'number' && Number.isFinite(c.everyDays)) {
+    result.everyDays = Math.max(1, Math.floor(c.everyDays))
+  } else if (c.everyDays != null) {
+    const n = Number(c.everyDays)
+    if (Number.isFinite(n) && n >= 1) result.everyDays = Math.floor(n)
+  }
+  if (Array.isArray(c.weekdays)) {
+    const days = [
+      ...new Set(
+        c.weekdays
+          .map((d) => (typeof d === 'number' ? d : Number(d)))
+          .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6),
+      ),
+    ].sort((a, b) => a - b)
+    if (days.length > 0) result.weekdays = days
+  }
+  return result.everyDays !== undefined || result.weekdays !== undefined
+    ? result
+    : undefined
+}
+
 function normalizeTasks(raw: unknown): Task[] {
   if (!Array.isArray(raw)) return []
   const tasks: Task[] = []
@@ -129,8 +154,8 @@ function normalizeTasks(raw: unknown): Task[] {
       id: t.id,
       title: t.title,
       categoryIds: normalizeEntityCategoryIds(t),
-      repetition: t.repetition,
-      customRepeat: t.customRepeat,
+      repetition: t.repetition as Task['repetition'],
+      customRepeat: normalizeCustomRepeat(t.customRepeat),
       startDate: t.startDate,
       completions:
         t.completions && typeof t.completions === 'object' ? t.completions : {},

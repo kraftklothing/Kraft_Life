@@ -62,6 +62,10 @@ export function taskAppliesOnDate(task: Task, dateKey: string): boolean {
       return true
     case 'weekly':
       return day.getDay() === start.getDay()
+    case 'weekdays': {
+      const days = task.customRepeat?.weekdays ?? []
+      return days.includes(day.getDay())
+    }
     case 'monthly':
       return day.getDate() === start.getDate()
     case 'yearly':
@@ -270,6 +274,11 @@ export function occurrenceForDate(task: Task, dateKey: string): string | null {
 
   if (taskAppliesOnDate(task, dateKey)) {
     return dateKey
+  }
+
+  // Selected weekdays only — no rollover onto other days of the week.
+  if (task.repetition === 'weekdays') {
+    return null
   }
 
   // Rollover: show incomplete prior occurrence until the next scheduled day.

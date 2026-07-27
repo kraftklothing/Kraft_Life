@@ -1026,6 +1026,39 @@ button {
   color: var(--accent);
 }
 
+.weekday-multi-list {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.weekday-multi-option {
+  display: grid;
+  place-items: center;
+  gap: 0;
+  padding: 10px 4px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel-solid);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: center;
+}
+
+.weekday-multi-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.weekday-multi-option.selected {
+  background: var(--accent-wash);
+  border-color: rgba(196, 92, 42, 0.35);
+  color: var(--accent);
+}
+
 .add-actions {
   display: flex;
   gap: 8px;
