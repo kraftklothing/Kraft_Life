@@ -8,8 +8,6 @@ export type Repetition =
 
 export type CategoryId = string
 
-export type CategoryKind = 'task'
-
 export interface CustomRepeat {
   /** Repeat every N days (minimum 1). */
   everyDays: number
