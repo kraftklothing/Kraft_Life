@@ -1,11 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-
-function isStorageConfigured(): boolean {
-  return Boolean(
-    (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) ||
-      (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN),
-  )
-}
+import { isStorageConfigured } from './lib/vault'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -17,7 +11,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(503).json({
       configured: false,
       storageReady: false,
-      message: 'Cloud storage is not set up on Vercel yet.',
+      message:
+        'Cloud storage is not connected to kraft-life yet. In Vercel, open your Redis database → Connect to kraft-life → redeploy.',
     })
   }
 
@@ -30,7 +25,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(503).json({
       configured: false,
       storageReady: false,
-      message: 'Cloud storage is not set up on Vercel yet.',
+      message: 'Cloud storage is connected but not responding. Try redeploying kraft-life.',
     })
   }
 }
