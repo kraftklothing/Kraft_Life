@@ -32,6 +32,7 @@ export interface CloudSyncContextValue {
   lock: () => void
   scheduleSave: (state: AppState) => void
   takeLoadedState: () => AppState | null
+  refreshCloudStatus: () => Promise<void>
 }
 
 const CloudSyncContext = createContext<CloudSyncContextValue | null>(null)
@@ -183,6 +184,22 @@ export function CloudSyncProvider({ children }: CloudSyncProviderProps) {
     return state
   }, [])
 
+  const refreshCloudStatus = useCallback(async () => {
+    setBusy(true)
+    setError('')
+    try {
+      const status = await fetchVaultStatus()
+      setStorageReady(status.storageReady)
+      setVaultConfigured(status.configured)
+    } catch (err) {
+      setStorageReady(false)
+      setVaultConfigured(false)
+      setError(err instanceof Error ? err.message : 'Could not check cloud status')
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
   const value: CloudSyncContextValue = {
     storageReady,
     vaultConfigured,
@@ -199,6 +216,7 @@ export function CloudSyncProvider({ children }: CloudSyncProviderProps) {
     lock,
     scheduleSave,
     takeLoadedState,
+    refreshCloudStatus,
   }
 
   return (

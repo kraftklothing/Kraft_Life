@@ -107,17 +107,17 @@ export default function CloudSyncSettings({
           {!cloud.storageReady ? (
             <div className="cloud-notice">
               <p>
-                One quick Vercel step is needed before cloud save works. Tasks still
-                save on this device until then.
+                Your Redis database exists, but it is not linked to <strong>kraft-life</strong>{' '}
+                yet. Tasks still save on this device until then.
               </p>
               <ol className="cloud-steps">
-                <li>Open Vercel Storage below</li>
-                <li>Add <strong>Upstash for Redis</strong></li>
-                <li>Connect it to <strong>kraft-life</strong></li>
-                <li>Redeploy, then come back here</li>
+                <li>In Vercel Storage, tap <strong>Connect Database</strong></li>
+                <li>Choose <strong>kraft-life</strong></li>
+                <li>Go to kraft-life → <strong>Deployments</strong> → <strong>Redeploy</strong></li>
+                <li>Come back here and tap <strong>Check again</strong></li>
               </ol>
               <a className="cloud-link" href={VERCEL_STORAGE_URL} target="_blank" rel="noreferrer">
-                Open Vercel Storage setup
+                Open Vercel Storage
               </a>
             </div>
           ) : (
@@ -159,6 +159,16 @@ export default function CloudSyncSettings({
             Remember on this device
           </label>
           {cloud.error ? <p className="pin-error">{cloud.error}</p> : null}
+          {!cloud.storageReady ? (
+            <button
+              type="button"
+              className="btn lock-btn"
+              disabled={cloud.busy}
+              onClick={() => void cloud.refreshCloudStatus()}
+            >
+              {cloud.busy ? 'Checking…' : 'Check again'}
+            </button>
+          ) : null}
           <button
             type="submit"
             className="btn btn-primary pin-submit"
