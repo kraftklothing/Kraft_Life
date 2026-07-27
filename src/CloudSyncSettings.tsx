@@ -1,5 +1,6 @@
 import { useState, type ChangeEvent } from 'react'
 import { useCloudSync } from './CloudSyncProvider'
+import SettingsSection from './SettingsSection'
 import type { AppState } from './types'
 
 const VERCEL_STORAGE_URL =
@@ -65,9 +66,11 @@ export default function CloudSyncSettings({
   }
 
   return (
-    <section className="task-group cloud-sync-settings" aria-label="Cloud sync">
-      <h2 className="category-heading">Cloud sync</h2>
-
+    <SettingsSection
+      title="Cloud sync"
+      ariaLabel="Cloud sync"
+      className="cloud-sync-settings"
+    >
       {cloud.unlocked ? (
         <>
           <p className="cloud-status cloud-status-on">Connected — tasks save to the cloud.</p>
@@ -190,6 +193,6 @@ export default function CloudSyncSettings({
           </button>
         </div>
       )}
-    </section>
+    </SettingsSection>
   )
 }

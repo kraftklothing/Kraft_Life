@@ -11,6 +11,7 @@ import { addDays, formatDayHeading, toDateKey } from './dates'
 import { appendLedgerEntry, loadState, normalizeState, saveState } from './storage'
 import { useCloudSync } from './CloudSyncProvider'
 import CloudSyncSettings from './CloudSyncSettings'
+import SettingsSection from './SettingsSection'
 import {
   completionStreak,
   isCompletedForDateView,
@@ -2059,8 +2060,7 @@ export default function App() {
           </div>
 
           <div className="task-groups">
-            <section className="task-group" aria-label="Categories">
-              <h2 className="category-heading">Categories</h2>
+            <SettingsSection title="Categories" ariaLabel="Categories">
               <p className="muted reorder-hint view-hint">
                 Drag the bars to reorder. Open a category to rename or delete.
               </p>
@@ -2165,7 +2165,7 @@ export default function App() {
                   </button>
                 </div>
               </div>
-            </section>
+            </SettingsSection>
 
             <CloudSyncSettings state={state} onCloudStateLoaded={setState} />
           </div>

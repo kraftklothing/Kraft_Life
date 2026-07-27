@@ -947,6 +947,15 @@ button {
   gap: 6px;
 }
 
+.settings-section.collapsed {
+  gap: 0;
+}
+
+.settings-section-body {
+  display: grid;
+  gap: 6px;
+}
+
 .category-heading-toggle {
   width: 100%;
   border: none;
