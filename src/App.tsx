@@ -343,6 +343,7 @@ export default function App() {
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [draggingRewardId, setDraggingRewardId] = useState<string | null>(null)
   const [draggingTimerId, setDraggingTimerId] = useState<string | null>(null)
+  const [draggingStepId, setDraggingStepId] = useState<string | null>(null)
   const [draggingCategory, setDraggingCategory] = useState<{
     kind: CategoryKind
     id: string
@@ -373,6 +374,12 @@ export default function App() {
     orderSnapshot: string[]
   } | null>(null)
   const timerDragRef = useRef<{
+    id: string
+    startY: number
+    orderSnapshot: string[]
+  } | null>(null)
+  const stepDragRef = useRef<{
+    projectId: string
     id: string
     startY: number
     orderSnapshot: string[]
@@ -1590,6 +1597,24 @@ export default function App() {
     setDraggingTimerId(timerId)
   }
 
+  function beginStepDrag(
+    projectId: string,
+    stepId: string,
+    clientY: number,
+  ) {
+    const project = state.projects.find((p) => p.id === projectId)
+    if (!project) return
+    stepDragRef.current = {
+      projectId,
+      id: stepId,
+      startY: clientY,
+      orderSnapshot: [...project.steps]
+        .sort((a, b) => a.order - b.order)
+        .map((s) => s.id),
+    }
+    setDraggingStepId(stepId)
+  }
+
   function beginCategoryDrag(
     kind: CategoryKind,
     categoryIdToDrag: string,
@@ -1776,6 +1801,31 @@ export default function App() {
         return
       }
 
+      const stepDrag = stepDragRef.current
+      if (stepDrag) {
+        event.preventDefault()
+        const nextOrder = reorderSnapshot(stepDrag, event.clientY, 64)
+        if (!nextOrder) return
+        setState((prev) => ({
+          ...prev,
+          projects: prev.projects.map((project) => {
+            if (project.id !== stepDrag.projectId) return project
+            const orderMap = new Map(
+              nextOrder.map((id, index) => [id, index]),
+            )
+            return {
+              ...project,
+              steps: project.steps.map((step) =>
+                orderMap.has(step.id)
+                  ? { ...step, order: orderMap.get(step.id)! }
+                  : step,
+              ),
+            }
+          }),
+        }))
+        return
+      }
+
       const categoryDrag = categoryDragRef.current
       if (!categoryDrag) return
       event.preventDefault()
@@ -1802,6 +1852,10 @@ export default function App() {
       if (timerDragRef.current) {
         timerDragRef.current = null
         setDraggingTimerId(null)
+      }
+      if (stepDragRef.current) {
+        stepDragRef.current = null
+        setDraggingStepId(null)
       }
       if (categoryDragRef.current) {
         categoryDragRef.current = null
@@ -2168,13 +2222,18 @@ export default function App() {
             <div className="task-groups">
               <section className="task-group" aria-label="Project steps">
                 <h2 className="category-heading">Steps</h2>
+                <p className="muted reorder-hint view-hint">
+                  Drag the bars to reorder
+                </p>
                 <ul className="task-list">
                   {[...activeProject.steps]
                     .sort((a, b) => a.order - b.order)
                     .map((step) => (
                       <li
                         key={step.id}
-                        className={`task-item${step.completed ? ' completed' : ''}`}
+                        className={`task-item${
+                          step.completed ? ' completed' : ''
+                        }${draggingStepId === step.id ? ' dragging' : ''}`}
                       >
                         <button
                           type="button"
@@ -2196,14 +2255,35 @@ export default function App() {
                             <span className="badge">+${step.dollars}</span>
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          className="edit-btn"
-                          aria-label="Edit step"
-                          onClick={() => openEditStep(step)}
-                        >
-                          <PencilIcon />
-                        </button>
+                        <div className="task-actions">
+                          <button
+                            type="button"
+                            className="edit-btn"
+                            aria-label="Edit step"
+                            onClick={() => openEditStep(step)}
+                          >
+                            <PencilIcon />
+                          </button>
+                          <button
+                            type="button"
+                            className="drag-handle"
+                            aria-label="Reorder step"
+                            onPointerDown={(event) => {
+                              event.preventDefault()
+                              event.stopPropagation()
+                              event.currentTarget.setPointerCapture?.(
+                                event.pointerId,
+                              )
+                              beginStepDrag(
+                                activeProject.id,
+                                step.id,
+                                event.clientY,
+                              )
+                            }}
+                          >
+                            <BarsIcon />
+                          </button>
+                        </div>
                       </li>
                     ))}
                 </ul>
