@@ -1,7 +1,6 @@
 import { createHash, timingSafeEqual } from 'crypto'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
-<<<<<<< HEAD
 const META_KEY = 'kraft-life:vault:meta'
 const DATA_KEY = 'kraft-life:vault:data'
 const SALT = process.env.KRAFT_LIFE_PIN_SALT ?? 'kraft-life-v1'
@@ -10,41 +9,6 @@ function findRedisCredentials(): { url: string; token: string } | null {
   const env = process.env
   if (env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN) {
     return { url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN }
-=======
-function defaultState(): VaultAppState {
-  return {
-    tasks: [],
-    categories: [
-      { id: 'general', name: 'General' },
-      { id: 'personal', name: 'Personal' },
-      { id: 'work', name: 'Work' },
-    ],
-    dollars: 0,
-    rewards: [
-      { id: 'coffee', name: 'Coffee treat', cost: 3 },
-      { id: 'movie', name: 'Movie night', cost: 8 },
-      { id: 'dinner', name: 'Nice dinner', cost: 15 },
-    ],
-    projects: [],
-    goals: [],
-    timers: [
-      {
-        id: 'room-cleaning',
-        title: 'Room cleaning',
-        minutesForDollar: 20,
-        order: 0,
-      },
-      {
-        id: 'kitchen-cleaning',
-        title: 'Kitchen cleaning',
-        minutesForDollar: 10,
-        order: 1,
-      },
-    ],
-    vacationDays: {},
-    showPercent: false,
-    dollarLedger: [],
->>>>>>> origin/cursor/category-dropdowns-timer-ce09
   }
   if (env.KV_REST_API_URL && env.KV_REST_API_TOKEN) {
     return { url: env.KV_REST_API_URL, token: env.KV_REST_API_TOKEN }
@@ -108,6 +72,42 @@ async function redisSet(key: string, value: unknown): Promise<void> {
   await upstashCommand(['SET', key, value])
 }
 
+function defaultState() {
+  return {
+    tasks: [],
+    categories: [
+      { id: 'general', name: 'General' },
+      { id: 'personal', name: 'Personal' },
+      { id: 'work', name: 'Work' },
+    ],
+    dollars: 0,
+    rewards: [
+      { id: 'coffee', name: 'Coffee treat', cost: 3 },
+      { id: 'movie', name: 'Movie night', cost: 8 },
+      { id: 'dinner', name: 'Nice dinner', cost: 15 },
+    ],
+    projects: [],
+    goals: [],
+    timers: [
+      {
+        id: 'room-cleaning',
+        title: 'Room cleaning',
+        minutesForDollar: 20,
+        order: 0,
+      },
+      {
+        id: 'kitchen-cleaning',
+        title: 'Kitchen cleaning',
+        minutesForDollar: 10,
+        order: 1,
+      },
+    ],
+    vacationDays: {},
+    showPercent: false,
+    dollarLedger: [],
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
@@ -132,27 +132,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const initialState =
-      body.state && typeof body.state === 'object'
-        ? body.state
-        : {
-            tasks: [],
-            categories: [
-              { id: 'general', name: 'General' },
-              { id: 'personal', name: 'Personal' },
-              { id: 'work', name: 'Work' },
-            ],
-            dollars: 0,
-            rewards: [
-              { id: 'coffee', name: 'Coffee treat', cost: 3 },
-              { id: 'movie', name: 'Movie night', cost: 8 },
-              { id: 'dinner', name: 'Nice dinner', cost: 15 },
-            ],
-            projects: [],
-            goals: [],
-            vacationDays: {},
-            showPercent: false,
-            dollarLedger: [],
-          }
+      body.state && typeof body.state === 'object' ? body.state : defaultState()
 
     await redisSet(META_KEY, { pinHash: hashPin(pin), createdAt: Date.now() })
     await redisSet(DATA_KEY, initialState)
