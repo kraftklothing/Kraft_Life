@@ -376,6 +376,20 @@ button {
   gap: 2px;
 }
 
+.goal-description {
+  margin: 4px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+
+.goal-description-detail {
+  margin: 0 0 10px;
+  padding: 0 2px;
+}
+
 .goal-today-note {
   margin: 0 4px 10px;
   color: var(--accent);
@@ -920,7 +934,8 @@ button {
 }
 
 .add-panel input,
-.add-panel select {
+.add-panel select,
+.add-panel textarea {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -928,10 +943,18 @@ button {
   background: var(--panel-solid);
   color: var(--ink);
   outline: none;
+  font: inherit;
+}
+
+.add-panel textarea {
+  resize: vertical;
+  min-height: 72px;
+  line-height: 1.4;
 }
 
 .add-panel input:focus,
-.add-panel select:focus {
+.add-panel select:focus,
+.add-panel textarea:focus {
   border-color: var(--accent-soft);
   box-shadow: 0 0 0 3px var(--accent-wash);
 }

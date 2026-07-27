@@ -317,6 +317,7 @@ export default function App() {
   const [newStepTitle, setNewStepTitle] = useState('')
   const [newStepDollars, setNewStepDollars] = useState('5')
   const [newGoalName, setNewGoalName] = useState('')
+  const [newGoalDescription, setNewGoalDescription] = useState('')
   const [toast, setToast] = useState('')
   const [balanceEditOpen, setBalanceEditOpen] = useState(false)
   const [balanceDraft, setBalanceDraft] = useState('')
@@ -728,6 +729,7 @@ export default function App() {
     setNewStepTitle('')
     setNewStepDollars('5')
     setNewGoalName('')
+    setNewGoalDescription('')
     setNewTimerTitle('')
     setNewTimerMinutes('20')
     setNewRewardName('')
@@ -841,6 +843,7 @@ export default function App() {
       if (mainView === 'goals') {
         setEditingGoalId(null)
         setNewGoalName('')
+        setNewGoalDescription('')
         setGoalCategoryIds([])
       }
       if (mainView === 'timer') {
@@ -1109,6 +1112,7 @@ export default function App() {
       setToast('Name your goal')
       return false
     }
+    const description = newGoalDescription.trim()
     const selectedCategories = goalCategoryIds.filter((id) =>
       state.goalCategories.some((c) => c.id === id),
     )
@@ -1121,12 +1125,13 @@ export default function App() {
         ...prev,
         goals: prev.goals.map((goal) =>
           goal.id === editingGoalId
-            ? { ...goal, name, categoryIds: selectedCategories }
+            ? { ...goal, name, description, categoryIds: selectedCategories }
             : goal,
         ),
       }))
       setEditingGoalId(null)
       setNewGoalName('')
+      setNewGoalDescription('')
       setGoalCategoryIds([])
       setToast('Goal updated')
       return true
@@ -1135,6 +1140,7 @@ export default function App() {
     const goal: Goal = {
       id: uid('goal'),
       name,
+      description,
       categoryIds: selectedCategories,
       order: maxOrder + 1,
       taskIds: [],
@@ -1143,6 +1149,7 @@ export default function App() {
     }
     updateState((prev) => ({ ...prev, goals: [...prev.goals, goal] }))
     setNewGoalName('')
+    setNewGoalDescription('')
     setGoalCategoryIds([])
     setActiveGoalId(goal.id)
     setToast('Goal added')
@@ -1152,6 +1159,7 @@ export default function App() {
   function openEditGoal(goal: Goal) {
     setEditingGoalId(goal.id)
     setNewGoalName(goal.name)
+    setNewGoalDescription(goal.description ?? '')
     setGoalCategoryIds([...goal.categoryIds])
     setAddOpen(true)
     setAddError('')
@@ -2392,6 +2400,11 @@ export default function App() {
                                   onClick={() => setActiveGoalId(goal.id)}
                                 >
                                   <p className="task-title">{goal.name}</p>
+                                  {goal.description.trim() ? (
+                                    <p className="goal-description">
+                                      {goal.description.trim()}
+                                    </p>
+                                  ) : null}
                                   {bullets.length === 0 ? (
                                     <div className="badges">
                                       <span className="badge rep">
@@ -2429,6 +2442,11 @@ export default function App() {
           ) : (
             <div className="task-groups">
               <section className="task-group" aria-label="Linked work">
+                {activeGoal.description.trim() ? (
+                  <p className="goal-description goal-description-detail">
+                    {activeGoal.description.trim()}
+                  </p>
+                ) : null}
                 <h2 className="category-heading">Linked work</h2>
                 <p className="muted reorder-hint view-hint">
                   Tap to assign or unassign tasks and projects for this goal.
@@ -3267,6 +3285,15 @@ export default function App() {
                     if (addGoal()) setAddOpen(false)
                   }
                 }}
+              />
+            </label>
+            <label>
+              Description
+              <textarea
+                value={newGoalDescription}
+                onChange={(e) => setNewGoalDescription(e.target.value)}
+                placeholder="Optional notes under the title"
+                rows={3}
               />
             </label>
             <fieldset className="category-multi">

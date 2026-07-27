@@ -154,6 +154,7 @@ function normalizeGoals(raw: unknown): Goal[] {
     const g = item as {
       id?: unknown
       name?: unknown
+      description?: unknown
       categoryIds?: unknown
       categoryId?: unknown
       order?: unknown
@@ -165,6 +166,7 @@ function normalizeGoals(raw: unknown): Goal[] {
     goals.push({
       id: g.id,
       name: g.name,
+      description: typeof g.description === 'string' ? g.description : '',
       categoryIds: normalizeEntityCategoryIds(g),
       order: typeof g.order === 'number' ? g.order : index,
       taskIds: normalizeStringIds(g.taskIds),

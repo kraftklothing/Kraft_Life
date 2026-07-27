@@ -74,6 +74,8 @@ export interface Project {
 export interface Goal {
   id: string
   name: string
+  /** Optional notes shown under the goal title. */
+  description: string
   categoryIds: CategoryId[]
   order: number
   taskIds: string[]
