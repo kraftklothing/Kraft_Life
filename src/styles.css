@@ -285,24 +285,24 @@ button {
   justify-content: center;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 10px;
+  gap: 8px;
   animation: rise-in 0.35s ease both;
 }
 
 .nav-gap {
-  width: 12px;
+  width: 8px;
   flex-shrink: 0;
 }
 
 .nav-plus-spacer {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
 }
 
 .circle-btn {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   border: none;
   display: grid;
@@ -324,6 +324,7 @@ button {
 .project-btn,
 .tasks-btn,
 .goals-btn,
+.timer-btn,
 .settings-btn {
   background: var(--panel-solid);
   color: var(--accent);
@@ -333,6 +334,7 @@ button {
 .tasks-btn.active,
 .project-btn.active,
 .goals-btn.active,
+.timer-btn.active,
 .gift-btn.active,
 .settings-btn.active {
   background: var(--accent);
@@ -504,6 +506,156 @@ button {
 .reward-item,
 .category-item {
   grid-template-columns: auto 1fr auto;
+}
+
+.category-dropdown-list {
+  gap: 8px;
+}
+
+.category-dropdown {
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 8px 20px rgba(58, 36, 24, 0.06);
+  overflow: hidden;
+  transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.category-dropdown.dragging {
+  opacity: 0.55;
+  box-shadow: var(--shadow);
+  transform: scale(1.02);
+}
+
+.category-dropdown-header {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px 8px 8px;
+}
+
+.category-dropdown-toggle {
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 4px;
+  text-align: left;
+  min-width: 0;
+}
+
+.category-dropdown-name {
+  font-size: 1.02rem;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--accent);
+  transition: transform 0.18s ease;
+}
+
+.chevron.open {
+  transform: rotate(180deg);
+}
+
+.category-dropdown-body {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.category-dropdown-label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.category-dropdown-body .danger-btn {
+  justify-self: start;
+}
+
+.timer-item {
+  grid-template-columns: auto 1fr auto;
+}
+
+.timer-item.timer-running {
+  border-color: rgba(196, 92, 42, 0.4);
+  box-shadow: 0 8px 20px rgba(154, 74, 36, 0.12);
+}
+
+.timer-main-btn {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  color: inherit;
+}
+
+.timer-panel {
+  margin-top: 8px;
+  text-align: center;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 28px 20px;
+}
+
+.timer-display {
+  margin: 0;
+  font-family: var(--font-brand);
+  font-size: clamp(3.4rem, 18vw, 4.6rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.timer-seconds-label {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-hint {
+  margin: 0;
+  max-width: 28ch;
+}
+
+.timer-next {
+  margin: 0;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-actions {
+  display: flex;
+  gap: 10px;
+  width: min(100%, 280px);
+  margin-top: 6px;
+}
+
+.timer-actions .btn {
+  flex: 1;
 }
 
 .spend-btn-inline {
@@ -682,6 +834,59 @@ button {
   }
 }
 
+.category-multi {
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: grid;
+  gap: 8px;
+}
+
+.category-multi legend {
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.category-multi-hint {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.category-multi-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.category-multi-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel-solid);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.category-multi-option input {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.category-multi-option.selected {
+  background: var(--accent-wash);
+  border-color: rgba(196, 92, 42, 0.35);
+  color: var(--accent);
+}
+
 .add-actions {
   display: flex;
   gap: 8px;
@@ -733,23 +938,50 @@ button {
 
 .task-groups {
   display: grid;
-  gap: 18px;
+  gap: 12px;
   animation: rise-in 0.6s ease 0.12s both;
 }
 
 .task-group {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+}
+
+.category-heading-toggle {
+  width: 100%;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 2px 2px 4px;
+  text-align: left;
+  color: inherit;
+}
+
+.category-heading-toggle:active {
+  opacity: 0.75;
 }
 
 .category-heading {
   margin: 0;
-  padding: 0 4px;
+  padding: 0;
   font-family: var(--font-brand);
-  font-size: 1.15rem;
+  font-size: 1.08rem;
   font-weight: 700;
   color: var(--accent);
   letter-spacing: -0.01em;
+}
+
+.category-heading-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 600;
 }
 
 .vacation-day .category-heading {
@@ -761,7 +993,7 @@ button {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 10px;
+  gap: 6px;
 }
 
 .task-item {
@@ -773,15 +1005,22 @@ button {
   background: var(--panel-solid);
   border: 1px solid var(--line);
   border-radius: 16px;
-  box-shadow: 0 8px 20px rgba(26, 42, 40, 0.06);
+  box-shadow: 0 8px 20px rgba(58, 36, 24, 0.06);
   transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   user-select: none;
+}
+
+.task-item.compact {
+  gap: 8px;
+  padding: 6px 6px 6px 8px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(58, 36, 24, 0.05);
 }
 
 .task-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
@@ -790,12 +1029,19 @@ button {
   height: 40px;
   border: none;
   border-radius: 12px;
-  background: rgba(31, 77, 69, 0.1);
+  background: var(--accent-wash);
   color: var(--accent);
   display: grid;
   place-items: center;
   flex-shrink: 0;
   transition: transform 0.15s ease, background 0.2s ease;
+}
+
+.task-item.compact .edit-btn,
+.task-item.compact .drag-handle {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
 }
 
 .edit-btn:active {
@@ -830,6 +1076,13 @@ button {
   flex-shrink: 0;
 }
 
+.task-item.compact .check {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border-width: 1.75px;
+}
+
 .task-item.completed .check {
   background: var(--accent);
   border-color: var(--accent);
@@ -842,12 +1095,21 @@ button {
   gap: 6px;
 }
 
+.task-item.compact .task-body {
+  gap: 2px;
+}
+
 .task-title {
   margin: 0;
   font-size: 1.02rem;
   font-weight: 600;
   line-height: 1.25;
   word-break: break-word;
+}
+
+.task-item.compact .task-title {
+  font-size: 0.92rem;
+  line-height: 1.15;
 }
 
 .badges {
@@ -864,6 +1126,12 @@ button {
   border-radius: 999px;
   background: var(--accent-wash);
   color: var(--accent);
+}
+
+.task-item.compact .badge {
+  font-size: 0.62rem;
+  padding: 1px 6px;
+  line-height: 1.3;
 }
 
 .badge.rep {

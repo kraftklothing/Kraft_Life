@@ -1,13 +1,16 @@
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_REWARDS,
+  DEFAULT_TIMERS,
   type AppState,
   type Category,
   type DollarLedgerEntry,
+  type FocusTimer,
   type Goal,
   type Project,
   type ProjectStep,
   type Reward,
+  type Task,
 } from './types'
 
 const STORAGE_KEY = 'kraft-life-v1'
@@ -98,6 +101,46 @@ function normalizeStringIds(raw: unknown): string[] {
   return raw.filter((id): id is string => typeof id === 'string')
 }
 
+function normalizeTaskCategoryIds(raw: {
+  categoryIds?: unknown
+  categoryId?: unknown
+}): string[] {
+  if (Array.isArray(raw.categoryIds)) {
+    const ids = raw.categoryIds.filter((id): id is string => typeof id === 'string')
+    if (ids.length > 0) return [...new Set(ids)]
+  }
+  if (typeof raw.categoryId === 'string' && raw.categoryId) {
+    return [raw.categoryId]
+  }
+  return []
+}
+
+function normalizeTasks(raw: unknown): Task[] {
+  if (!Array.isArray(raw)) return []
+  const tasks: Task[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const t = item as Partial<Task> & { categoryId?: unknown }
+    if (typeof t.id !== 'string' || typeof t.title !== 'string') continue
+    if (typeof t.startDate !== 'string') continue
+    if (typeof t.repetition !== 'string') continue
+    const categoryIds = normalizeTaskCategoryIds(t)
+    tasks.push({
+      id: t.id,
+      title: t.title,
+      categoryIds,
+      repetition: t.repetition,
+      customRepeat: t.customRepeat,
+      startDate: t.startDate,
+      completions:
+        t.completions && typeof t.completions === 'object' ? t.completions : {},
+      order: typeof t.order === 'number' ? t.order : 0,
+      createdAt: typeof t.createdAt === 'number' ? t.createdAt : Date.now(),
+    })
+  }
+  return tasks
+}
+
 function normalizeGoals(raw: unknown): Goal[] {
   if (!Array.isArray(raw)) return []
   const goals: Goal[] = []
@@ -122,6 +165,33 @@ function normalizeGoals(raw: unknown): Goal[] {
     })
   })
   return goals.sort((a, b) => a.order - b.order)
+}
+
+function normalizeTimers(raw: unknown): FocusTimer[] | null {
+  if (!Array.isArray(raw)) return null
+  const timers: FocusTimer[] = []
+  raw.forEach((item, index) => {
+    if (!item || typeof item !== 'object') return
+    const t = item as {
+      id?: unknown
+      title?: unknown
+      minutesForDollar?: unknown
+      order?: unknown
+    }
+    if (typeof t.id !== 'string' || typeof t.title !== 'string') return
+    const minutes =
+      typeof t.minutesForDollar === 'number'
+        ? t.minutesForDollar
+        : Number(t.minutesForDollar)
+    if (!Number.isFinite(minutes) || minutes < 1) return
+    timers.push({
+      id: t.id,
+      title: t.title,
+      minutesForDollar: Math.floor(minutes),
+      order: typeof t.order === 'number' ? t.order : index,
+    })
+  })
+  return timers.sort((a, b) => a.order - b.order)
 }
 
 function normalizeDollarLedger(raw: unknown): DollarLedgerEntry[] {
@@ -180,6 +250,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     rewards: DEFAULT_REWARDS,
     projects: [],
     goals: [],
+    timers: DEFAULT_TIMERS,
     vacationDays: {},
     showPercent: false,
     dollarLedger: [],
@@ -188,13 +259,15 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
 
   const categories = normalizeCategories(raw.categories) ?? DEFAULT_CATEGORIES
   const rewards = normalizeRewards(raw.rewards)
+  const timers = normalizeTimers(raw.timers)
   return {
-    tasks: Array.isArray(raw.tasks) ? raw.tasks : [],
+    tasks: normalizeTasks(raw.tasks),
     categories,
     dollars: typeof raw.dollars === 'number' ? raw.dollars : 0,
     rewards: rewards !== null ? rewards : DEFAULT_REWARDS,
     projects: normalizeProjects(raw.projects),
     goals: normalizeGoals(raw.goals),
+    timers: timers !== null ? timers : DEFAULT_TIMERS,
     vacationDays:
       raw.vacationDays && typeof raw.vacationDays === 'object'
         ? raw.vacationDays

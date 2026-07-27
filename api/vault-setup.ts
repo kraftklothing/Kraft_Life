@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from 'crypto'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
+<<<<<<< HEAD
 const META_KEY = 'kraft-life:vault:meta'
 const DATA_KEY = 'kraft-life:vault:data'
 const SALT = process.env.KRAFT_LIFE_PIN_SALT ?? 'kraft-life-v1'
@@ -9,6 +10,41 @@ function findRedisCredentials(): { url: string; token: string } | null {
   const env = process.env
   if (env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN) {
     return { url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN }
+=======
+function defaultState(): VaultAppState {
+  return {
+    tasks: [],
+    categories: [
+      { id: 'general', name: 'General' },
+      { id: 'personal', name: 'Personal' },
+      { id: 'work', name: 'Work' },
+    ],
+    dollars: 0,
+    rewards: [
+      { id: 'coffee', name: 'Coffee treat', cost: 3 },
+      { id: 'movie', name: 'Movie night', cost: 8 },
+      { id: 'dinner', name: 'Nice dinner', cost: 15 },
+    ],
+    projects: [],
+    goals: [],
+    timers: [
+      {
+        id: 'room-cleaning',
+        title: 'Room cleaning',
+        minutesForDollar: 20,
+        order: 0,
+      },
+      {
+        id: 'kitchen-cleaning',
+        title: 'Kitchen cleaning',
+        minutesForDollar: 10,
+        order: 1,
+      },
+    ],
+    vacationDays: {},
+    showPercent: false,
+    dollarLedger: [],
+>>>>>>> origin/cursor/category-dropdowns-timer-ce09
   }
   if (env.KV_REST_API_URL && env.KV_REST_API_TOKEN) {
     return { url: env.KV_REST_API_URL, token: env.KV_REST_API_TOKEN }
