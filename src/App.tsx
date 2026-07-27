@@ -26,6 +26,7 @@ import {
   REPETITION_LABELS,
   type AppState,
   type Category,
+  type FocusTimer,
   type Goal,
   type Project,
   type ProjectStep,
@@ -161,8 +162,6 @@ function TargetIcon() {
 
 type MainView = 'tasks' | 'projects' | 'goals' | 'timer' | 'rewards' | 'settings'
 
-const TIMER_REWARD_SECONDS = 15 * 60
-
 function PlaneIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -292,10 +291,15 @@ export default function App() {
   const [balanceDraft, setBalanceDraft] = useState('')
   const [ledgerOpen, setLedgerOpen] = useState(false)
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([])
-  const [timerRunning, setTimerRunning] = useState(false)
-  const [timerSeconds, setTimerSeconds] = useState(0)
+  const [activeTimerId, setActiveTimerId] = useState<string | null>(null)
+  const [runningTimerId, setRunningTimerId] = useState<string | null>(null)
+  const [timerElapsed, setTimerElapsed] = useState<Record<string, number>>({})
+  const [editingTimerId, setEditingTimerId] = useState<string | null>(null)
+  const [newTimerTitle, setNewTimerTitle] = useState('')
+  const [newTimerMinutes, setNewTimerMinutes] = useState('20')
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [draggingRewardId, setDraggingRewardId] = useState<string | null>(null)
+  const [draggingTimerId, setDraggingTimerId] = useState<string | null>(null)
   const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
   const [dayAnim, setDayAnim] = useState<'none' | 'from-left' | 'from-right'>(
@@ -318,6 +322,11 @@ export default function App() {
     orderSnapshot: string[]
   } | null>(null)
   const rewardDragRef = useRef<{
+    id: string
+    startY: number
+    orderSnapshot: string[]
+  } | null>(null)
+  const timerDragRef = useRef<{
     id: string
     startY: number
     orderSnapshot: string[]
@@ -349,12 +358,15 @@ export default function App() {
   }, [toast])
 
   useEffect(() => {
-    if (!timerRunning) return
+    if (!runningTimerId) return
     const id = window.setInterval(() => {
-      setTimerSeconds((seconds) => seconds + 1)
+      setTimerElapsed((prev) => ({
+        ...prev,
+        [runningTimerId]: (prev[runningTimerId] ?? 0) + 1,
+      }))
     }, 1000)
     return () => window.clearInterval(id)
-  }, [timerRunning])
+  }, [runningTimerId])
 
   const dayTasks = useMemo(() => {
     const applicable = state.tasks.filter((task) => taskVisibleOnDate(task, viewKey))
@@ -374,6 +386,16 @@ export default function App() {
   const sortedGoals = useMemo(
     () => [...state.goals].sort((a, b) => a.order - b.order),
     [state.goals],
+  )
+
+  const sortedTimers = useMemo(
+    () => [...state.timers].sort((a, b) => a.order - b.order),
+    [state.timers],
+  )
+
+  const activeTimer = useMemo(
+    () => sortedTimers.find((t) => t.id === activeTimerId) ?? null,
+    [sortedTimers, activeTimerId],
   )
 
   const activeGoal = useMemo(
@@ -436,8 +458,13 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (timerSeconds < TIMER_REWARD_SECONDS) return
-    const cycles = Math.floor(timerSeconds / TIMER_REWARD_SECONDS)
+    if (!runningTimerId) return
+    const timer = state.timers.find((t) => t.id === runningTimerId)
+    if (!timer) return
+    const goalSeconds = Math.max(1, timer.minutesForDollar) * 60
+    const elapsed = timerElapsed[runningTimerId] ?? 0
+    if (elapsed < goalSeconds) return
+    const cycles = Math.floor(elapsed / goalSeconds)
     if (cycles < 1) return
     const today = toDateKey(startToday())
     updateState((prev) => {
@@ -449,14 +476,17 @@ export default function App() {
           dateKey: today,
           amount: 1,
           kind: 'earned',
-          label: 'Focus timer (15 min)',
+          label: timer.title,
         })
       }
       return { ...prev, dollars, dollarLedger }
     })
-    setTimerSeconds((seconds) => seconds % TIMER_REWARD_SECONDS)
-    setToast(cycles === 1 ? '+$1 from timer' : `+$${cycles} from timer`)
-  }, [timerSeconds])
+    setTimerElapsed((prev) => ({
+      ...prev,
+      [runningTimerId]: elapsed % goalSeconds,
+    }))
+    setToast(cycles === 1 ? `+$1 · ${timer.title}` : `+$${cycles} · ${timer.title}`)
+  }, [timerElapsed, runningTimerId, state.timers])
 
   function toggleCategoryExpanded(id: string) {
     setExpandedCategoryIds((prev) =>
@@ -471,6 +501,9 @@ export default function App() {
     setCustomEveryDays('2')
     setAddError('')
     setEditingTaskId(null)
+    setEditingTimerId(null)
+    setNewTimerTitle('')
+    setNewTimerMinutes('20')
   }
 
   function handleSaveTask(event: FormEvent<HTMLFormElement>) {
@@ -552,15 +585,22 @@ export default function App() {
     setMainView(view)
     if (view !== 'projects') setActiveProjectId(null)
     if (view !== 'goals') setActiveGoalId(null)
+    if (view !== 'timer') setActiveTimerId(null)
   }
 
   function openAddComposer() {
-    if (mainView === 'settings' || mainView === 'timer') return
+    if (mainView === 'settings') return
     if (
       mainView === 'projects' ||
       mainView === 'rewards' ||
-      mainView === 'goals'
+      mainView === 'goals' ||
+      mainView === 'timer'
     ) {
+      if (mainView === 'timer') {
+        setEditingTimerId(null)
+        setNewTimerTitle('')
+        setNewTimerMinutes('20')
+      }
       setAddOpen(true)
       setAddError('')
       return
@@ -916,6 +956,79 @@ export default function App() {
     }))
   }
 
+  function addTimer() {
+    const title = newTimerTitle.trim()
+    const minutes = Number.parseInt(newTimerMinutes, 10)
+    if (!title) {
+      setToast('Name your timer')
+      return
+    }
+    if (!Number.isFinite(minutes) || minutes < 1) {
+      setToast('Minutes must be at least 1')
+      return
+    }
+    if (editingTimerId) {
+      updateState((prev) => ({
+        ...prev,
+        timers: prev.timers.map((timer) =>
+          timer.id === editingTimerId
+            ? { ...timer, title, minutesForDollar: minutes }
+            : timer,
+        ),
+      }))
+      setToast('Timer updated')
+    } else {
+      const maxOrder = state.timers.reduce((max, t) => Math.max(max, t.order), -1)
+      const timer: FocusTimer = {
+        id: uid('timer'),
+        title,
+        minutesForDollar: minutes,
+        order: maxOrder + 1,
+      }
+      updateState((prev) => ({ ...prev, timers: [...prev.timers, timer] }))
+      setToast('Timer added')
+    }
+    setEditingTimerId(null)
+    setNewTimerTitle('')
+    setNewTimerMinutes('20')
+  }
+
+  function openEditTimer(timer: FocusTimer) {
+    setEditingTimerId(timer.id)
+    setNewTimerTitle(timer.title)
+    setNewTimerMinutes(String(timer.minutesForDollar))
+    setAddOpen(true)
+    setAddError('')
+  }
+
+  function deleteTimer(id: string) {
+    updateState((prev) => ({
+      ...prev,
+      timers: prev.timers.filter((t) => t.id !== id),
+    }))
+    setTimerElapsed((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+    if (runningTimerId === id) setRunningTimerId(null)
+    if (activeTimerId === id) setActiveTimerId(null)
+    if (editingTimerId === id) {
+      setEditingTimerId(null)
+      setAddOpen(false)
+    }
+    setToast('Timer deleted')
+  }
+
+  function toggleTimerRunning(timerId: string) {
+    setRunningTimerId((current) => (current === timerId ? null : timerId))
+  }
+
+  function resetActiveTimer(timerId: string) {
+    setRunningTimerId((current) => (current === timerId ? null : current))
+    setTimerElapsed((prev) => ({ ...prev, [timerId]: 0 }))
+  }
+
   function addCategory() {
     const name = newCategory.trim()
     if (!name) return
@@ -973,6 +1086,15 @@ export default function App() {
       orderSnapshot: state.rewards.map((r) => r.id),
     }
     setDraggingRewardId(rewardId)
+  }
+
+  function beginTimerDrag(timerId: string, clientY: number) {
+    timerDragRef.current = {
+      id: timerId,
+      startY: clientY,
+      orderSnapshot: sortedTimers.map((t) => t.id),
+    }
+    setDraggingTimerId(timerId)
   }
 
   function beginCategoryDrag(categoryIdToDrag: string, clientY: number) {
@@ -1126,6 +1248,24 @@ export default function App() {
         return
       }
 
+      const timerDrag = timerDragRef.current
+      if (timerDrag) {
+        event.preventDefault()
+        const nextOrder = reorderSnapshot(timerDrag, event.clientY, 88)
+        if (!nextOrder) return
+        setState((prev) => {
+          const byId = new Map(prev.timers.map((t) => [t.id, t]))
+          const timers = nextOrder
+            .map((id, index) => {
+              const timer = byId.get(id)
+              return timer ? { ...timer, order: index } : null
+            })
+            .filter((t): t is FocusTimer => Boolean(t))
+          return { ...prev, timers }
+        })
+        return
+      }
+
       const categoryDrag = categoryDragRef.current
       if (!categoryDrag) return
       event.preventDefault()
@@ -1147,6 +1287,10 @@ export default function App() {
       if (rewardDragRef.current) {
         rewardDragRef.current = null
         setDraggingRewardId(null)
+      }
+      if (timerDragRef.current) {
+        timerDragRef.current = null
+        setDraggingTimerId(null)
       }
       if (categoryDragRef.current) {
         categoryDragRef.current = null
@@ -1957,55 +2101,155 @@ export default function App() {
         <section className="day-pane" aria-label="Timer">
           <div className="day-header">
             <div className="day-label-row projects-title-row">
-              <span className="day-nav-spacer" aria-hidden="true" />
-              <p className="day-label">Timer</p>
+              {activeTimer ? (
+                <button
+                  type="button"
+                  className="day-nav-btn"
+                  aria-label="Back to timers"
+                  onClick={() => setActiveTimerId(null)}
+                >
+                  ‹
+                </button>
+              ) : (
+                <span className="day-nav-spacer" aria-hidden="true" />
+              )}
+              <p className="day-label">
+                {activeTimer ? activeTimer.title : 'Timers'}
+              </p>
               <span className="day-nav-spacer" aria-hidden="true" />
             </div>
             <div className="day-divider" aria-hidden="true" />
           </div>
 
-          <div className="panel timer-panel">
-            <p className="timer-display" aria-live="polite">
-              {formatTimerSeconds(timerSeconds)}
-            </p>
-            <p className="timer-seconds-label">
-              {timerSeconds} second{timerSeconds === 1 ? '' : 's'}
-            </p>
-            <p className="muted timer-hint">
-              Earn $1 every 15 minutes while the timer runs. Pause keeps your
-              place.
-            </p>
-            <p className="timer-next">
-              Next $ in{' '}
-              {formatTimerSeconds(TIMER_REWARD_SECONDS - timerSeconds)}
-            </p>
-            <div className="timer-actions">
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => setTimerRunning((running) => !running)}
-              >
-                {timerRunning ? 'Pause' : 'Start'}
-              </button>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => {
-                  setTimerRunning(false)
-                  setTimerSeconds(0)
-                }}
-              >
-                Reset
-              </button>
+          {activeTimer ? (
+            <div className="panel timer-panel">
+              <p className="timer-display" aria-live="polite">
+                {formatTimerSeconds(timerElapsed[activeTimer.id] ?? 0)}
+              </p>
+              <p className="timer-seconds-label">
+                {timerElapsed[activeTimer.id] ?? 0} second
+                {(timerElapsed[activeTimer.id] ?? 0) === 1 ? '' : 's'}
+              </p>
+              <p className="muted timer-hint">
+                Earn $1 every {activeTimer.minutesForDollar} minute
+                {activeTimer.minutesForDollar === 1 ? '' : 's'}. Pause keeps
+                your place.
+              </p>
+              <p className="timer-next">
+                Next $ in{' '}
+                {formatTimerSeconds(
+                  Math.max(
+                    0,
+                    activeTimer.minutesForDollar * 60 -
+                      (timerElapsed[activeTimer.id] ?? 0),
+                  ),
+                )}
+              </p>
+              <div className="timer-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => toggleTimerRunning(activeTimer.id)}
+                >
+                  {runningTimerId === activeTimer.id ? 'Pause' : 'Start'}
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => resetActiveTimer(activeTimer.id)}
+                >
+                  Reset
+                </button>
+              </div>
             </div>
-          </div>
+          ) : sortedTimers.length === 0 ? (
+            <div className="panel empty">
+              <h2>No timers yet</h2>
+              <p>Tap the plus to add a timer with a title and $1 duration.</p>
+            </div>
+          ) : (
+            <div className="task-groups">
+              <section className="task-group" aria-label="Your timers">
+                <h2 className="category-heading">Your timers</h2>
+                <p className="muted reorder-hint view-hint">
+                  Drag to reorder. Tap a timer to run it. Edit title or minutes
+                  anytime.
+                </p>
+                <ul className="task-list">
+                  {sortedTimers.map((timer) => {
+                    const elapsed = timerElapsed[timer.id] ?? 0
+                    const running = runningTimerId === timer.id
+                    return (
+                      <li
+                        key={timer.id}
+                        className={`task-item timer-item${
+                          draggingTimerId === timer.id ? ' dragging' : ''
+                        }${running ? ' timer-running' : ''}`}
+                      >
+                        <button
+                          type="button"
+                          className="drag-handle"
+                          aria-label="Reorder timer"
+                          onPointerDown={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            event.currentTarget.setPointerCapture?.(
+                              event.pointerId,
+                            )
+                            beginTimerDrag(timer.id, event.clientY)
+                          }}
+                        >
+                          <BarsIcon />
+                        </button>
+                        <button
+                          type="button"
+                          className="timer-main-btn"
+                          onClick={() => setActiveTimerId(timer.id)}
+                        >
+                          <p className="task-title">{timer.title}</p>
+                          <div className="badges">
+                            <span className="badge">
+                              $1 / {timer.minutesForDollar} min
+                            </span>
+                            {elapsed > 0 ? (
+                              <span className="badge">
+                                {formatTimerSeconds(elapsed)}
+                                {running ? ' · running' : ' · paused'}
+                              </span>
+                            ) : null}
+                          </div>
+                        </button>
+                        <div className="task-actions">
+                          <button
+                            type="button"
+                            className="edit-btn"
+                            aria-label="Edit timer"
+                            onClick={() => openEditTimer(timer)}
+                          >
+                            <PencilIcon />
+                          </button>
+                          <button
+                            type="button"
+                            className="danger-btn"
+                            onClick={() => deleteTimer(timer.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            </div>
+          )}
         </section>
       )}
 
       <div className={`composer${addOpen ? ' composer-open' : ''}`}>
         {!addOpen ? (
           <nav className="composer-collapsed bottom-nav" aria-label="Main views">
-            {mainView !== 'settings' && mainView !== 'timer' ? (
+            {mainView !== 'settings' ? (
               <button
                 type="button"
                 className="circle-btn plus-btn"
@@ -2016,9 +2260,13 @@ export default function App() {
                       : 'New project'
                     : mainView === 'goals'
                       ? 'New goal'
-                      : mainView === 'rewards'
-                        ? 'New reward'
-                        : 'New task'
+                      : mainView === 'timer'
+                        ? editingTimerId
+                          ? 'Edit timer'
+                          : 'New timer'
+                        : mainView === 'rewards'
+                          ? 'New reward'
+                          : 'New task'
                 }
                 onClick={openAddComposer}
               >
@@ -2215,6 +2463,52 @@ export default function App() {
                 }}
               >
                 Add goal
+              </button>
+            </div>
+          </div>
+        ) : mainView === 'timer' ? (
+          <div className="panel add-panel">
+            <div className="composer-header">
+              <h2>{editingTimerId ? 'Edit timer' : 'New timer'}</h2>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Close"
+                onClick={closeAddComposer}
+              >
+                ✕
+              </button>
+            </div>
+            <label>
+              Title
+              <input
+                value={newTimerTitle}
+                onChange={(e) => setNewTimerTitle(e.target.value)}
+                placeholder="Room cleaning"
+                autoComplete="off"
+              />
+            </label>
+            <label>
+              Minutes for $1
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                step={1}
+                value={newTimerMinutes}
+                onChange={(e) => setNewTimerMinutes(e.target.value)}
+              />
+            </label>
+            <div className="add-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  addTimer()
+                  setAddOpen(false)
+                }}
+              >
+                {editingTimerId ? 'Save timer' : 'Add timer'}
               </button>
             </div>
           </div>

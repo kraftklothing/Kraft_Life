@@ -1,9 +1,11 @@
 import {
   DEFAULT_CATEGORIES,
   DEFAULT_REWARDS,
+  DEFAULT_TIMERS,
   type AppState,
   type Category,
   type DollarLedgerEntry,
+  type FocusTimer,
   type Goal,
   type Project,
   type ProjectStep,
@@ -124,6 +126,33 @@ function normalizeGoals(raw: unknown): Goal[] {
   return goals.sort((a, b) => a.order - b.order)
 }
 
+function normalizeTimers(raw: unknown): FocusTimer[] | null {
+  if (!Array.isArray(raw)) return null
+  const timers: FocusTimer[] = []
+  raw.forEach((item, index) => {
+    if (!item || typeof item !== 'object') return
+    const t = item as {
+      id?: unknown
+      title?: unknown
+      minutesForDollar?: unknown
+      order?: unknown
+    }
+    if (typeof t.id !== 'string' || typeof t.title !== 'string') return
+    const minutes =
+      typeof t.minutesForDollar === 'number'
+        ? t.minutesForDollar
+        : Number(t.minutesForDollar)
+    if (!Number.isFinite(minutes) || minutes < 1) return
+    timers.push({
+      id: t.id,
+      title: t.title,
+      minutesForDollar: Math.floor(minutes),
+      order: typeof t.order === 'number' ? t.order : index,
+    })
+  })
+  return timers.sort((a, b) => a.order - b.order)
+}
+
 function normalizeDollarLedger(raw: unknown): DollarLedgerEntry[] {
   if (!Array.isArray(raw)) return []
   const entries: DollarLedgerEntry[] = []
@@ -180,6 +209,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     rewards: DEFAULT_REWARDS,
     projects: [],
     goals: [],
+    timers: DEFAULT_TIMERS,
     vacationDays: {},
     showPercent: false,
     dollarLedger: [],
@@ -188,6 +218,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
 
   const categories = normalizeCategories(raw.categories) ?? DEFAULT_CATEGORIES
   const rewards = normalizeRewards(raw.rewards)
+  const timers = normalizeTimers(raw.timers)
   return {
     tasks: Array.isArray(raw.tasks) ? raw.tasks : [],
     categories,
@@ -195,6 +226,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     rewards: rewards !== null ? rewards : DEFAULT_REWARDS,
     projects: normalizeProjects(raw.projects),
     goals: normalizeGoals(raw.goals),
+    timers: timers !== null ? timers : DEFAULT_TIMERS,
     vacationDays:
       raw.vacationDays && typeof raw.vacationDays === 'object'
         ? raw.vacationDays

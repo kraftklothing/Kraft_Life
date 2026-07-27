@@ -80,6 +80,14 @@ export interface DollarLedgerEntry {
   label: string
 }
 
+export interface FocusTimer {
+  id: string
+  title: string
+  /** Minutes of running time needed to earn $1. */
+  minutesForDollar: number
+  order: number
+}
+
 export interface AppState {
   tasks: Task[]
   categories: Category[]
@@ -87,6 +95,7 @@ export interface AppState {
   rewards: Reward[]
   projects: Project[]
   goals: Goal[]
+  timers: FocusTimer[]
   /** Date keys (YYYY-MM-DD) with vacation mode on for that day only. */
   vacationDays: Record<string, boolean>
   /** When true, header shows percent complete instead of counts. */
@@ -105,6 +114,21 @@ export const DEFAULT_REWARDS: Reward[] = [
   { id: 'coffee', name: 'Coffee treat', cost: 3 },
   { id: 'movie', name: 'Movie night', cost: 8 },
   { id: 'dinner', name: 'Nice dinner', cost: 15 },
+]
+
+export const DEFAULT_TIMERS: FocusTimer[] = [
+  {
+    id: 'room-cleaning',
+    title: 'Room cleaning',
+    minutesForDollar: 20,
+    order: 0,
+  },
+  {
+    id: 'kitchen-cleaning',
+    title: 'Kitchen cleaning',
+    minutesForDollar: 10,
+    order: 1,
+  },
 ]
 
 export const REPETITION_LABELS: Record<Repetition, string> = {

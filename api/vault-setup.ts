@@ -19,6 +19,20 @@ function defaultState(): VaultAppState {
     ],
     projects: [],
     goals: [],
+    timers: [
+      {
+        id: 'room-cleaning',
+        title: 'Room cleaning',
+        minutesForDollar: 20,
+        order: 0,
+      },
+      {
+        id: 'kitchen-cleaning',
+        title: 'Kitchen cleaning',
+        minutesForDollar: 10,
+        order: 1,
+      },
+    ],
     vacationDays: {},
     showPercent: false,
     dollarLedger: [],

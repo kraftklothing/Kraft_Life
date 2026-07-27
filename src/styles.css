@@ -587,6 +587,26 @@ button {
   justify-self: start;
 }
 
+.timer-item {
+  grid-template-columns: auto 1fr auto;
+}
+
+.timer-item.timer-running {
+  border-color: rgba(196, 92, 42, 0.4);
+  box-shadow: 0 8px 20px rgba(154, 74, 36, 0.12);
+}
+
+.timer-main-btn {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  color: inherit;
+}
+
 .timer-panel {
   margin-top: 8px;
   text-align: center;
