@@ -164,6 +164,8 @@ function TargetIcon() {
 
 type MainView = 'tasks' | 'projects' | 'goals' | 'timer' | 'rewards' | 'settings'
 
+const COMPLETED_GROUP_ID = '__completed__'
+
 function PlaneIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -324,7 +326,7 @@ export default function App() {
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [collapsedTaskCategoryIds, setCollapsedTaskCategoryIds] = useState<
     string[]
-  >([])
+  >([COMPLETED_GROUP_ID])
   const [activeTimerId, setActiveTimerId] = useState<string | null>(null)
   const [runningTimerId, setRunningTimerId] = useState<string | null>(null)
   const [timerElapsed, setTimerElapsed] = useState<Record<string, number>>({})
@@ -438,8 +440,15 @@ export default function App() {
   )
 
   const groupedDayTasks = useMemo(() => {
-    const byCat = new Map<string, Task[]>()
+    const incomplete: Task[] = []
+    const completed: Task[] = []
     for (const task of dayTasks) {
+      if (isCompletedForDateView(task, viewKey)) completed.push(task)
+      else incomplete.push(task)
+    }
+
+    const byCat = new Map<string, Task[]>()
+    for (const task of incomplete) {
       const ids =
         task.categoryIds.length > 0 ? [...new Set(task.categoryIds)] : []
       if (ids.length === 0) {
@@ -477,8 +486,15 @@ export default function App() {
         tasks: sortTasksForDay(uncategorized),
       })
     }
+    if (completed.length > 0) {
+      groups.push({
+        id: COMPLETED_GROUP_ID,
+        name: 'Completed',
+        tasks: sortTasksForDay(completed),
+      })
+    }
     return groups
-  }, [dayTasks, state.categories])
+  }, [dayTasks, state.categories, viewKey])
 
   const completedCount = dayTasks.filter((t) =>
     isCompletedForDateView(t, viewKey),
@@ -1353,6 +1369,9 @@ export default function App() {
       startY: clientY,
       orderSnapshot: dayTasks
         .filter((t) => {
+          const done = isCompletedForDateView(t, viewKey)
+          if (groupCategoryId === COMPLETED_GROUP_ID) return done
+          if (done) return false
           if (groupCategoryId === 'uncategorized') {
             return (
               t.categoryIds.length === 0 ||
@@ -1623,9 +1642,11 @@ export default function App() {
                       <h2 className="category-heading">{group.name}</h2>
                       <span className="category-heading-meta">
                         {collapsed
-                          ? `${group.tasks.length} task${
-                              group.tasks.length === 1 ? '' : 's'
-                            }`
+                          ? group.id === COMPLETED_GROUP_ID
+                            ? `${group.tasks.length} done`
+                            : `${group.tasks.length} task${
+                                group.tasks.length === 1 ? '' : 's'
+                              }`
                           : null}
                         <ChevronIcon open={!collapsed} />
                       </span>
