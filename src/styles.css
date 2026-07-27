@@ -802,6 +802,14 @@ button {
 
 .project-item {
   grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.project-item .edit-btn,
+.goal-item .edit-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
 }
 
 .project-main-btn {

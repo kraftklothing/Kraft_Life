@@ -297,6 +297,9 @@ export default function App() {
   const [mainView, setMainView] = useState<MainView>('tasks')
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [activeGoalId, setActiveGoalId] = useState<string | null>(null)
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
+  const [editingStepId, setEditingStepId] = useState<string | null>(null)
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null)
   const [newCategoryByKind, setNewCategoryByKind] = useState({
     task: '',
     project: '',
@@ -711,6 +714,13 @@ export default function App() {
     setEditingTaskId(null)
     setEditingTimerId(null)
     setEditingRewardId(null)
+    setEditingProjectId(null)
+    setEditingStepId(null)
+    setEditingGoalId(null)
+    setNewProjectName('')
+    setNewStepTitle('')
+    setNewStepDollars('5')
+    setNewGoalName('')
     setNewTimerTitle('')
     setNewTimerMinutes('20')
     setNewRewardName('')
@@ -813,6 +823,19 @@ export default function App() {
       mainView === 'goals' ||
       mainView === 'timer'
     ) {
+      if (mainView === 'projects') {
+        setEditingProjectId(null)
+        setEditingStepId(null)
+        setNewProjectName('')
+        setProjectCategoryIds([])
+        setNewStepTitle('')
+        setNewStepDollars('5')
+      }
+      if (mainView === 'goals') {
+        setEditingGoalId(null)
+        setNewGoalName('')
+        setGoalCategoryIds([])
+      }
       if (mainView === 'timer') {
         setEditingTimerId(null)
         setNewTimerTitle('')
@@ -909,6 +932,21 @@ export default function App() {
       setToast('Choose at least one category')
       return false
     }
+    if (editingProjectId) {
+      updateState((prev) => ({
+        ...prev,
+        projects: prev.projects.map((project) =>
+          project.id === editingProjectId
+            ? { ...project, name, categoryIds: selectedCategories }
+            : project,
+        ),
+      }))
+      setEditingProjectId(null)
+      setNewProjectName('')
+      setProjectCategoryIds([])
+      setToast('Project updated')
+      return true
+    }
     const maxOrder = state.projects.reduce((max, p) => Math.max(max, p.order), -1)
     const project: Project = {
       id: uid('project'),
@@ -926,6 +964,15 @@ export default function App() {
     return true
   }
 
+  function openEditProject(project: Project) {
+    setEditingProjectId(project.id)
+    setEditingStepId(null)
+    setNewProjectName(project.name)
+    setProjectCategoryIds([...project.categoryIds])
+    setAddOpen(true)
+    setAddError('')
+  }
+
   function deleteProject(id: string) {
     updateState((prev) => ({
       ...prev,
@@ -936,19 +983,45 @@ export default function App() {
       })),
     }))
     if (activeProjectId === id) setActiveProjectId(null)
+    if (editingProjectId === id) {
+      setEditingProjectId(null)
+      setAddOpen(false)
+      resetComposerFields()
+    }
     setToast('Project deleted')
   }
 
-  function addProjectStep(projectId: string) {
+  function addProjectStep(projectId: string): boolean {
     const title = newStepTitle.trim()
     const dollars = Number.parseInt(newStepDollars, 10)
     if (!title) {
       setToast('Name the step')
-      return
+      return false
     }
     if (!Number.isFinite(dollars) || dollars < 0) {
       setToast('Step $ must be 0 or more')
-      return
+      return false
+    }
+    if (editingStepId) {
+      updateState((prev) => ({
+        ...prev,
+        projects: prev.projects.map((project) => {
+          if (project.id !== projectId) return project
+          return {
+            ...project,
+            steps: project.steps.map((step) =>
+              step.id === editingStepId
+                ? { ...step, title, dollars }
+                : step,
+            ),
+          }
+        }),
+      }))
+      setEditingStepId(null)
+      setNewStepTitle('')
+      setNewStepDollars('5')
+      setToast('Step updated')
+      return true
     }
     updateState((prev) => ({
       ...prev,
@@ -969,6 +1042,16 @@ export default function App() {
     setNewStepTitle('')
     setNewStepDollars('5')
     setToast('Step added')
+    return true
+  }
+
+  function openEditStep(step: ProjectStep) {
+    setEditingStepId(step.id)
+    setEditingProjectId(null)
+    setNewStepTitle(step.title)
+    setNewStepDollars(String(step.dollars))
+    setAddOpen(true)
+    setAddError('')
   }
 
   function toggleProjectStep(projectId: string, stepId: string) {
@@ -1026,6 +1109,21 @@ export default function App() {
       setToast('Choose at least one category')
       return false
     }
+    if (editingGoalId) {
+      updateState((prev) => ({
+        ...prev,
+        goals: prev.goals.map((goal) =>
+          goal.id === editingGoalId
+            ? { ...goal, name, categoryIds: selectedCategories }
+            : goal,
+        ),
+      }))
+      setEditingGoalId(null)
+      setNewGoalName('')
+      setGoalCategoryIds([])
+      setToast('Goal updated')
+      return true
+    }
     const maxOrder = state.goals.reduce((max, g) => Math.max(max, g.order), -1)
     const goal: Goal = {
       id: uid('goal'),
@@ -1044,12 +1142,25 @@ export default function App() {
     return true
   }
 
+  function openEditGoal(goal: Goal) {
+    setEditingGoalId(goal.id)
+    setNewGoalName(goal.name)
+    setGoalCategoryIds([...goal.categoryIds])
+    setAddOpen(true)
+    setAddError('')
+  }
+
   function deleteGoal(id: string) {
     updateState((prev) => ({
       ...prev,
       goals: prev.goals.filter((g) => g.id !== id),
     }))
     if (activeGoalId === id) setActiveGoalId(null)
+    if (editingGoalId === id) {
+      setEditingGoalId(null)
+      setAddOpen(false)
+      resetComposerFields()
+    }
     setToast('Goal deleted')
   }
 
@@ -1112,6 +1223,12 @@ export default function App() {
       })
       return { ...prev, projects, dollars, dollarLedger }
     })
+    if (editingStepId === stepId) {
+      setEditingStepId(null)
+      setAddOpen(false)
+      resetComposerFields()
+    }
+    setToast('Step deleted')
   }
 
   function toggleVacationMode() {
@@ -1277,8 +1394,10 @@ export default function App() {
     if (editingRewardId === id) {
       setEditingRewardId(null)
       setAddOpen(false)
+      resetComposerFields()
     }
     if (spendConfirmReward?.id === id) setSpendConfirmReward(null)
+    setToast('Reward deleted')
   }
 
   function addTimer() {
@@ -1341,6 +1460,7 @@ export default function App() {
     if (editingTimerId === id) {
       setEditingTimerId(null)
       setAddOpen(false)
+      resetComposerFields()
     }
     setToast('Timer deleted')
   }
@@ -2023,10 +2143,11 @@ export default function App() {
                                 </button>
                                 <button
                                   type="button"
-                                  className="danger-btn"
-                                  onClick={() => deleteProject(project.id)}
+                                  className="edit-btn"
+                                  aria-label="Edit project"
+                                  onClick={() => openEditProject(project)}
                                 >
-                                  Delete
+                                  <PencilIcon />
                                 </button>
                               </li>
                             )
@@ -2077,12 +2198,11 @@ export default function App() {
                         </div>
                         <button
                           type="button"
-                          className="danger-btn"
-                          onClick={() =>
-                            deleteProjectStep(activeProject.id, step.id)
-                          }
+                          className="edit-btn"
+                          aria-label="Edit step"
+                          onClick={() => openEditStep(step)}
                         >
-                          Delete
+                          <PencilIcon />
                         </button>
                       </li>
                     ))}
@@ -2210,10 +2330,11 @@ export default function App() {
                                 </button>
                                 <button
                                   type="button"
-                                  className="danger-btn"
-                                  onClick={() => deleteGoal(goal.id)}
+                                  className="edit-btn"
+                                  aria-label="Edit goal"
+                                  onClick={() => openEditGoal(goal)}
                                 >
-                                  Delete
+                                  <PencilIcon />
                                 </button>
                               </li>
                             )
@@ -2494,13 +2615,6 @@ export default function App() {
                             onClick={() => openEditReward(reward)}
                           >
                             <PencilIcon />
-                          </button>
-                          <button
-                            type="button"
-                            className="danger-btn"
-                            onClick={() => deleteReward(reward.id)}
-                          >
-                            Delete
                           </button>
                         </div>
                       </div>
@@ -2803,13 +2917,6 @@ export default function App() {
                           >
                             <PencilIcon />
                           </button>
-                          <button
-                            type="button"
-                            className="danger-btn"
-                            onClick={() => deleteTimer(timer.id)}
-                          >
-                            Delete
-                          </button>
                         </div>
                       </li>
                     )
@@ -2923,7 +3030,15 @@ export default function App() {
         ) : mainView === 'projects' ? (
           <div className="panel add-panel">
             <div className="composer-header">
-              <h2>{activeProject ? 'New step' : 'New project'}</h2>
+              <h2>
+                {activeProject && !editingProjectId
+                  ? editingStepId
+                    ? 'Edit step'
+                    : 'New step'
+                  : editingProjectId
+                    ? 'Edit project'
+                    : 'New project'}
+              </h2>
               <button
                 type="button"
                 className="icon-btn"
@@ -2933,7 +3048,7 @@ export default function App() {
                 ✕
               </button>
             </div>
-            {activeProject ? (
+            {activeProject && !editingProjectId ? (
               <>
                 <label>
                   Step name
@@ -2960,12 +3075,22 @@ export default function App() {
                     type="button"
                     className="btn btn-primary"
                     onClick={() => {
-                      addProjectStep(activeProject.id)
-                      setAddOpen(false)
+                      if (addProjectStep(activeProject.id)) setAddOpen(false)
                     }}
                   >
-                    Add step
+                    {editingStepId ? 'Save step' : 'Add step'}
                   </button>
+                  {editingStepId ? (
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      onClick={() =>
+                        deleteProjectStep(activeProject.id, editingStepId)
+                      }
+                    >
+                      Delete
+                    </button>
+                  ) : null}
                 </div>
               </>
             ) : (
@@ -3021,8 +3146,17 @@ export default function App() {
                       if (addProject()) setAddOpen(false)
                     }}
                   >
-                    Add project
+                    {editingProjectId ? 'Save project' : 'Add project'}
                   </button>
+                  {editingProjectId ? (
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      onClick={() => deleteProject(editingProjectId)}
+                    >
+                      Delete
+                    </button>
+                  ) : null}
                 </div>
               </>
             )}
@@ -3030,7 +3164,7 @@ export default function App() {
         ) : mainView === 'goals' ? (
           <div className="panel add-panel">
             <div className="composer-header">
-              <h2>New goal</h2>
+              <h2>{editingGoalId ? 'Edit goal' : 'New goal'}</h2>
               <button
                 type="button"
                 className="icon-btn"
@@ -3089,8 +3223,17 @@ export default function App() {
                   if (addGoal()) setAddOpen(false)
                 }}
               >
-                Add goal
+                {editingGoalId ? 'Save goal' : 'Add goal'}
               </button>
+              {editingGoalId ? (
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => deleteGoal(editingGoalId)}
+                >
+                  Delete
+                </button>
+              ) : null}
             </div>
           </div>
         ) : mainView === 'timer' ? (
@@ -3137,6 +3280,15 @@ export default function App() {
               >
                 {editingTimerId ? 'Save timer' : 'Add timer'}
               </button>
+              {editingTimerId ? (
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => deleteTimer(editingTimerId)}
+                >
+                  Delete
+                </button>
+              ) : null}
             </div>
           </div>
         ) : mainView === 'rewards' ? (
@@ -3183,6 +3335,15 @@ export default function App() {
               >
                 {editingRewardId ? 'Save reward' : 'Add reward'}
               </button>
+              {editingRewardId ? (
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => deleteReward(editingRewardId)}
+                >
+                  Delete
+                </button>
+              ) : null}
             </div>
           </div>
         ) : (

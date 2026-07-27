@@ -32,7 +32,8 @@ export default function CategorySettingsPanel({
   return (
     <>
       <p className="muted reorder-hint view-hint">
-        Drag the bars to reorder. Tap the pencil to rename.
+        Drag the bars to reorder. Tap the pencil to edit — delete shows while
+        editing.
       </p>
       <ul className="task-list category-settings-list">
         {categories.map((cat) => {
@@ -82,22 +83,26 @@ export default function CategorySettingsPanel({
                 </span>
               )}
               <div className="category-settings-actions">
-                <button
-                  type="button"
-                  className="edit-btn"
-                  aria-label={`Edit ${cat.name}`}
-                  onClick={() => onStartEdit(cat.id)}
-                >
-                  <PencilIcon />
-                </button>
-                <button
-                  type="button"
-                  className="delete-btn"
-                  aria-label={`Delete ${cat.name}`}
-                  onClick={() => onDelete(cat.id)}
-                >
-                  <TrashIcon />
-                </button>
+                {editing ? (
+                  <button
+                    type="button"
+                    className="delete-btn"
+                    aria-label={`Delete ${cat.name}`}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => onDelete(cat.id)}
+                  >
+                    <TrashIcon />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="edit-btn"
+                    aria-label={`Edit ${cat.name}`}
+                    onClick={() => onStartEdit(cat.id)}
+                  >
+                    <PencilIcon />
+                  </button>
+                )}
               </div>
             </li>
           )
