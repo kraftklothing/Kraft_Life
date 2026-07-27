@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { isStorageConfigured } from './lib/vault'
+import { isStorageConfigured } from './lib/redis-env'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') {
@@ -12,7 +12,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       configured: false,
       storageReady: false,
       message:
-        'Cloud storage is not connected to kraft-life yet. In Vercel, open your Redis database → Connect to kraft-life → redeploy.',
+        'Cloud storage is not connected to kraft-life yet. Tap Show Connections on your Redis database, confirm kraft-life is listed, then redeploy.',
     })
   }
 
