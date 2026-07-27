@@ -62,7 +62,7 @@ export default function CloudSyncSettings({
           </button>
         </>
       ) : cloud.vaultConfigured ? (
-        <form className="cloud-sync-form" onSubmit={handleUnlock}>
+        <form className="cloud-sync-form" noValidate onSubmit={handleUnlock}>
           {!cloud.storageReady ? (
             <div className="cloud-notice">
               <p>Cloud storage still needs to be connected on Vercel before sync works.</p>
@@ -79,7 +79,6 @@ export default function CloudSyncSettings({
             <input
               type="password"
               inputMode="numeric"
-              pattern="\d{4,6}"
               autoComplete="off"
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -103,7 +102,7 @@ export default function CloudSyncSettings({
           </button>
         </form>
       ) : (
-        <form className="cloud-sync-form" onSubmit={handleSetup}>
+        <form className="cloud-sync-form" noValidate onSubmit={handleSetup}>
           {!cloud.storageReady ? (
             <div className="cloud-notice">
               <p>
@@ -131,7 +130,6 @@ export default function CloudSyncSettings({
             <input
               type="password"
               inputMode="numeric"
-              pattern="\d{4,6}"
               autoComplete="off"
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -142,7 +140,6 @@ export default function CloudSyncSettings({
             <input
               type="password"
               inputMode="numeric"
-              pattern="\d{4,6}"
               autoComplete="off"
               value={confirmPin}
               onChange={(e) =>
