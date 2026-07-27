@@ -154,6 +154,6 @@ export const REPETITION_LABELS: Record<Repetition, string> = {
   monthly: 'Monthly',
   yearly: 'Yearly',
   custom: 'Every N days',
-  after_completion: 'N days after last done',
+  after_completion: 'Days in between',
   none: 'Does not repeat',
 }

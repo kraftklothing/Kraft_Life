@@ -642,7 +642,7 @@ export default function App() {
       if (!Number.isFinite(every) || every < 1) {
         setAddError(
           repetition === 'after_completion'
-            ? 'Needs a number of days after completion (1 or more).'
+            ? 'Days in between needs a number of days (1 or more).'
             : 'Custom repeat needs a number of days (1 or more).',
         )
         return
@@ -3256,7 +3256,7 @@ export default function App() {
             {repetition === 'custom' || repetition === 'after_completion' ? (
               <label htmlFor={`${formId}-custom`}>
                 {repetition === 'after_completion'
-                  ? 'Days after last completion'
+                  ? 'Days in between'
                   : 'Repeat every N days'}
                 <input
                   id={`${formId}-custom`}
@@ -3272,8 +3272,8 @@ export default function App() {
             ) : null}
             {repetition === 'after_completion' ? (
               <p className="muted category-multi-hint">
-                After you complete it, it stays hidden until that many days
-                later, then shows each day until you complete it again.
+                After you complete it, it stays hidden for that many days, then
+                shows each day until you complete it again.
               </p>
             ) : null}
 
