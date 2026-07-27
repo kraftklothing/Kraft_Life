@@ -1,6 +1,4 @@
 import {
-  DEFAULT_GOAL_CATEGORIES,
-  DEFAULT_PROJECT_CATEGORIES,
   DEFAULT_REWARDS,
   DEFAULT_TASK_CATEGORIES,
   DEFAULT_TIMERS,
@@ -97,8 +95,6 @@ function normalizeProjects(raw: unknown): Project[] {
     const p = item as {
       id?: unknown
       name?: unknown
-      categoryIds?: unknown
-      categoryId?: unknown
       order?: unknown
       steps?: unknown
       createdAt?: unknown
@@ -107,7 +103,6 @@ function normalizeProjects(raw: unknown): Project[] {
     projects.push({
       id: p.id,
       name: p.name,
-      categoryIds: normalizeEntityCategoryIds(p),
       order: typeof p.order === 'number' ? p.order : index,
       steps: normalizeSteps(p.steps),
       createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
@@ -155,8 +150,6 @@ function normalizeGoals(raw: unknown): Goal[] {
       id?: unknown
       name?: unknown
       description?: unknown
-      categoryIds?: unknown
-      categoryId?: unknown
       order?: unknown
       taskIds?: unknown
       projectIds?: unknown
@@ -167,7 +160,6 @@ function normalizeGoals(raw: unknown): Goal[] {
       id: g.id,
       name: g.name,
       description: typeof g.description === 'string' ? g.description : '',
-      categoryIds: normalizeEntityCategoryIds(g),
       order: typeof g.order === 'number' ? g.order : index,
       taskIds: normalizeStringIds(g.taskIds),
       projectIds: normalizeStringIds(g.projectIds),
@@ -282,8 +274,6 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
   const fallback: AppState = {
     tasks: [],
     taskCategories: DEFAULT_TASK_CATEGORIES,
-    projectCategories: DEFAULT_PROJECT_CATEGORIES,
-    goalCategories: DEFAULT_GOAL_CATEGORIES,
     dollars: 0,
     rewards: DEFAULT_REWARDS,
     projects: [],
@@ -303,17 +293,11 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     normalizeCategories(raw.taskCategories) ??
     legacyCategories ??
     DEFAULT_TASK_CATEGORIES
-  const projectCategories =
-    normalizeCategories(raw.projectCategories) ?? DEFAULT_PROJECT_CATEGORIES
-  const goalCategories =
-    normalizeCategories(raw.goalCategories) ?? DEFAULT_GOAL_CATEGORIES
   const rewards = normalizeRewards(raw.rewards)
   const timers = normalizeTimers(raw.timers)
   return {
     tasks: normalizeTasks(raw.tasks),
     taskCategories,
-    projectCategories,
-    goalCategories,
     dollars: typeof raw.dollars === 'number' ? raw.dollars : 0,
     rewards: rewards !== null ? rewards : DEFAULT_REWARDS,
     projects: normalizeProjects(raw.projects),

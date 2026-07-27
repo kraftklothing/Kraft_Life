@@ -8,7 +8,7 @@ export type Repetition =
 
 export type CategoryId = string
 
-export type CategoryKind = 'task' | 'project' | 'goal'
+export type CategoryKind = 'task'
 
 export interface CustomRepeat {
   /** Repeat every N days (minimum 1). */
@@ -65,7 +65,6 @@ export interface ProjectStep {
 export interface Project {
   id: string
   name: string
-  categoryIds: CategoryId[]
   order: number
   steps: ProjectStep[]
   createdAt: number
@@ -76,7 +75,6 @@ export interface Goal {
   name: string
   /** Optional notes shown under the goal title. */
   description: string
-  categoryIds: CategoryId[]
   order: number
   taskIds: string[]
   projectIds: string[]
@@ -107,8 +105,6 @@ export interface FocusTimer {
 export interface AppState {
   tasks: Task[]
   taskCategories: Category[]
-  projectCategories: Category[]
-  goalCategories: Category[]
   dollars: number
   rewards: Reward[]
   projects: Project[]
@@ -131,16 +127,6 @@ export const DEFAULT_CATEGORIES: Category[] = [
 ]
 
 export const DEFAULT_TASK_CATEGORIES = DEFAULT_CATEGORIES
-export const DEFAULT_PROJECT_CATEGORIES: Category[] = [
-  { id: 'proj-general', name: 'General' },
-  { id: 'proj-personal', name: 'Personal' },
-  { id: 'proj-work', name: 'Work' },
-]
-export const DEFAULT_GOAL_CATEGORIES: Category[] = [
-  { id: 'goal-general', name: 'General' },
-  { id: 'goal-personal', name: 'Personal' },
-  { id: 'goal-work', name: 'Work' },
-]
 
 export const DEFAULT_REWARDS: Reward[] = [
   { id: 'coffee', name: 'Coffee treat', cost: 3 },

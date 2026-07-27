@@ -352,7 +352,7 @@ button {
 }
 
 .goal-item {
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto 1fr auto;
   align-items: start;
 }
 
@@ -815,12 +815,14 @@ button {
 }
 
 .project-item {
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
 }
 
 .project-item .edit-btn,
-.goal-item .edit-btn {
+.project-item .drag-handle,
+.goal-item .edit-btn,
+.goal-item .drag-handle {
   width: 32px;
   height: 32px;
   border-radius: 9px;

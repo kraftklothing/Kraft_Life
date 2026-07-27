@@ -3,8 +3,6 @@ export interface VaultAppState {
   tasks: unknown[]
   categories?: unknown[]
   taskCategories?: unknown[]
-  projectCategories?: unknown[]
-  goalCategories?: unknown[]
   dollars: number
   rewards: unknown[]
   projects: unknown[]
