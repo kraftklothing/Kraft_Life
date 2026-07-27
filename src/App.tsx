@@ -1216,16 +1216,10 @@ export default function App() {
                       return (
                         <li
                           key={task.id}
-                          className={`task-item has-streak${done ? ' completed' : ''}${
+                          className={`task-item${done ? ' completed' : ''}${
                             draggingId === task.id ? ' dragging' : ''
                           }${vacationOn ? ' vacation' : ''}`}
                         >
-                          <span
-                            className="task-streak"
-                            aria-label={`Streak ${streak}`}
-                          >
-                            Streak: {streak}
-                          </span>
                           <button
                             type="button"
                             className="check"
@@ -1239,12 +1233,11 @@ export default function App() {
                           <div className="task-body">
                             <p className="task-title">{task.title}</p>
                             <div className="badges">
-                              <span className="badge rep">
-                                {REPETITION_LABELS[task.repetition]}
-                                {task.repetition === 'custom' &&
-                                task.customRepeat
-                                  ? ` · every ${task.customRepeat.everyDays}d`
-                                  : ''}
+                              <span
+                                className="badge"
+                                aria-label={`Streak ${streak}`}
+                              >
+                                Streak: {streak}
                               </span>
                             </div>
                           </div>
