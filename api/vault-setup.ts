@@ -1,28 +1,10 @@
 import { createHash, timingSafeEqual } from 'crypto'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { findRedisCredentials, redisGet, redisSet } from './lib/upstash-rest'
 
 const META_KEY = 'kraft-life:vault:meta'
 const DATA_KEY = 'kraft-life:vault:data'
 const SALT = process.env.KRAFT_LIFE_PIN_SALT ?? 'kraft-life-v1'
-
-function findRedisCredentials(): { url: string; token: string } | null {
-  const env = process.env
-  if (env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN) {
-    return { url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN }
-  }
-  if (env.KV_REST_API_URL && env.KV_REST_API_TOKEN) {
-    return { url: env.KV_REST_API_URL, token: env.KV_REST_API_TOKEN }
-  }
-  for (const key of Object.keys(env)) {
-    let tokenKey: string | null = null
-    if (key.endsWith('_REST_API_URL')) tokenKey = key.replace('_REST_API_URL', '_REST_API_TOKEN')
-    else if (key.endsWith('_REST_URL')) tokenKey = key.replace('_REST_URL', '_REST_TOKEN')
-    if (tokenKey && env[key] && env[tokenKey]) {
-      return { url: env[key]!, token: env[tokenKey]! }
-    }
-  }
-  return null
-}
 
 function isValidPin(pin: string): boolean {
   return /^\d{4,6}$/.test(pin)
@@ -32,6 +14,7 @@ function hashPin(pin: string): string {
   return createHash('sha256').update(`${SALT}:${pin}`).digest('hex')
 }
 
+<<<<<<< HEAD
 function verifyPin(pin: string, storedHash: string): boolean {
   const attempt = hashPin(pin)
   const a = Buffer.from(attempt, 'hex')
@@ -108,6 +91,8 @@ function defaultState() {
   }
 }
 
+=======
+>>>>>>> 24b13204767b87d8d4a14db7909ec172ebbefe8c
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
@@ -143,4 +128,4 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-export { hashPin, verifyPin, timingSafeEqual }
+export { hashPin, timingSafeEqual }
