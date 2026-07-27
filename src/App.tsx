@@ -17,6 +17,7 @@ import {
   isOccurrenceSatisfied,
   nextOccurrence,
   occurrenceForDate,
+  recordCompletionStreak,
   sortTasksForDay,
   taskVisibleOnDate,
 } from './taskLogic'
@@ -1193,7 +1194,7 @@ export default function App() {
             <div className="panel empty">
               <h2>Nothing listed yet</h2>
               <p>
-                Tap the green plus at the bottom to add what you want to finish{' '}
+                Tap the plus at the bottom to add what you want to finish{' '}
                 {viewKey === todayKey ? 'today' : 'this day'}.
               </p>
             </div>
@@ -1213,6 +1214,7 @@ export default function App() {
                     {group.tasks.map((task) => {
                       const done = isCompletedForDateView(task, viewKey)
                       const streak = completionStreak(task, viewKey)
+                      const recordStreak = recordCompletionStreak(task, viewKey)
                       return (
                         <li
                           key={task.id}
@@ -1235,9 +1237,9 @@ export default function App() {
                             <div className="badges">
                               <span
                                 className="badge"
-                                aria-label={`Streak ${streak}`}
+                                aria-label={`Streak ${streak}, record streak ${recordStreak}`}
                               >
-                                Streak: {streak}
+                                Streak: {streak} / Record Streak: {recordStreak}
                               </span>
                             </div>
                           </div>
@@ -1307,7 +1309,7 @@ export default function App() {
             sortedProjects.length === 0 ? (
               <div className="panel empty">
                 <h2>No projects yet</h2>
-                <p>Tap the green plus to create a project.</p>
+                <p>Tap the plus to create a project.</p>
               </div>
             ) : (
               <div className="task-groups">
@@ -1350,7 +1352,7 @@ export default function App() {
           ) : activeProject.steps.length === 0 ? (
             <div className="panel empty">
               <h2>No steps yet</h2>
-              <p>Tap the green plus to add a step with a $ reward.</p>
+              <p>Tap the plus to add a step with a $ reward.</p>
             </div>
           ) : (
             <div className="task-groups">
@@ -1430,14 +1432,14 @@ export default function App() {
             sortedGoals.length === 0 ? (
               <div className="panel empty">
                 <h2>No goals yet</h2>
-                <p>Tap the green plus to add a goal, then link tasks and projects.</p>
+                <p>Tap the plus to add a goal, then link tasks and projects.</p>
               </div>
             ) : (
               <div className="task-groups">
                 <section className="task-group" aria-label="Your goals">
                   <h2 className="category-heading">Your goals</h2>
                   <p className="muted reorder-hint view-hint">
-                    Turns green today when you complete a linked task or project
+                    Highlights today when you complete a linked task or project
                     step.
                   </p>
                   <ul className="task-list">
@@ -1678,7 +1680,7 @@ export default function App() {
           {state.rewards.length === 0 ? (
             <div className="panel empty">
               <h2>No rewards yet</h2>
-              <p>Tap the green plus to add a reward you can spend $ on.</p>
+              <p>Tap the plus to add a reward you can spend $ on.</p>
             </div>
           ) : (
             <div className="task-groups">

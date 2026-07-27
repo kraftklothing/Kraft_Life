@@ -109,6 +109,34 @@ export function completionStreak(task: Task, asOfDateKey: string): number {
   return streak
 }
 
+/** Highest consecutive satisfied-rep run at or before asOfDateKey. */
+export function recordCompletionStreak(task: Task, asOfDateKey: string): number {
+  const current = completionStreak(task, asOfDateKey)
+  if (task.repetition === 'none') return current
+
+  let cursor: string | null = task.startDate
+  if (!taskAppliesOnDate(task, cursor)) {
+    cursor = nextOccurrence(task, cursor)
+  }
+
+  let run = 0
+  let max = 0
+  while (cursor && cursor <= asOfDateKey) {
+    const next = nextOccurrence(task, cursor)
+    if (isOccurrenceSatisfied(task, cursor)) {
+      run += 1
+      if (run > max) max = run
+    } else {
+      const stillOpen = !next || asOfDateKey < next
+      if (stillOpen) break
+      run = 0
+    }
+    cursor = next
+  }
+
+  return Math.max(max, current)
+}
+
 /**
  * An occurrence O is satisfied if the user completed the task on any day
  * from O up to (but not including) the next occurrence. That way a missed
