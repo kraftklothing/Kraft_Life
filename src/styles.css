@@ -144,6 +144,7 @@ button {
   flex: 1;
   min-height: 220px;
   outline: none;
+  align-content: start;
 }
 
 .day-pane-dragging {
