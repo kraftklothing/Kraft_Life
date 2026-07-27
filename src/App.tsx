@@ -12,6 +12,7 @@ import { appendLedgerEntry, loadState, normalizeState, saveState } from './stora
 import { useCloudSync } from './CloudSyncProvider'
 import CloudSyncSettings from './CloudSyncSettings'
 import {
+  completionStreak,
   isCompletedForDateView,
   isOccurrenceSatisfied,
   nextOccurrence,
@@ -1211,13 +1212,20 @@ export default function App() {
                   <ul className="task-list">
                     {group.tasks.map((task) => {
                       const done = isCompletedForDateView(task, viewKey)
+                      const streak = completionStreak(task, viewKey)
                       return (
                         <li
                           key={task.id}
-                          className={`task-item${done ? ' completed' : ''}${
+                          className={`task-item has-streak${done ? ' completed' : ''}${
                             draggingId === task.id ? ' dragging' : ''
                           }${vacationOn ? ' vacation' : ''}`}
                         >
+                          <span
+                            className="task-streak"
+                            aria-label={`Streak ${streak}`}
+                          >
+                            Streak: {streak}
+                          </span>
                           <button
                             type="button"
                             className="check"

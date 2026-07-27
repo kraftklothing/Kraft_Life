@@ -812,6 +812,22 @@ button {
   user-select: none;
 }
 
+.task-item.has-streak {
+  grid-template-columns: auto auto 1fr auto;
+  padding-left: 10px;
+}
+
+.task-streak {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  line-height: 1.15;
+  max-width: 4.6rem;
+}
+
 .task-actions {
   display: flex;
   align-items: center;
@@ -952,7 +968,8 @@ button {
 }
 
 .task-item.vacation .task-title,
-.task-item.vacation .badge {
+.task-item.vacation .badge,
+.task-item.vacation .task-streak {
   color: #7a8683;
 }
 
