@@ -62,6 +62,81 @@ export function latestOccurrenceOnOrBefore(
   return null
 }
 
+/** Scheduled occurrence immediately before occurrenceKey, or null. */
+export function previousOccurrence(
+  task: Task,
+  occurrenceKey: string,
+): string | null {
+  if (task.repetition === 'none') return null
+  const start = startOfDay(parseDateKey(task.startDate))
+  let cursor = addDays(parseDateKey(occurrenceKey), -1)
+  for (let i = 0; i < 366 * 4; i += 1) {
+    if (cursor < start) return null
+    const key = toDateKey(cursor)
+    if (taskAppliesOnDate(task, key)) return key
+    cursor = addDays(cursor, -1)
+  }
+  return null
+}
+
+/**
+ * Consecutive satisfied scheduled reps ending at asOfDateKey.
+ * An open (not-yet-due-to-close) incomplete current period does not reset
+ * the streak — it still counts prior completed reps in a row.
+ */
+export function completionStreak(task: Task, asOfDateKey: string): number {
+  if (task.repetition === 'none') {
+    if (task.startDate > asOfDateKey) return 0
+    return isOccurrenceSatisfied(task, task.startDate) ? 1 : 0
+  }
+
+  let cursor = latestOccurrenceOnOrBefore(task, asOfDateKey)
+  if (!cursor) return 0
+
+  if (!isOccurrenceSatisfied(task, cursor)) {
+    const next = nextOccurrence(task, cursor)
+    const stillOpen = !next || asOfDateKey < next
+    if (!stillOpen) return 0
+    cursor = previousOccurrence(task, cursor)
+    if (!cursor) return 0
+  }
+
+  let streak = 0
+  while (cursor && isOccurrenceSatisfied(task, cursor)) {
+    streak += 1
+    cursor = previousOccurrence(task, cursor)
+  }
+  return streak
+}
+
+/** Highest consecutive satisfied-rep run at or before asOfDateKey. */
+export function recordCompletionStreak(task: Task, asOfDateKey: string): number {
+  const current = completionStreak(task, asOfDateKey)
+  if (task.repetition === 'none') return current
+
+  let cursor: string | null = task.startDate
+  if (!taskAppliesOnDate(task, cursor)) {
+    cursor = nextOccurrence(task, cursor)
+  }
+
+  let run = 0
+  let max = 0
+  while (cursor && cursor <= asOfDateKey) {
+    const next = nextOccurrence(task, cursor)
+    if (isOccurrenceSatisfied(task, cursor)) {
+      run += 1
+      if (run > max) max = run
+    } else {
+      const stillOpen = !next || asOfDateKey < next
+      if (stillOpen) break
+      run = 0
+    }
+    cursor = next
+  }
+
+  return Math.max(max, current)
+}
+
 /**
  * An occurrence O is satisfied if the user completed the task on any day
  * from O up to (but not including) the next occurrence. That way a missed
