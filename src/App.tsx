@@ -208,6 +208,31 @@ function PencilIcon() {
   )
 }
 
+function TrashIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 7h16"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M7 7l.75 12.5A1.5 1.5 0 0 0 9.25 21h5.5a1.5 1.5 0 0 0 1.5-1.5L17 7"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 function ClockIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -291,7 +316,7 @@ export default function App() {
   const [balanceEditOpen, setBalanceEditOpen] = useState(false)
   const [balanceDraft, setBalanceDraft] = useState('')
   const [ledgerOpen, setLedgerOpen] = useState(false)
-  const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([])
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [collapsedTaskCategoryIds, setCollapsedTaskCategoryIds] = useState<
     string[]
   >([])
@@ -509,10 +534,13 @@ export default function App() {
     setToast(cycles === 1 ? `+$1 · ${timer.title}` : `+$${cycles} · ${timer.title}`)
   }, [timerElapsed, runningTimerId, state.timers])
 
-  function toggleCategoryExpanded(id: string) {
-    setExpandedCategoryIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
-    )
+  function startCategoryEdit(id: string) {
+    setEditingCategoryId(id)
+  }
+
+  function finishCategoryEdit(id: string, name: string) {
+    renameCategory(id, name)
+    setEditingCategoryId((current) => (current === id ? null : current))
   }
 
   function toggleTaskCategoryCollapsed(id: string) {
@@ -1098,7 +1126,6 @@ export default function App() {
       const next = prev.filter((cid) => cid !== id)
       return next.length > 0 ? next : prev.includes(id) ? [fallback] : next
     })
-    setExpandedCategoryIds((prev) => prev.filter((item) => item !== id))
     setToast('Category removed')
   }
 
@@ -2059,86 +2086,89 @@ export default function App() {
             <div className="day-divider" aria-hidden="true" />
           </div>
 
-          <div className="task-groups">
+          <div className="task-groups settings-groups">
             <SettingsSection title="Categories" ariaLabel="Categories">
               <p className="muted reorder-hint view-hint">
-                Drag the bars to reorder. Open a category to rename or delete.
+                Drag the bars to reorder. Tap the pencil to rename.
               </p>
-              <ul className="task-list category-dropdown-list">
+              <ul className="task-list category-settings-list">
                 {state.categories.map((cat) => {
-                  const expanded = expandedCategoryIds.includes(cat.id)
+                  const editing = editingCategoryId === cat.id
                   return (
                     <li
                       key={cat.id}
-                      className={`category-dropdown${
-                        expanded ? ' open' : ''
-                      }${draggingCategoryId === cat.id ? ' dragging' : ''}`}
+                      className={`category-settings-row${
+                        draggingCategoryId === cat.id ? ' dragging' : ''
+                      }`}
                     >
-                      <div className="category-dropdown-header">
+                      <button
+                        type="button"
+                        className="drag-handle"
+                        aria-label={`Reorder ${cat.name}`}
+                        onPointerDown={(event) => {
+                          event.preventDefault()
+                          event.stopPropagation()
+                          event.currentTarget.setPointerCapture?.(
+                            event.pointerId,
+                          )
+                          beginCategoryDrag(cat.id, event.clientY)
+                        }}
+                      >
+                        <BarsIcon />
+                      </button>
+                      {editing ? (
+                        <input
+                          className="category-name-input category-settings-name-input"
+                          value={cat.name}
+                          aria-label="Category name"
+                          autoFocus
+                          onChange={(e) => {
+                            const value = e.target.value
+                            updateState((prev) => ({
+                              ...prev,
+                              categories: prev.categories.map((c) =>
+                                c.id === cat.id ? { ...c, name: value } : c,
+                              ),
+                            }))
+                          }}
+                          onBlur={(e) => finishCategoryEdit(cat.id, e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              finishCategoryEdit(
+                                cat.id,
+                                (e.target as HTMLInputElement).value,
+                              )
+                            }
+                            if (e.key === 'Escape') {
+                              e.preventDefault()
+                              setEditingCategoryId(null)
+                            }
+                          }}
+                        />
+                      ) : (
+                        <span className="category-settings-name">
+                          {cat.name.trim() || 'Untitled'}
+                        </span>
+                      )}
+                      <div className="category-settings-actions">
                         <button
                           type="button"
-                          className="drag-handle"
-                          aria-label={`Reorder ${cat.name}`}
-                          onPointerDown={(event) => {
-                            event.preventDefault()
-                            event.stopPropagation()
-                            event.currentTarget.setPointerCapture?.(
-                              event.pointerId,
-                            )
-                            beginCategoryDrag(cat.id, event.clientY)
-                          }}
+                          className="edit-btn"
+                          aria-label={`Edit ${cat.name}`}
+                          onClick={() => startCategoryEdit(cat.id)}
                         >
-                          <BarsIcon />
+                          <PencilIcon />
                         </button>
                         <button
                           type="button"
-                          className="category-dropdown-toggle"
-                          aria-expanded={expanded}
-                          onClick={() => toggleCategoryExpanded(cat.id)}
+                          className="delete-btn"
+                          aria-label={`Delete ${cat.name}`}
+                          onClick={() => deleteCategory(cat.id)}
                         >
-                          <span className="category-dropdown-name">
-                            {cat.name.trim() || 'Untitled'}
-                          </span>
-                          <ChevronIcon open={expanded} />
+                          <TrashIcon />
                         </button>
                       </div>
-                      {expanded ? (
-                        <div className="category-dropdown-body">
-                          <label className="category-dropdown-label">
-                            Name
-                            <input
-                              className="category-name-input"
-                              value={cat.name}
-                              aria-label="Category name"
-                              onChange={(e) => {
-                                const value = e.target.value
-                                updateState((prev) => ({
-                                  ...prev,
-                                  categories: prev.categories.map((c) =>
-                                    c.id === cat.id ? { ...c, name: value } : c,
-                                  ),
-                                }))
-                              }}
-                              onBlur={(e) =>
-                                renameCategory(cat.id, e.target.value)
-                              }
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault()
-                                  ;(e.target as HTMLInputElement).blur()
-                                }
-                              }}
-                            />
-                          </label>
-                          <button
-                            type="button"
-                            className="danger-btn"
-                            onClick={() => deleteCategory(cat.id)}
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      ) : null}
                     </li>
                   )
                 })}

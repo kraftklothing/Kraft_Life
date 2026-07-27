@@ -508,53 +508,68 @@ button {
   grid-template-columns: auto 1fr auto;
 }
 
-.category-dropdown-list {
-  gap: 8px;
+.category-settings-list {
+  gap: 6px;
 }
 
-.category-dropdown {
+.category-settings-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
   background: var(--panel-solid);
   border: 1px solid var(--line);
   border-radius: 16px;
   box-shadow: 0 8px 20px rgba(58, 36, 24, 0.06);
-  overflow: hidden;
+  padding: 8px 10px 8px 8px;
   transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.category-dropdown.dragging {
+.category-settings-row.dragging {
   opacity: 0.55;
   box-shadow: var(--shadow);
   transform: scale(1.02);
 }
 
-.category-dropdown-header {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 8px;
-  align-items: center;
-  padding: 8px 10px 8px 8px;
-}
-
-.category-dropdown-toggle {
-  border: none;
-  background: transparent;
-  color: var(--ink);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 4px;
-  text-align: left;
-  min-width: 0;
-}
-
-.category-dropdown-name {
+.category-settings-name {
   font-size: 1.02rem;
   font-weight: 600;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.category-settings-name-input {
+  min-width: 0;
+}
+
+.category-settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.delete-btn {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(178, 58, 58, 0.1);
+  color: var(--danger);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, background 0.2s ease;
+}
+
+.delete-btn:active {
+  transform: scale(0.96);
+}
+
+.delete-btn svg {
+  display: block;
 }
 
 .chevron {
@@ -565,26 +580,6 @@ button {
 
 .chevron.open {
   transform: rotate(180deg);
-}
-
-.category-dropdown-body {
-  display: grid;
-  gap: 10px;
-  padding: 0 12px 12px;
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
-}
-
-.category-dropdown-label {
-  display: grid;
-  gap: 6px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--ink-soft);
-}
-
-.category-dropdown-body .danger-btn {
-  justify-self: start;
 }
 
 .timer-item {
@@ -940,6 +935,10 @@ button {
   display: grid;
   gap: 12px;
   animation: rise-in 0.6s ease 0.12s both;
+}
+
+.settings-groups {
+  gap: 4px;
 }
 
 .task-group {
@@ -1549,7 +1548,7 @@ button {
 }
 
 .cloud-sync-settings {
-  margin-top: 8px;
+  margin-top: 0;
 }
 
 .cloud-sync-form {
