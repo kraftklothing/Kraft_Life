@@ -272,7 +272,7 @@ export default function App() {
   const [title, setTitle] = useState('')
   const [repetition, setRepetition] = useState<Repetition | ''>('')
   const [customEveryDays, setCustomEveryDays] = useState('2')
-  const [categoryId, setCategoryId] = useState('')
+  const [categoryIds, setCategoryIds] = useState<string[]>([])
   const [addError, setAddError] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
@@ -409,9 +409,27 @@ export default function App() {
   const groupedDayTasks = useMemo(() => {
     const byCat = new Map<string, Task[]>()
     for (const task of dayTasks) {
-      const list = byCat.get(task.categoryId) ?? []
-      list.push(task)
-      byCat.set(task.categoryId, list)
+      const ids =
+        task.categoryIds.length > 0 ? [...new Set(task.categoryIds)] : []
+      if (ids.length === 0) {
+        const list = byCat.get('uncategorized') ?? []
+        list.push(task)
+        byCat.set('uncategorized', list)
+        continue
+      }
+      let placed = false
+      for (const id of ids) {
+        if (!state.categories.some((c) => c.id === id)) continue
+        const list = byCat.get(id) ?? []
+        list.push(task)
+        byCat.set(id, list)
+        placed = true
+      }
+      if (!placed) {
+        const list = byCat.get('uncategorized') ?? []
+        list.push(task)
+        byCat.set('uncategorized', list)
+      }
     }
 
     const groups: { id: string; name: string; tasks: Task[] }[] = []
@@ -419,14 +437,13 @@ export default function App() {
       const tasks = byCat.get(cat.id)
       if (!tasks?.length) continue
       groups.push({ id: cat.id, name: cat.name, tasks: sortTasksForDay(tasks) })
-      byCat.delete(cat.id)
     }
-    for (const [id, tasks] of byCat) {
-      if (!tasks.length) continue
+    const uncategorized = byCat.get('uncategorized')
+    if (uncategorized?.length) {
       groups.push({
-        id,
+        id: 'uncategorized',
         name: 'Uncategorized',
-        tasks: sortTasksForDay(tasks),
+        tasks: sortTasksForDay(uncategorized),
       })
     }
     return groups
@@ -506,13 +523,20 @@ export default function App() {
   function resetComposerFields() {
     setTitle('')
     setRepetition('')
-    setCategoryId('')
+    setCategoryIds([])
     setCustomEveryDays('2')
     setAddError('')
     setEditingTaskId(null)
     setEditingTimerId(null)
     setNewTimerTitle('')
     setNewTimerMinutes('20')
+  }
+
+  function toggleComposerCategory(id: string) {
+    setCategoryIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    )
+    if (addError) setAddError('')
   }
 
   function handleSaveTask(event: FormEvent<HTMLFormElement>) {
@@ -529,12 +553,11 @@ export default function App() {
       setAddError('Choose how often this repeats.')
       return
     }
-    if (!categoryId) {
-      setAddError('Choose a category.')
-      return
-    }
-    if (!state.categories.some((c) => c.id === categoryId)) {
-      setAddError('That category no longer exists. Pick another.')
+    const selectedCategories = categoryIds.filter((id) =>
+      state.categories.some((c) => c.id === id),
+    )
+    if (selectedCategories.length === 0) {
+      setAddError('Choose at least one category.')
       return
     }
 
@@ -556,7 +579,7 @@ export default function App() {
             ? {
                 ...task,
                 title: trimmed,
-                categoryId,
+                categoryIds: selectedCategories,
                 repetition,
                 customRepeat:
                   repetition === 'custom' ? customRepeat : undefined,
@@ -574,7 +597,7 @@ export default function App() {
     const task: Task = {
       id: uid('task'),
       title: trimmed,
-      categoryId,
+      categoryIds: selectedCategories,
       repetition,
       customRepeat,
       startDate: viewKey,
@@ -624,7 +647,7 @@ export default function App() {
     setEditingTaskId(task.id)
     setTitle(task.title)
     setRepetition(task.repetition)
-    setCategoryId(task.categoryId)
+    setCategoryIds([...task.categoryIds])
     setCustomEveryDays(String(task.customRepeat?.everyDays ?? 2))
     setAddError('')
     setAddOpen(true)
@@ -1061,11 +1084,19 @@ export default function App() {
     updateState((prev) => ({
       ...prev,
       categories: prev.categories.filter((c) => c.id !== id),
-      tasks: prev.tasks.map((t) =>
-        t.categoryId === id ? { ...t, categoryId: fallback } : t,
-      ),
+      tasks: prev.tasks.map((t) => {
+        if (!t.categoryIds.includes(id)) return t
+        const nextIds = t.categoryIds.filter((cid) => cid !== id)
+        return {
+          ...t,
+          categoryIds: nextIds.length > 0 ? nextIds : [fallback],
+        }
+      }),
     }))
-    if (categoryId === id) setCategoryId(fallback)
+    setCategoryIds((prev) => {
+      const next = prev.filter((cid) => cid !== id)
+      return next.length > 0 ? next : prev.includes(id) ? [fallback] : next
+    })
     setExpandedCategoryIds((prev) => prev.filter((item) => item !== id))
     setToast('Category removed')
   }
@@ -1189,14 +1220,23 @@ export default function App() {
     else setSwipeOffset(0)
   }
 
-  function beginDrag(taskId: string, clientY: number) {
+  function beginDrag(taskId: string, clientY: number, groupCategoryId: string) {
     const task = dayTasks.find((t) => t.id === taskId)
     if (!task) return
+    const known = new Set(state.categories.map((c) => c.id))
     dragRef.current = {
       id: taskId,
       startY: clientY,
       orderSnapshot: dayTasks
-        .filter((t) => t.categoryId === task.categoryId)
+        .filter((t) => {
+          if (groupCategoryId === 'uncategorized') {
+            return (
+              t.categoryIds.length === 0 ||
+              t.categoryIds.every((id) => !known.has(id))
+            )
+          }
+          return t.categoryIds.includes(groupCategoryId)
+        })
         .map((t) => t.id),
     }
     setDraggingId(taskId)
@@ -1527,7 +1567,7 @@ export default function App() {
                                     event.currentTarget.setPointerCapture?.(
                                       event.pointerId,
                                     )
-                                    beginDrag(task.id, event.clientY)
+                                    beginDrag(task.id, event.clientY, group.id)
                                   }}
                                 >
                                   <BarsIcon />
@@ -2629,53 +2669,56 @@ export default function App() {
               />
             </label>
 
-            <div className="field-row">
-              <label htmlFor={`${formId}-rep`}>
-                Repetition
-                <select
-                  id={`${formId}-rep`}
-                  name="repetition"
-                  value={repetition}
-                  onChange={(e) => {
-                    setRepetition(e.target.value as Repetition | '')
-                    if (addError) setAddError('')
-                  }}
-                  required
-                >
-                  <option value="" disabled>
-                    Choose repetition
+            <label htmlFor={`${formId}-rep`}>
+              Repetition
+              <select
+                id={`${formId}-rep`}
+                name="repetition"
+                value={repetition}
+                onChange={(e) => {
+                  setRepetition(e.target.value as Repetition | '')
+                  if (addError) setAddError('')
+                }}
+                required
+              >
+                <option value="" disabled>
+                  Choose repetition
+                </option>
+                {(Object.keys(REPETITION_LABELS) as Repetition[]).map((key) => (
+                  <option key={key} value={key}>
+                    {REPETITION_LABELS[key]}
                   </option>
-                  {(Object.keys(REPETITION_LABELS) as Repetition[]).map((key) => (
-                    <option key={key} value={key}>
-                      {REPETITION_LABELS[key]}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                ))}
+              </select>
+            </label>
 
-              <label htmlFor={`${formId}-cat`}>
-                Category
-                <select
-                  id={`${formId}-cat`}
-                  name="category"
-                  value={categoryId}
-                  onChange={(e) => {
-                    setCategoryId(e.target.value)
-                    if (addError) setAddError('')
-                  }}
-                  required
-                >
-                  <option value="" disabled>
-                    Choose category
-                  </option>
-                  {state.categories.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
+            <fieldset className="category-multi">
+              <legend>Categories</legend>
+              <p className="muted category-multi-hint">
+                Pick one or more — the same task can show in Morning and
+                Afternoon, and completing it clears every spot.
+              </p>
+              <div className="category-multi-list">
+                {state.categories.map((cat) => {
+                  const checked = categoryIds.includes(cat.id)
+                  return (
+                    <label
+                      key={cat.id}
+                      className={`category-multi-option${
+                        checked ? ' selected' : ''
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleComposerCategory(cat.id)}
+                      />
+                      <span>{cat.name}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            </fieldset>
 
             {repetition === 'custom' && (
               <label htmlFor={`${formId}-custom`}>

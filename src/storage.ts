@@ -10,6 +10,7 @@ import {
   type Project,
   type ProjectStep,
   type Reward,
+  type Task,
 } from './types'
 
 const STORAGE_KEY = 'kraft-life-v1'
@@ -98,6 +99,46 @@ function normalizeProjects(raw: unknown): Project[] {
 function normalizeStringIds(raw: unknown): string[] {
   if (!Array.isArray(raw)) return []
   return raw.filter((id): id is string => typeof id === 'string')
+}
+
+function normalizeTaskCategoryIds(raw: {
+  categoryIds?: unknown
+  categoryId?: unknown
+}): string[] {
+  if (Array.isArray(raw.categoryIds)) {
+    const ids = raw.categoryIds.filter((id): id is string => typeof id === 'string')
+    if (ids.length > 0) return [...new Set(ids)]
+  }
+  if (typeof raw.categoryId === 'string' && raw.categoryId) {
+    return [raw.categoryId]
+  }
+  return []
+}
+
+function normalizeTasks(raw: unknown): Task[] {
+  if (!Array.isArray(raw)) return []
+  const tasks: Task[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const t = item as Partial<Task> & { categoryId?: unknown }
+    if (typeof t.id !== 'string' || typeof t.title !== 'string') continue
+    if (typeof t.startDate !== 'string') continue
+    if (typeof t.repetition !== 'string') continue
+    const categoryIds = normalizeTaskCategoryIds(t)
+    tasks.push({
+      id: t.id,
+      title: t.title,
+      categoryIds,
+      repetition: t.repetition,
+      customRepeat: t.customRepeat,
+      startDate: t.startDate,
+      completions:
+        t.completions && typeof t.completions === 'object' ? t.completions : {},
+      order: typeof t.order === 'number' ? t.order : 0,
+      createdAt: typeof t.createdAt === 'number' ? t.createdAt : Date.now(),
+    })
+  }
+  return tasks
 }
 
 function normalizeGoals(raw: unknown): Goal[] {
@@ -220,7 +261,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
   const rewards = normalizeRewards(raw.rewards)
   const timers = normalizeTimers(raw.timers)
   return {
-    tasks: Array.isArray(raw.tasks) ? raw.tasks : [],
+    tasks: normalizeTasks(raw.tasks),
     categories,
     dollars: typeof raw.dollars === 'number' ? raw.dollars : 0,
     rewards: rewards !== null ? rewards : DEFAULT_REWARDS,

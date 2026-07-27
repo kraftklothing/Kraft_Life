@@ -16,7 +16,8 @@ export interface CustomRepeat {
 export interface Task {
   id: string
   title: string
-  categoryId: CategoryId
+  /** One or more categories this task appears under. */
+  categoryIds: CategoryId[]
   repetition: Repetition
   customRepeat?: CustomRepeat
   /** Local date YYYY-MM-DD when the task starts / was created for. */

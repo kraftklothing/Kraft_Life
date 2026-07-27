@@ -834,6 +834,59 @@ button {
   }
 }
 
+.category-multi {
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: grid;
+  gap: 8px;
+}
+
+.category-multi legend {
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.category-multi-hint {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.category-multi-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.category-multi-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel-solid);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.category-multi-option input {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.category-multi-option.selected {
+  background: var(--accent-wash);
+  border-color: rgba(196, 92, 42, 0.35);
+  color: var(--accent);
+}
+
 .add-actions {
   display: flex;
   gap: 8px;
