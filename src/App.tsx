@@ -291,6 +291,9 @@ export default function App() {
   const [balanceDraft, setBalanceDraft] = useState('')
   const [ledgerOpen, setLedgerOpen] = useState(false)
   const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([])
+  const [collapsedTaskCategoryIds, setCollapsedTaskCategoryIds] = useState<
+    string[]
+  >([])
   const [activeTimerId, setActiveTimerId] = useState<string | null>(null)
   const [runningTimerId, setRunningTimerId] = useState<string | null>(null)
   const [timerElapsed, setTimerElapsed] = useState<Record<string, number>>({})
@@ -490,6 +493,12 @@ export default function App() {
 
   function toggleCategoryExpanded(id: string) {
     setExpandedCategoryIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    )
+  }
+
+  function toggleTaskCategoryCollapsed(id: string) {
+    setCollapsedTaskCategoryIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     )
   }
@@ -1217,7 +1226,7 @@ export default function App() {
       const taskDrag = dragRef.current
       if (taskDrag) {
         event.preventDefault()
-        const nextOrder = reorderSnapshot(taskDrag, event.clientY, 72)
+        const nextOrder = reorderSnapshot(taskDrag, event.clientY, 52)
         if (!nextOrder) return
         setState((prev) => {
           const orderMap = new Map(nextOrder.map((id, index) => [id, index]))
@@ -1430,82 +1439,108 @@ export default function App() {
             </div>
           ) : (
             <div className="task-groups">
-              {groupedDayTasks.map((group, groupIndex) => (
-                <section
-                  className="task-group"
-                  key={group.id}
-                  aria-label={group.name}
-                >
-                  {groupIndex > 0 ? (
-                    <div className="category-divider" aria-hidden="true" />
-                  ) : null}
-                  <h2 className="category-heading">{group.name}</h2>
-                  <ul className="task-list">
-                    {group.tasks.map((task) => {
-                      const done = isCompletedForDateView(task, viewKey)
-                      const streak = completionStreak(task, viewKey)
-                      const recordStreak = recordCompletionStreak(task, viewKey)
-                      return (
-                        <li
-                          key={task.id}
-                          className={`task-item${done ? ' completed' : ''}${
-                            draggingId === task.id ? ' dragging' : ''
-                          }${vacationOn ? ' vacation' : ''}`}
-                        >
-                          <button
-                            type="button"
-                            className="check"
-                            aria-label={
-                              done ? 'Mark incomplete' : 'Mark complete'
-                            }
-                            onClick={() => toggleComplete(task.id)}
-                          >
-                            <CheckIcon />
-                          </button>
-                          <div className="task-body">
-                            <p className="task-title">{task.title}</p>
-                            <div className="badges">
-                              <span
-                                className="badge"
-                                aria-label={`Streak ${streak}, record streak ${recordStreak}`}
+              {groupedDayTasks.map((group, groupIndex) => {
+                const collapsed = collapsedTaskCategoryIds.includes(group.id)
+                return (
+                  <section
+                    className={`task-group${collapsed ? ' collapsed' : ''}`}
+                    key={group.id}
+                    aria-label={group.name}
+                  >
+                    {groupIndex > 0 ? (
+                      <div className="category-divider" aria-hidden="true" />
+                    ) : null}
+                    <button
+                      type="button"
+                      className="category-heading-toggle"
+                      aria-expanded={!collapsed}
+                      onClick={() => toggleTaskCategoryCollapsed(group.id)}
+                    >
+                      <h2 className="category-heading">{group.name}</h2>
+                      <span className="category-heading-meta">
+                        {collapsed
+                          ? `${group.tasks.length} task${
+                              group.tasks.length === 1 ? '' : 's'
+                            }`
+                          : null}
+                        <ChevronIcon open={!collapsed} />
+                      </span>
+                    </button>
+                    {collapsed ? null : (
+                      <ul className="task-list">
+                        {group.tasks.map((task) => {
+                          const done = isCompletedForDateView(task, viewKey)
+                          const streak = completionStreak(task, viewKey)
+                          const recordStreak = recordCompletionStreak(
+                            task,
+                            viewKey,
+                          )
+                          return (
+                            <li
+                              key={task.id}
+                              className={`task-item compact${
+                                done ? ' completed' : ''
+                              }${draggingId === task.id ? ' dragging' : ''}${
+                                vacationOn ? ' vacation' : ''
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                className="check"
+                                aria-label={
+                                  done ? 'Mark incomplete' : 'Mark complete'
+                                }
+                                onClick={() => toggleComplete(task.id)}
                               >
-                                Streak: {streak} / Record Streak: {recordStreak}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="task-actions">
-                            <button
-                              type="button"
-                              className="edit-btn"
-                              aria-label="Edit task"
-                              onClick={() => openEditComposer(task)}
-                            >
-                              <PencilIcon />
-                            </button>
-                            <button
-                              type="button"
-                              className="drag-handle"
-                              aria-label="Reorder task"
-                              onPointerDown={(event) => {
-                                event.preventDefault()
-                                event.stopPropagation()
-                                swipeRef.current = null
-                                setSwipeOffset(0)
-                                event.currentTarget.setPointerCapture?.(
-                                  event.pointerId,
-                                )
-                                beginDrag(task.id, event.clientY)
-                              }}
-                            >
-                              <BarsIcon />
-                            </button>
-                          </div>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </section>
-              ))}
+                                <CheckIcon />
+                              </button>
+                              <div className="task-body">
+                                <p className="task-title">{task.title}</p>
+                                <div className="badges">
+                                  <span
+                                    className="badge"
+                                    aria-label={`Streak ${streak}, record streak ${recordStreak}`}
+                                  >
+                                    Streak: {streak} / Record Streak:{' '}
+                                    {recordStreak}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="task-actions">
+                                <button
+                                  type="button"
+                                  className="edit-btn"
+                                  aria-label="Edit task"
+                                  onClick={() => openEditComposer(task)}
+                                >
+                                  <PencilIcon />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="drag-handle"
+                                  aria-label="Reorder task"
+                                  onPointerDown={(event) => {
+                                    event.preventDefault()
+                                    event.stopPropagation()
+                                    swipeRef.current = null
+                                    setSwipeOffset(0)
+                                    event.currentTarget.setPointerCapture?.(
+                                      event.pointerId,
+                                    )
+                                    beginDrag(task.id, event.clientY)
+                                  }}
+                                >
+                                  <BarsIcon />
+                                </button>
+                              </div>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </section>
+                )
+              })}
             </div>
           )}
         </section>
