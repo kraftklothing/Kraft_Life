@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type ChangeEvent } from 'react'
 import { useCloudSync } from './CloudSyncProvider'
 import type { AppState } from './types'
 
@@ -25,15 +25,16 @@ export default function CloudSyncSettings({
     cloud.clearError()
   }
 
-  async function handleSetup(event: FormEvent) {
-    event.preventDefault()
+  async function handleSetup() {
+    cloud.clearError()
     const ok = await cloud.setupPin(pin, confirmPin, state)
     if (ok) resetFields()
   }
 
-  async function handleUnlock(event: FormEvent) {
-    event.preventDefault()
-    if (!/^\d{4,6}$/.test(pin)) {
+  async function handleUnlock() {
+    cloud.clearError()
+    if (!/^\d{4,6}$/.test(pin.trim())) {
+      cloud.clearError()
       return
     }
     const loaded = await cloud.unlockPin(pin)
@@ -46,6 +47,21 @@ export default function CloudSyncSettings({
   function handleLock() {
     cloud.lock()
     resetFields()
+  }
+
+  function pinInputProps(value: string, onChange: (value: string) => void) {
+    return {
+      type: showPin ? ('text' as const) : ('password' as const),
+      inputMode: 'numeric' as const,
+      autoComplete: 'off',
+      autoCorrect: 'off',
+      spellCheck: false,
+      enterKeyHint: 'done' as const,
+      value,
+      onChange: (e: ChangeEvent<HTMLInputElement>) => {
+        onChange(e.target.value.replace(/\D/g, '').slice(0, 6))
+      },
+    }
   }
 
   return (
@@ -63,7 +79,7 @@ export default function CloudSyncSettings({
           </button>
         </>
       ) : cloud.vaultConfigured ? (
-        <form className="cloud-sync-form" noValidate onSubmit={handleUnlock}>
+        <div className="cloud-sync-form">
           {!cloud.storageReady ? (
             <div className="cloud-notice">
               <p>Cloud storage still needs to be connected on Vercel before sync works.</p>
@@ -77,13 +93,7 @@ export default function CloudSyncSettings({
           </p>
           <label className="pin-field">
             <span>PIN</span>
-            <input
-              type={showPin ? 'text' : 'password'}
-              inputMode="numeric"
-              autoComplete="off"
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            />
+            <input {...pinInputProps(pin, setPin)} />
           </label>
           <label className="pin-remember">
             <input
@@ -103,15 +113,16 @@ export default function CloudSyncSettings({
           </label>
           {cloud.error ? <p className="pin-error">{cloud.error}</p> : null}
           <button
-            type="submit"
+            type="button"
             className="btn btn-primary pin-submit"
             disabled={cloud.busy || !cloud.storageReady}
+            onClick={() => void handleUnlock()}
           >
             {cloud.busy ? 'Opening…' : 'Connect cloud sync'}
           </button>
-        </form>
+        </div>
       ) : (
-        <form className="cloud-sync-form" noValidate onSubmit={handleSetup}>
+        <div className="cloud-sync-form">
           {!cloud.storageReady ? (
             <div className="cloud-notice">
               <p>
@@ -136,25 +147,11 @@ export default function CloudSyncSettings({
           )}
           <label className="pin-field">
             <span>Create PIN (4–6 digits)</span>
-            <input
-              type={showPin ? 'text' : 'password'}
-              inputMode="numeric"
-              autoComplete="off"
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            />
+            <input {...pinInputProps(pin, setPin)} />
           </label>
           <label className="pin-field">
             <span>Confirm PIN</span>
-            <input
-              type={showPin ? 'text' : 'password'}
-              inputMode="numeric"
-              autoComplete="off"
-              value={confirmPin}
-              onChange={(e) =>
-                setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 6))
-              }
-            />
+            <input {...pinInputProps(confirmPin, setConfirmPin)} />
           </label>
           <label className="pin-remember">
             <input
@@ -184,13 +181,14 @@ export default function CloudSyncSettings({
             </button>
           ) : null}
           <button
-            type="submit"
+            type="button"
             className="btn btn-primary pin-submit"
             disabled={cloud.busy || !cloud.storageReady}
+            onClick={() => void handleSetup()}
           >
             {cloud.busy ? 'Saving…' : 'Save tasks to the cloud'}
           </button>
-        </form>
+        </div>
       )}
     </section>
   )
