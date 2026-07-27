@@ -1,6 +1,55 @@
 import { addDays, daysBetween, parseDateKey, startOfDay, toDateKey } from './dates'
 import type { Task } from './types'
 
+function everyDays(task: Task): number {
+  return Math.max(1, task.customRepeat?.everyDays ?? 1)
+}
+
+/** Completion dates strictly before `beforeExclusive` (if set), ascending. */
+function sortedCompletions(
+  task: Task,
+  beforeExclusive?: string,
+): string[] {
+  return Object.entries(task.completions)
+    .filter(
+      ([key, done]) =>
+        Boolean(done) &&
+        (beforeExclusive === undefined || key < beforeExclusive),
+    )
+    .map(([key]) => key)
+    .sort()
+}
+
+/**
+ * Next show date for after_completion: startDate until first done, then
+ * (most recent completion + N days). Completions on/after `beforeExclusive`
+ * are ignored so the completion day can still render the cycle it closed.
+ */
+export function afterCompletionDue(
+  task: Task,
+  beforeExclusive?: string,
+): string {
+  const completions = sortedCompletions(task, beforeExclusive)
+  if (completions.length === 0) return task.startDate
+  const last = completions[completions.length - 1]!
+  return toDateKey(addDays(parseDateKey(last), everyDays(task)))
+}
+
+/** Earliest completion on or after dueKey, if any. */
+function closingCompletionForDue(
+  task: Task,
+  dueKey: string,
+): string | null {
+  let closing: string | null = null
+  for (const [key, done] of Object.entries(task.completions)) {
+    if (!done || key < dueKey) continue
+    // Only count it if this completion closed *this* due (not a later cycle).
+    if (afterCompletionDue(task, key) !== dueKey) continue
+    if (!closing || key < closing) closing = key
+  }
+  return closing
+}
+
 export function taskAppliesOnDate(task: Task, dateKey: string): boolean {
   const day = startOfDay(parseDateKey(dateKey))
   const start = startOfDay(parseDateKey(task.startDate))
@@ -20,20 +69,29 @@ export function taskAppliesOnDate(task: Task, dateKey: string): boolean {
         day.getMonth() === start.getMonth() && day.getDate() === start.getDate()
       )
     case 'custom': {
-      const every = Math.max(1, task.customRepeat?.everyDays ?? 1)
+      const every = everyDays(task)
       const diff = daysBetween(start, day)
       return diff % every === 0
     }
+    case 'after_completion':
+      return dateKey === afterCompletionDue(task)
     default:
       return false
   }
 }
 
-/** Next calendar day after dateKey that the task is scheduled for, or null. */
+/** Next scheduled occurrence after dateKey, or null. */
 export function nextOccurrence(task: Task, dateKey: string): string | null {
   if (task.repetition === 'none') return null
+
+  if (task.repetition === 'after_completion') {
+    // dateKey is an occurrence due date.
+    const closing = closingCompletionForDue(task, dateKey)
+    if (!closing) return null
+    return toDateKey(addDays(parseDateKey(closing), everyDays(task)))
+  }
+
   let cursor = addDays(parseDateKey(dateKey), 1)
-  // Safety bound: search up to ~4 years.
   for (let i = 0; i < 366 * 4; i += 1) {
     const key = toDateKey(cursor)
     if (taskAppliesOnDate(task, key)) return key
@@ -47,6 +105,15 @@ export function latestOccurrenceOnOrBefore(
   task: Task,
   dateKey: string,
 ): string | null {
+  if (task.repetition === 'after_completion') {
+    if (dateKey < task.startDate) return null
+    // Due pending at the start of dateKey (completions that day not applied yet
+    // for "open due", but for latest on or before end of day use next morning).
+    const dueOpen = afterCompletionDue(task, dateKey)
+    if (dueOpen <= dateKey) return dueOpen
+    return null
+  }
+
   const day = startOfDay(parseDateKey(dateKey))
   const start = startOfDay(parseDateKey(task.startDate))
   if (day < start) return null
@@ -68,6 +135,24 @@ export function previousOccurrence(
   occurrenceKey: string,
 ): string | null {
   if (task.repetition === 'none') return null
+
+  if (task.repetition === 'after_completion') {
+    if (occurrenceKey <= task.startDate) return null
+    const n = everyDays(task)
+    const completions = sortedCompletions(task)
+    let due = task.startDate
+    let previous: string | null = null
+    for (const c of completions) {
+      if (afterCompletionDue(task, c) !== due) continue
+      const nextDue = toDateKey(addDays(parseDateKey(c), n))
+      previous = due
+      due = nextDue
+      if (due === occurrenceKey) return previous
+      if (due > occurrenceKey) return previous
+    }
+    return null
+  }
+
   const start = startOfDay(parseDateKey(task.startDate))
   let cursor = addDays(parseDateKey(occurrenceKey), -1)
   for (let i = 0; i < 366 * 4; i += 1) {
@@ -115,7 +200,10 @@ export function recordCompletionStreak(task: Task, asOfDateKey: string): number 
   if (task.repetition === 'none') return current
 
   let cursor: string | null = task.startDate
-  if (!taskAppliesOnDate(task, cursor)) {
+  if (
+    task.repetition !== 'after_completion' &&
+    !taskAppliesOnDate(task, cursor)
+  ) {
     cursor = nextOccurrence(task, cursor)
   }
 
@@ -143,7 +231,14 @@ export function recordCompletionStreak(task: Task, asOfDateKey: string): number 
  * weekly/custom task can be finished on a later day without stacking debt,
  * and a daily never requires two completions on the same day.
  */
-export function isOccurrenceSatisfied(task: Task, occurrenceKey: string): boolean {
+export function isOccurrenceSatisfied(
+  task: Task,
+  occurrenceKey: string,
+): boolean {
+  if (task.repetition === 'after_completion') {
+    return closingCompletionForDue(task, occurrenceKey) !== null
+  }
+
   const next = nextOccurrence(task, occurrenceKey)
   for (const [key, done] of Object.entries(task.completions)) {
     if (!done) continue
@@ -162,6 +257,16 @@ export function occurrenceForDate(task: Task, dateKey: string): string | null {
   const day = startOfDay(parseDateKey(dateKey))
   const start = startOfDay(parseDateKey(task.startDate))
   if (day < start) return null
+
+  if (task.repetition === 'after_completion') {
+    // On the day you complete it, show the cycle that was due that morning.
+    if (task.completions[dateKey]) {
+      return afterCompletionDue(task, dateKey)
+    }
+    const due = afterCompletionDue(task)
+    if (dateKey < due) return null
+    return due
+  }
 
   if (taskAppliesOnDate(task, dateKey)) {
     return dateKey

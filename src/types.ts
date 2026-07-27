@@ -4,6 +4,7 @@ export type Repetition =
   | 'monthly'
   | 'yearly'
   | 'custom'
+  | 'after_completion'
   | 'none'
 
 export type CategoryId = string
@@ -152,6 +153,7 @@ export const REPETITION_LABELS: Record<Repetition, string> = {
   weekly: 'Weekly',
   monthly: 'Monthly',
   yearly: 'Yearly',
-  custom: 'Custom',
+  custom: 'Every N days',
+  after_completion: 'N days after last done',
   none: 'Does not repeat',
 }

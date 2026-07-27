@@ -637,10 +637,14 @@ export default function App() {
     }
 
     let customRepeat: Task['customRepeat']
-    if (repetition === 'custom') {
+    if (repetition === 'custom' || repetition === 'after_completion') {
       const every = Number.parseInt(customEveryDays, 10)
       if (!Number.isFinite(every) || every < 1) {
-        setAddError('Custom repeat needs a number of days (1 or more).')
+        setAddError(
+          repetition === 'after_completion'
+            ? 'Needs a number of days after completion (1 or more).'
+            : 'Custom repeat needs a number of days (1 or more).',
+        )
         return
       }
       customRepeat = { everyDays: every }
@@ -657,7 +661,9 @@ export default function App() {
                 categoryIds: selectedCategories,
                 repetition,
                 customRepeat:
-                  repetition === 'custom' ? customRepeat : undefined,
+                  repetition === 'custom' || repetition === 'after_completion'
+                    ? customRepeat
+                    : undefined,
               }
             : task,
         ),
@@ -3247,9 +3253,11 @@ export default function App() {
               </div>
             </fieldset>
 
-            {repetition === 'custom' && (
+            {repetition === 'custom' || repetition === 'after_completion' ? (
               <label htmlFor={`${formId}-custom`}>
-                Repeat every N days
+                {repetition === 'after_completion'
+                  ? 'Days after last completion'
+                  : 'Repeat every N days'}
                 <input
                   id={`${formId}-custom`}
                   name="customEveryDays"
@@ -3261,7 +3269,13 @@ export default function App() {
                   onChange={(e) => setCustomEveryDays(e.target.value)}
                 />
               </label>
-            )}
+            ) : null}
+            {repetition === 'after_completion' ? (
+              <p className="muted category-multi-hint">
+                After you complete it, it stays hidden until that many days
+                later, then shows each day until you complete it again.
+              </p>
+            ) : null}
 
             {addError ? <p className="error-text">{addError}</p> : null}
 
