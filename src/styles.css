@@ -285,24 +285,24 @@ button {
   justify-content: center;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 10px;
+  gap: 8px;
   animation: rise-in 0.35s ease both;
 }
 
 .nav-gap {
-  width: 12px;
+  width: 8px;
   flex-shrink: 0;
 }
 
 .nav-plus-spacer {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
 }
 
 .circle-btn {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
   border: none;
   display: grid;
@@ -324,6 +324,7 @@ button {
 .project-btn,
 .tasks-btn,
 .goals-btn,
+.timer-btn,
 .settings-btn {
   background: var(--panel-solid);
   color: var(--accent);
@@ -333,6 +334,7 @@ button {
 .tasks-btn.active,
 .project-btn.active,
 .goals-btn.active,
+.timer-btn.active,
 .gift-btn.active,
 .settings-btn.active {
   background: var(--accent);
@@ -504,6 +506,136 @@ button {
 .reward-item,
 .category-item {
   grid-template-columns: auto 1fr auto;
+}
+
+.category-dropdown-list {
+  gap: 8px;
+}
+
+.category-dropdown {
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 8px 20px rgba(58, 36, 24, 0.06);
+  overflow: hidden;
+  transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.category-dropdown.dragging {
+  opacity: 0.55;
+  box-shadow: var(--shadow);
+  transform: scale(1.02);
+}
+
+.category-dropdown-header {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px 8px 8px;
+}
+
+.category-dropdown-toggle {
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 4px;
+  text-align: left;
+  min-width: 0;
+}
+
+.category-dropdown-name {
+  font-size: 1.02rem;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--accent);
+  transition: transform 0.18s ease;
+}
+
+.chevron.open {
+  transform: rotate(180deg);
+}
+
+.category-dropdown-body {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.category-dropdown-label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.category-dropdown-body .danger-btn {
+  justify-self: start;
+}
+
+.timer-panel {
+  margin-top: 8px;
+  text-align: center;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 28px 20px;
+}
+
+.timer-display {
+  margin: 0;
+  font-family: var(--font-brand);
+  font-size: clamp(3.4rem, 18vw, 4.6rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.timer-seconds-label {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-hint {
+  margin: 0;
+  max-width: 28ch;
+}
+
+.timer-next {
+  margin: 0;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-actions {
+  display: flex;
+  gap: 10px;
+  width: min(100%, 280px);
+  margin-top: 6px;
+}
+
+.timer-actions .btn {
+  flex: 1;
 }
 
 .spend-btn-inline {

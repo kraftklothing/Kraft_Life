@@ -159,7 +159,9 @@ function TargetIcon() {
   )
 }
 
-type MainView = 'tasks' | 'projects' | 'goals' | 'rewards' | 'settings'
+type MainView = 'tasks' | 'projects' | 'goals' | 'timer' | 'rewards' | 'settings'
+
+const TIMER_REWARD_SECONDS = 15 * 60
 
 function PlaneIcon() {
   return (
@@ -221,6 +223,49 @@ function ClockIcon() {
   )
 }
 
+function NavClockIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.25" stroke="currentColor" strokeWidth="2" />
+      <path
+        d="M12 7.25V12l3.25 2"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      className={open ? 'chevron open' : 'chevron'}
+    >
+      <path
+        d="m6 9 6 6 6-6"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function formatTimerSeconds(totalSeconds: number): string {
+  const safe = Math.max(0, Math.floor(totalSeconds))
+  const mins = Math.floor(safe / 60)
+  const secs = safe % 60
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+}
+
 export default function App() {
   const { scheduleSave, takeLoadedState, cloudLoadCount } = useCloudSync()
   const [state, setState] = useState<AppState>(() => loadState())
@@ -246,6 +291,9 @@ export default function App() {
   const [balanceEditOpen, setBalanceEditOpen] = useState(false)
   const [balanceDraft, setBalanceDraft] = useState('')
   const [ledgerOpen, setLedgerOpen] = useState(false)
+  const [expandedCategoryIds, setExpandedCategoryIds] = useState<string[]>([])
+  const [timerRunning, setTimerRunning] = useState(false)
+  const [timerSeconds, setTimerSeconds] = useState(0)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [draggingRewardId, setDraggingRewardId] = useState<string | null>(null)
   const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null)
@@ -299,6 +347,14 @@ export default function App() {
     const t = window.setTimeout(() => setToast(''), 2200)
     return () => window.clearTimeout(t)
   }, [toast])
+
+  useEffect(() => {
+    if (!timerRunning) return
+    const id = window.setInterval(() => {
+      setTimerSeconds((seconds) => seconds + 1)
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [timerRunning])
 
   const dayTasks = useMemo(() => {
     const applicable = state.tasks.filter((task) => taskVisibleOnDate(task, viewKey))
@@ -377,6 +433,35 @@ export default function App() {
 
   function updateState(updater: (prev: AppState) => AppState) {
     setState((prev) => updater(prev))
+  }
+
+  useEffect(() => {
+    if (timerSeconds < TIMER_REWARD_SECONDS) return
+    const cycles = Math.floor(timerSeconds / TIMER_REWARD_SECONDS)
+    if (cycles < 1) return
+    const today = toDateKey(startToday())
+    updateState((prev) => {
+      let dollars = prev.dollars
+      let dollarLedger = prev.dollarLedger
+      for (let i = 0; i < cycles; i += 1) {
+        dollars += 1
+        dollarLedger = appendLedgerEntry(dollarLedger, {
+          dateKey: today,
+          amount: 1,
+          kind: 'earned',
+          label: 'Focus timer (15 min)',
+        })
+      }
+      return { ...prev, dollars, dollarLedger }
+    })
+    setTimerSeconds((seconds) => seconds % TIMER_REWARD_SECONDS)
+    setToast(cycles === 1 ? '+$1 from timer' : `+$${cycles} from timer`)
+  }, [timerSeconds])
+
+  function toggleCategoryExpanded(id: string) {
+    setExpandedCategoryIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    )
   }
 
   function resetComposerFields() {
@@ -470,7 +555,7 @@ export default function App() {
   }
 
   function openAddComposer() {
-    if (mainView === 'settings') return
+    if (mainView === 'settings' || mainView === 'timer') return
     if (
       mainView === 'projects' ||
       mainView === 'rewards' ||
@@ -859,6 +944,7 @@ export default function App() {
       ),
     }))
     if (categoryId === id) setCategoryId(fallback)
+    setExpandedCategoryIds((prev) => prev.filter((item) => item !== id))
     setToast('Category removed')
   }
 
@@ -1757,60 +1843,86 @@ export default function App() {
             <section className="task-group" aria-label="Categories">
               <h2 className="category-heading">Categories</h2>
               <p className="muted reorder-hint view-hint">
-                Drag the blue bars to change task list order. Tap a name to
-                rename.
+                Drag the bars to reorder. Open a category to rename or delete.
               </p>
-              <ul className="task-list">
-                {state.categories.map((cat) => (
-                  <li
-                    key={cat.id}
-                    className={`task-item category-item${
-                      draggingCategoryId === cat.id ? ' dragging' : ''
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      className="drag-handle"
-                      aria-label={`Reorder ${cat.name}`}
-                      onPointerDown={(event) => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        event.currentTarget.setPointerCapture?.(event.pointerId)
-                        beginCategoryDrag(cat.id, event.clientY)
-                      }}
+              <ul className="task-list category-dropdown-list">
+                {state.categories.map((cat) => {
+                  const expanded = expandedCategoryIds.includes(cat.id)
+                  return (
+                    <li
+                      key={cat.id}
+                      className={`category-dropdown${
+                        expanded ? ' open' : ''
+                      }${draggingCategoryId === cat.id ? ' dragging' : ''}`}
                     >
-                      <BarsIcon />
-                    </button>
-                    <input
-                      className="category-name-input in-row"
-                      value={cat.name}
-                      aria-label="Category name"
-                      onChange={(e) => {
-                        const value = e.target.value
-                        updateState((prev) => ({
-                          ...prev,
-                          categories: prev.categories.map((c) =>
-                            c.id === cat.id ? { ...c, name: value } : c,
-                          ),
-                        }))
-                      }}
-                      onBlur={(e) => renameCategory(cat.id, e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault()
-                          ;(e.target as HTMLInputElement).blur()
-                        }
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="danger-btn"
-                      onClick={() => deleteCategory(cat.id)}
-                    >
-                      Delete
-                    </button>
-                  </li>
-                ))}
+                      <div className="category-dropdown-header">
+                        <button
+                          type="button"
+                          className="drag-handle"
+                          aria-label={`Reorder ${cat.name}`}
+                          onPointerDown={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            event.currentTarget.setPointerCapture?.(
+                              event.pointerId,
+                            )
+                            beginCategoryDrag(cat.id, event.clientY)
+                          }}
+                        >
+                          <BarsIcon />
+                        </button>
+                        <button
+                          type="button"
+                          className="category-dropdown-toggle"
+                          aria-expanded={expanded}
+                          onClick={() => toggleCategoryExpanded(cat.id)}
+                        >
+                          <span className="category-dropdown-name">
+                            {cat.name.trim() || 'Untitled'}
+                          </span>
+                          <ChevronIcon open={expanded} />
+                        </button>
+                      </div>
+                      {expanded ? (
+                        <div className="category-dropdown-body">
+                          <label className="category-dropdown-label">
+                            Name
+                            <input
+                              className="category-name-input"
+                              value={cat.name}
+                              aria-label="Category name"
+                              onChange={(e) => {
+                                const value = e.target.value
+                                updateState((prev) => ({
+                                  ...prev,
+                                  categories: prev.categories.map((c) =>
+                                    c.id === cat.id ? { ...c, name: value } : c,
+                                  ),
+                                }))
+                              }}
+                              onBlur={(e) =>
+                                renameCategory(cat.id, e.target.value)
+                              }
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  ;(e.target as HTMLInputElement).blur()
+                                }
+                              }}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            className="danger-btn"
+                            onClick={() => deleteCategory(cat.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      ) : null}
+                    </li>
+                  )
+                })}
               </ul>
               <div className="panel add-inline-panel">
                 <div className="inline-add">
@@ -1841,10 +1953,59 @@ export default function App() {
         </section>
       )}
 
+      {mainView === 'timer' && (
+        <section className="day-pane" aria-label="Timer">
+          <div className="day-header">
+            <div className="day-label-row projects-title-row">
+              <span className="day-nav-spacer" aria-hidden="true" />
+              <p className="day-label">Timer</p>
+              <span className="day-nav-spacer" aria-hidden="true" />
+            </div>
+            <div className="day-divider" aria-hidden="true" />
+          </div>
+
+          <div className="panel timer-panel">
+            <p className="timer-display" aria-live="polite">
+              {formatTimerSeconds(timerSeconds)}
+            </p>
+            <p className="timer-seconds-label">
+              {timerSeconds} second{timerSeconds === 1 ? '' : 's'}
+            </p>
+            <p className="muted timer-hint">
+              Earn $1 every 15 minutes while the timer runs. Pause keeps your
+              place.
+            </p>
+            <p className="timer-next">
+              Next $ in{' '}
+              {formatTimerSeconds(TIMER_REWARD_SECONDS - timerSeconds)}
+            </p>
+            <div className="timer-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => setTimerRunning((running) => !running)}
+              >
+                {timerRunning ? 'Pause' : 'Start'}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setTimerRunning(false)
+                  setTimerSeconds(0)
+                }}
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
       <div className={`composer${addOpen ? ' composer-open' : ''}`}>
         {!addOpen ? (
           <nav className="composer-collapsed bottom-nav" aria-label="Main views">
-            {mainView !== 'settings' ? (
+            {mainView !== 'settings' && mainView !== 'timer' ? (
               <button
                 type="button"
                 className="circle-btn plus-btn"
@@ -1899,6 +2060,17 @@ export default function App() {
               onClick={() => goToView('goals')}
             >
               <TargetIcon />
+            </button>
+            <button
+              type="button"
+              className={`circle-btn timer-btn${
+                mainView === 'timer' ? ' active' : ''
+              }`}
+              aria-label="Timer"
+              aria-pressed={mainView === 'timer'}
+              onClick={() => goToView('timer')}
+            >
+              <NavClockIcon />
             </button>
             <button
               type="button"
