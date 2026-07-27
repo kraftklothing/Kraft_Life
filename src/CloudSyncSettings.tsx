@@ -17,6 +17,7 @@ export default function CloudSyncSettings({
   const cloud = useCloudSync()
   const [pin, setPin] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
+  const [showPin, setShowPin] = useState(true)
 
   function resetFields() {
     setPin('')
@@ -77,12 +78,20 @@ export default function CloudSyncSettings({
           <label className="pin-field">
             <span>PIN</span>
             <input
-              type="password"
+              type={showPin ? 'text' : 'password'}
               inputMode="numeric"
               autoComplete="off"
               value={pin}
               onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
             />
+          </label>
+          <label className="pin-remember">
+            <input
+              type="checkbox"
+              checked={showPin}
+              onChange={(e) => setShowPin(e.target.checked)}
+            />
+            Show PIN
           </label>
           <label className="pin-remember">
             <input
@@ -128,7 +137,7 @@ export default function CloudSyncSettings({
           <label className="pin-field">
             <span>Create PIN (4–6 digits)</span>
             <input
-              type="password"
+              type={showPin ? 'text' : 'password'}
               inputMode="numeric"
               autoComplete="off"
               value={pin}
@@ -138,7 +147,7 @@ export default function CloudSyncSettings({
           <label className="pin-field">
             <span>Confirm PIN</span>
             <input
-              type="password"
+              type={showPin ? 'text' : 'password'}
               inputMode="numeric"
               autoComplete="off"
               value={confirmPin}
@@ -146,6 +155,14 @@ export default function CloudSyncSettings({
                 setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 6))
               }
             />
+          </label>
+          <label className="pin-remember">
+            <input
+              type="checkbox"
+              checked={showPin}
+              onChange={(e) => setShowPin(e.target.checked)}
+            />
+            Show PIN
           </label>
           <label className="pin-remember">
             <input
