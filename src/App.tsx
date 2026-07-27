@@ -23,10 +23,12 @@ import {
   taskVisibleOnDate,
 } from './taskLogic'
 import { goalProgressedOnDate } from './goalLogic'
+import CategorySettingsPanel from './CategorySettingsPanel'
 import {
   REPETITION_LABELS,
   type AppState,
   type Category,
+  type CategoryKind,
   type FocusTimer,
   type Goal,
   type PendingDelivery,
@@ -36,6 +38,18 @@ import {
   type Reward,
   type Task,
 } from './types'
+
+function categoryListKey(
+  kind: CategoryKind,
+): 'taskCategories' | 'projectCategories' | 'goalCategories' {
+  if (kind === 'task') return 'taskCategories'
+  if (kind === 'project') return 'projectCategories'
+  return 'goalCategories'
+}
+
+function getCategories(state: AppState, kind: CategoryKind): Category[] {
+  return state[categoryListKey(kind)]
+}
 
 function uid(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`
@@ -211,31 +225,6 @@ function PencilIcon() {
   )
 }
 
-function TrashIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M4 7h16"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M7 7l.75 12.5A1.5 1.5 0 0 0 9.25 21h5.5a1.5 1.5 0 0 0 1.5-1.5L17 7"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
 function ClockIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -308,7 +297,13 @@ export default function App() {
   const [mainView, setMainView] = useState<MainView>('tasks')
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [activeGoalId, setActiveGoalId] = useState<string | null>(null)
-  const [newCategory, setNewCategory] = useState('')
+  const [newCategoryByKind, setNewCategoryByKind] = useState({
+    task: '',
+    project: '',
+    goal: '',
+  })
+  const [projectCategoryIds, setProjectCategoryIds] = useState<string[]>([])
+  const [goalCategoryIds, setGoalCategoryIds] = useState<string[]>([])
   const [newRewardName, setNewRewardName] = useState('')
   const [newRewardCost, setNewRewardCost] = useState('5')
   const [editingRewardId, setEditingRewardId] = useState<string | null>(null)
@@ -323,10 +318,19 @@ export default function App() {
   const [balanceEditOpen, setBalanceEditOpen] = useState(false)
   const [balanceDraft, setBalanceDraft] = useState('')
   const [ledgerOpen, setLedgerOpen] = useState(false)
-  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
+  const [editingCategory, setEditingCategory] = useState<{
+    kind: CategoryKind
+    id: string
+  } | null>(null)
   const [collapsedTaskCategoryIds, setCollapsedTaskCategoryIds] = useState<
     string[]
   >([COMPLETED_GROUP_ID])
+  const [collapsedProjectCategoryIds, setCollapsedProjectCategoryIds] = useState<
+    string[]
+  >([])
+  const [collapsedGoalCategoryIds, setCollapsedGoalCategoryIds] = useState<
+    string[]
+  >([])
   const [activeTimerId, setActiveTimerId] = useState<string | null>(null)
   const [runningTimerId, setRunningTimerId] = useState<string | null>(null)
   const [timerElapsed, setTimerElapsed] = useState<Record<string, number>>({})
@@ -336,7 +340,10 @@ export default function App() {
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [draggingRewardId, setDraggingRewardId] = useState<string | null>(null)
   const [draggingTimerId, setDraggingTimerId] = useState<string | null>(null)
-  const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null)
+  const [draggingCategory, setDraggingCategory] = useState<{
+    kind: CategoryKind
+    id: string
+  } | null>(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
   const [dayAnim, setDayAnim] = useState<'none' | 'from-left' | 'from-right'>(
     'none',
@@ -368,6 +375,7 @@ export default function App() {
     orderSnapshot: string[]
   } | null>(null)
   const categoryDragRef = useRef<{
+    kind: CategoryKind
     id: string
     startY: number
     orderSnapshot: string[]
@@ -439,6 +447,90 @@ export default function App() {
     [sortedGoals, activeGoalId],
   )
 
+  const groupedProjects = useMemo(() => {
+    const byCat = new Map<string, Project[]>()
+    for (const project of sortedProjects) {
+      const ids =
+        project.categoryIds.length > 0 ? [...new Set(project.categoryIds)] : []
+      if (ids.length === 0) {
+        const list = byCat.get('uncategorized') ?? []
+        list.push(project)
+        byCat.set('uncategorized', list)
+        continue
+      }
+      let placed = false
+      for (const id of ids) {
+        if (!state.projectCategories.some((c) => c.id === id)) continue
+        const list = byCat.get(id) ?? []
+        list.push(project)
+        byCat.set(id, list)
+        placed = true
+      }
+      if (!placed) {
+        const list = byCat.get('uncategorized') ?? []
+        list.push(project)
+        byCat.set('uncategorized', list)
+      }
+    }
+    const groups: { id: string; name: string; projects: Project[] }[] = []
+    for (const cat of state.projectCategories) {
+      const projects = byCat.get(cat.id)
+      if (!projects?.length) continue
+      groups.push({ id: cat.id, name: cat.name, projects })
+    }
+    const uncategorized = byCat.get('uncategorized')
+    if (uncategorized?.length) {
+      groups.push({
+        id: 'uncategorized',
+        name: 'Uncategorized',
+        projects: uncategorized,
+      })
+    }
+    return groups
+  }, [sortedProjects, state.projectCategories])
+
+  const groupedGoals = useMemo(() => {
+    const byCat = new Map<string, Goal[]>()
+    for (const goal of sortedGoals) {
+      const ids =
+        goal.categoryIds.length > 0 ? [...new Set(goal.categoryIds)] : []
+      if (ids.length === 0) {
+        const list = byCat.get('uncategorized') ?? []
+        list.push(goal)
+        byCat.set('uncategorized', list)
+        continue
+      }
+      let placed = false
+      for (const id of ids) {
+        if (!state.goalCategories.some((c) => c.id === id)) continue
+        const list = byCat.get(id) ?? []
+        list.push(goal)
+        byCat.set(id, list)
+        placed = true
+      }
+      if (!placed) {
+        const list = byCat.get('uncategorized') ?? []
+        list.push(goal)
+        byCat.set('uncategorized', list)
+      }
+    }
+    const groups: { id: string; name: string; goals: Goal[] }[] = []
+    for (const cat of state.goalCategories) {
+      const goals = byCat.get(cat.id)
+      if (!goals?.length) continue
+      groups.push({ id: cat.id, name: cat.name, goals })
+    }
+    const uncategorized = byCat.get('uncategorized')
+    if (uncategorized?.length) {
+      groups.push({
+        id: 'uncategorized',
+        name: 'Uncategorized',
+        goals: uncategorized,
+      })
+    }
+    return groups
+  }, [sortedGoals, state.goalCategories])
+
   const groupedDayTasks = useMemo(() => {
     const incomplete: Task[] = []
     const completed: Task[] = []
@@ -459,7 +551,7 @@ export default function App() {
       }
       let placed = false
       for (const id of ids) {
-        if (!state.categories.some((c) => c.id === id)) continue
+        if (!state.taskCategories.some((c) => c.id === id)) continue
         const list = byCat.get(id) ?? []
         list.push(task)
         byCat.set(id, list)
@@ -473,7 +565,7 @@ export default function App() {
     }
 
     const groups: { id: string; name: string; tasks: Task[] }[] = []
-    for (const cat of state.categories) {
+    for (const cat of state.taskCategories) {
       const tasks = byCat.get(cat.id)
       if (!tasks?.length) continue
       groups.push({ id: cat.id, name: cat.name, tasks: sortTasksForDay(tasks) })
@@ -494,7 +586,7 @@ export default function App() {
       })
     }
     return groups
-  }, [dayTasks, state.categories, viewKey])
+  }, [dayTasks, state.taskCategories, viewKey])
 
   const completedCount = dayTasks.filter((t) =>
     isCompletedForDateView(t, viewKey),
@@ -555,13 +647,27 @@ export default function App() {
     setToast(cycles === 1 ? `+$1 · ${timer.title}` : `+$${cycles} · ${timer.title}`)
   }, [timerElapsed, runningTimerId, state.timers])
 
-  function startCategoryEdit(id: string) {
-    setEditingCategoryId(id)
+  function startCategoryEdit(kind: CategoryKind, id: string) {
+    setEditingCategory({ kind, id })
   }
 
-  function finishCategoryEdit(id: string, name: string) {
-    renameCategory(id, name)
-    setEditingCategoryId((current) => (current === id ? null : current))
+  function finishCategoryEdit(kind: CategoryKind, id: string, name: string) {
+    renameCategory(kind, id, name)
+    setEditingCategory((current) =>
+      current?.kind === kind && current.id === id ? null : current,
+    )
+  }
+
+  function cancelCategoryEdit() {
+    setEditingCategory(null)
+  }
+
+  function liveRenameCategory(kind: CategoryKind, id: string, name: string) {
+    const key = categoryListKey(kind)
+    updateState((prev) => ({
+      ...prev,
+      [key]: prev[key].map((c) => (c.id === id ? { ...c, name } : c)),
+    }))
   }
 
   function toggleTaskCategoryCollapsed(id: string) {
@@ -570,10 +676,36 @@ export default function App() {
     )
   }
 
+  function toggleProjectCategoryCollapsed(id: string) {
+    setCollapsedProjectCategoryIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    )
+  }
+
+  function toggleGoalCategoryCollapsed(id: string) {
+    setCollapsedGoalCategoryIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    )
+  }
+
+  function toggleComposerProjectCategory(id: string) {
+    setProjectCategoryIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    )
+  }
+
+  function toggleComposerGoalCategory(id: string) {
+    setGoalCategoryIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    )
+  }
+
   function resetComposerFields() {
     setTitle('')
     setRepetition('')
     setCategoryIds([])
+    setProjectCategoryIds([])
+    setGoalCategoryIds([])
     setCustomEveryDays('2')
     setAddError('')
     setEditingTaskId(null)
@@ -607,7 +739,7 @@ export default function App() {
       return
     }
     const selectedCategories = categoryIds.filter((id) =>
-      state.categories.some((c) => c.id === id),
+      state.taskCategories.some((c) => c.id === id),
     )
     if (selectedCategories.length === 0) {
       setAddError('Choose at least one category.')
@@ -764,24 +896,34 @@ export default function App() {
     })
   }
 
-  function addProject() {
+  function addProject(): boolean {
     const name = newProjectName.trim()
     if (!name) {
       setToast('Name your project')
-      return
+      return false
+    }
+    const selectedCategories = projectCategoryIds.filter((id) =>
+      state.projectCategories.some((c) => c.id === id),
+    )
+    if (selectedCategories.length === 0) {
+      setToast('Choose at least one category')
+      return false
     }
     const maxOrder = state.projects.reduce((max, p) => Math.max(max, p.order), -1)
     const project: Project = {
       id: uid('project'),
       name,
+      categoryIds: selectedCategories,
       order: maxOrder + 1,
       steps: [],
       createdAt: Date.now(),
     }
     updateState((prev) => ({ ...prev, projects: [...prev.projects, project] }))
     setNewProjectName('')
+    setProjectCategoryIds([])
     setActiveProjectId(project.id)
     setToast('Project added')
+    return true
   }
 
   function deleteProject(id: string) {
@@ -871,16 +1013,24 @@ export default function App() {
     })
   }
 
-  function addGoal() {
+  function addGoal(): boolean {
     const name = newGoalName.trim()
     if (!name) {
       setToast('Name your goal')
-      return
+      return false
+    }
+    const selectedCategories = goalCategoryIds.filter((id) =>
+      state.goalCategories.some((c) => c.id === id),
+    )
+    if (selectedCategories.length === 0) {
+      setToast('Choose at least one category')
+      return false
     }
     const maxOrder = state.goals.reduce((max, g) => Math.max(max, g.order), -1)
     const goal: Goal = {
       id: uid('goal'),
       name,
+      categoryIds: selectedCategories,
       order: maxOrder + 1,
       taskIds: [],
       projectIds: [],
@@ -888,8 +1038,10 @@ export default function App() {
     }
     updateState((prev) => ({ ...prev, goals: [...prev.goals, goal] }))
     setNewGoalName('')
+    setGoalCategoryIds([])
     setActiveGoalId(goal.id)
     setToast('Goal added')
+    return true
   }
 
   function deleteGoal(id: string) {
@@ -1202,58 +1354,99 @@ export default function App() {
     setTimerElapsed((prev) => ({ ...prev, [timerId]: 0 }))
   }
 
-  function addCategory() {
-    const name = newCategory.trim()
+  function addCategory(kind: CategoryKind) {
+    const name = newCategoryByKind[kind].trim()
     if (!name) return
-    if (state.categories.some((c) => c.name.toLowerCase() === name.toLowerCase())) {
+    const list = getCategories(state, kind)
+    if (list.some((c) => c.name.toLowerCase() === name.toLowerCase())) {
       setToast('Category already exists')
       return
     }
     const cat: Category = { id: uid('cat'), name }
-    updateState((prev) => ({ ...prev, categories: [...prev.categories, cat] }))
-    setNewCategory('')
+    const key = categoryListKey(kind)
+    updateState((prev) => ({ ...prev, [key]: [...prev[key], cat] }))
+    setNewCategoryByKind((prev) => ({ ...prev, [kind]: '' }))
     setToast('Category added')
   }
 
-  function deleteCategory(id: string) {
-    if (state.categories.length <= 1) {
+  function deleteCategory(kind: CategoryKind, id: string) {
+    const list = getCategories(state, kind)
+    if (list.length <= 1) {
       setToast('Keep at least one category')
       return
     }
-    const fallback = state.categories.find((c) => c.id !== id)?.id
+    const fallback = list.find((c) => c.id !== id)?.id
     if (!fallback) return
-    updateState((prev) => ({
-      ...prev,
-      categories: prev.categories.filter((c) => c.id !== id),
-      tasks: prev.tasks.map((t) => {
-        if (!t.categoryIds.includes(id)) return t
-        const nextIds = t.categoryIds.filter((cid) => cid !== id)
-        return {
-          ...t,
-          categoryIds: nextIds.length > 0 ? nextIds : [fallback],
-        }
-      }),
-    }))
-    setCategoryIds((prev) => {
-      const next = prev.filter((cid) => cid !== id)
-      return next.length > 0 ? next : prev.includes(id) ? [fallback] : next
+    const key = categoryListKey(kind)
+    updateState((prev) => {
+      const next = {
+        ...prev,
+        [key]: prev[key].filter((c) => c.id !== id),
+      }
+      if (kind === 'task') {
+        next.tasks = prev.tasks.map((t) => {
+          if (!t.categoryIds.includes(id)) return t
+          const nextIds = t.categoryIds.filter((cid) => cid !== id)
+          return {
+            ...t,
+            categoryIds: nextIds.length > 0 ? nextIds : [fallback],
+          }
+        })
+      } else if (kind === 'project') {
+        next.projects = prev.projects.map((p) => {
+          if (!p.categoryIds.includes(id)) return p
+          const nextIds = p.categoryIds.filter((cid) => cid !== id)
+          return {
+            ...p,
+            categoryIds: nextIds.length > 0 ? nextIds : [fallback],
+          }
+        })
+      } else {
+        next.goals = prev.goals.map((g) => {
+          if (!g.categoryIds.includes(id)) return g
+          const nextIds = g.categoryIds.filter((cid) => cid !== id)
+          return {
+            ...g,
+            categoryIds: nextIds.length > 0 ? nextIds : [fallback],
+          }
+        })
+      }
+      return next
     })
+    if (kind === 'task') {
+      setCategoryIds((prev) => {
+        const next = prev.filter((cid) => cid !== id)
+        return next.length > 0 ? next : prev.includes(id) ? [fallback] : next
+      })
+    } else if (kind === 'project') {
+      setProjectCategoryIds((prev) => {
+        const next = prev.filter((cid) => cid !== id)
+        return next.length > 0 ? next : prev.includes(id) ? [fallback] : next
+      })
+    } else {
+      setGoalCategoryIds((prev) => {
+        const next = prev.filter((cid) => cid !== id)
+        return next.length > 0 ? next : prev.includes(id) ? [fallback] : next
+      })
+    }
     setToast('Category removed')
   }
 
-  function renameCategory(id: string, name: string) {
+  function renameCategory(kind: CategoryKind, id: string, name: string) {
     const trimmed = name.trim()
     if (!trimmed) return
-    const clash = state.categories.some(
+    const list = getCategories(state, kind)
+    const clash = list.some(
       (c) => c.id !== id && c.name.toLowerCase() === trimmed.toLowerCase(),
     )
     if (clash) {
       setToast('Category already exists')
       return
     }
+    const key = categoryListKey(kind)
     updateState((prev) => ({
       ...prev,
-      categories: prev.categories.map((c) =>
+      [key]: prev[key].map((c) =>
         c.id === id ? { ...c, name: trimmed } : c,
       ),
     }))
@@ -1277,13 +1470,18 @@ export default function App() {
     setDraggingTimerId(timerId)
   }
 
-  function beginCategoryDrag(categoryIdToDrag: string, clientY: number) {
+  function beginCategoryDrag(
+    kind: CategoryKind,
+    categoryIdToDrag: string,
+    clientY: number,
+  ) {
     categoryDragRef.current = {
+      kind,
       id: categoryIdToDrag,
       startY: clientY,
-      orderSnapshot: state.categories.map((c) => c.id),
+      orderSnapshot: getCategories(state, kind).map((c) => c.id),
     }
-    setDraggingCategoryId(categoryIdToDrag)
+    setDraggingCategory({ kind, id: categoryIdToDrag })
   }
 
   function goToDay(delta: number) {
@@ -1363,7 +1561,7 @@ export default function App() {
   function beginDrag(taskId: string, clientY: number, groupCategoryId: string) {
     const task = dayTasks.find((t) => t.id === taskId)
     if (!task) return
-    const known = new Set(state.categories.map((c) => c.id))
+    const known = new Set(state.taskCategories.map((c) => c.id))
     dragRef.current = {
       id: taskId,
       startY: clientY,
@@ -1463,12 +1661,13 @@ export default function App() {
       event.preventDefault()
       const nextOrder = reorderSnapshot(categoryDrag, event.clientY, 64)
       if (!nextOrder) return
+      const key = categoryListKey(categoryDrag.kind)
       setState((prev) => {
-        const byId = new Map(prev.categories.map((c) => [c.id, c]))
+        const byId = new Map(prev[key].map((c) => [c.id, c]))
         const categories = nextOrder
           .map((id) => byId.get(id))
           .filter((c): c is Category => Boolean(c))
-        return { ...prev, categories }
+        return { ...prev, [key]: categories }
       })
     }
     function onUp() {
@@ -1486,7 +1685,7 @@ export default function App() {
       }
       if (categoryDragRef.current) {
         categoryDragRef.current = null
-        setDraggingCategoryId(null)
+        setDraggingCategory(null)
       }
     }
     window.addEventListener('pointermove', onMove, { passive: false })
@@ -1763,40 +1962,80 @@ export default function App() {
               </div>
             ) : (
               <div className="task-groups">
-                <section className="task-group" aria-label="Your projects">
-                  <h2 className="category-heading">Your projects</h2>
-                  <ul className="task-list">
-                    {sortedProjects.map((project) => {
-                      const done = project.steps.filter((s) => s.completed).length
-                      const total = project.steps.length
-                      return (
-                        <li className="task-item project-item" key={project.id}>
-                          <button
-                            type="button"
-                            className="project-main-btn"
-                            onClick={() => setActiveProjectId(project.id)}
-                          >
-                            <p className="task-title">{project.name}</p>
-                            <div className="badges">
-                              <span className="badge rep">
-                                {total === 0
-                                  ? 'No steps yet'
-                                  : `${done}/${total} steps`}
-                              </span>
-                            </div>
-                          </button>
-                          <button
-                            type="button"
-                            className="danger-btn"
-                            onClick={() => deleteProject(project.id)}
-                          >
-                            Delete
-                          </button>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </section>
+                {groupedProjects.map((group, groupIndex) => {
+                  const collapsed = collapsedProjectCategoryIds.includes(
+                    group.id,
+                  )
+                  return (
+                    <section
+                      className={`task-group${collapsed ? ' collapsed' : ''}`}
+                      key={group.id}
+                      aria-label={group.name}
+                    >
+                      {groupIndex > 0 ? (
+                        <div className="category-divider" aria-hidden="true" />
+                      ) : null}
+                      <button
+                        type="button"
+                        className="category-heading-toggle"
+                        aria-expanded={!collapsed}
+                        onClick={() =>
+                          toggleProjectCategoryCollapsed(group.id)
+                        }
+                      >
+                        <h2 className="category-heading">{group.name}</h2>
+                        <span className="category-heading-meta">
+                          {collapsed
+                            ? `${group.projects.length} project${
+                                group.projects.length === 1 ? '' : 's'
+                              }`
+                            : null}
+                          <ChevronIcon open={!collapsed} />
+                        </span>
+                      </button>
+                      {collapsed ? null : (
+                        <ul className="task-list">
+                          {group.projects.map((project) => {
+                            const done = project.steps.filter(
+                              (s) => s.completed,
+                            ).length
+                            const total = project.steps.length
+                            return (
+                              <li
+                                className="task-item project-item"
+                                key={project.id}
+                              >
+                                <button
+                                  type="button"
+                                  className="project-main-btn"
+                                  onClick={() =>
+                                    setActiveProjectId(project.id)
+                                  }
+                                >
+                                  <p className="task-title">{project.name}</p>
+                                  <div className="badges">
+                                    <span className="badge rep">
+                                      {total === 0
+                                        ? 'No steps yet'
+                                        : `${done}/${total} steps`}
+                                    </span>
+                                  </div>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="danger-btn"
+                                  onClick={() => deleteProject(project.id)}
+                                >
+                                  Delete
+                                </button>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      )}
+                    </section>
+                  )
+                })}
               </div>
             )
           ) : activeProject.steps.length === 0 ? (
@@ -1886,67 +2125,104 @@ export default function App() {
               </div>
             ) : (
               <div className="task-groups">
-                <section className="task-group" aria-label="Your goals">
-                  <h2 className="category-heading">Your goals</h2>
-                  <p className="muted reorder-hint view-hint">
-                    Highlights today when you complete a linked task or project
-                    step.
-                  </p>
-                  <ul className="task-list">
-                    {sortedGoals.map((goal) => {
-                      const progressed = goalProgressedOnDate(
-                        goal,
-                        state,
-                        todayKey,
-                      )
-                      const bullets = [
-                        ...goal.taskIds.map((id) => {
-                          const task = state.tasks.find((t) => t.id === id)
-                          return task ? `Task: ${task.title}` : null
-                        }),
-                        ...goal.projectIds.map((id) => {
-                          const project = state.projects.find((p) => p.id === id)
-                          return project ? `Project: ${project.name}` : null
-                        }),
-                      ].filter((item): item is string => Boolean(item))
+                <p className="muted reorder-hint view-hint">
+                  Highlights today when you complete a linked task or project
+                  step.
+                </p>
+                {groupedGoals.map((group, groupIndex) => {
+                  const collapsed = collapsedGoalCategoryIds.includes(group.id)
+                  return (
+                    <section
+                      className={`task-group${collapsed ? ' collapsed' : ''}`}
+                      key={group.id}
+                      aria-label={group.name}
+                    >
+                      {groupIndex > 0 ? (
+                        <div className="category-divider" aria-hidden="true" />
+                      ) : null}
+                      <button
+                        type="button"
+                        className="category-heading-toggle"
+                        aria-expanded={!collapsed}
+                        onClick={() => toggleGoalCategoryCollapsed(group.id)}
+                      >
+                        <h2 className="category-heading">{group.name}</h2>
+                        <span className="category-heading-meta">
+                          {collapsed
+                            ? `${group.goals.length} goal${
+                                group.goals.length === 1 ? '' : 's'
+                              }`
+                            : null}
+                          <ChevronIcon open={!collapsed} />
+                        </span>
+                      </button>
+                      {collapsed ? null : (
+                        <ul className="task-list">
+                          {group.goals.map((goal) => {
+                            const progressed = goalProgressedOnDate(
+                              goal,
+                              state,
+                              todayKey,
+                            )
+                            const bullets = [
+                              ...goal.taskIds.map((id) => {
+                                const task = state.tasks.find((t) => t.id === id)
+                                return task ? `Task: ${task.title}` : null
+                              }),
+                              ...goal.projectIds.map((id) => {
+                                const project = state.projects.find(
+                                  (p) => p.id === id,
+                                )
+                                return project
+                                  ? `Project: ${project.name}`
+                                  : null
+                              }),
+                            ].filter((item): item is string => Boolean(item))
 
-                      return (
-                        <li
-                          key={goal.id}
-                          className={`task-item goal-item${
-                            progressed ? ' goal-progressed' : ''
-                          }`}
-                        >
-                          <button
-                            type="button"
-                            className="project-main-btn"
-                            onClick={() => setActiveGoalId(goal.id)}
-                          >
-                            <p className="task-title">{goal.name}</p>
-                            {bullets.length === 0 ? (
-                              <div className="badges">
-                                <span className="badge rep">Nothing linked yet</span>
-                              </div>
-                            ) : (
-                              <ul className="goal-bullets">
-                                {bullets.map((line, index) => (
-                                  <li key={`${goal.id}-${index}`}>{line}</li>
-                                ))}
-                              </ul>
-                            )}
-                          </button>
-                          <button
-                            type="button"
-                            className="danger-btn"
-                            onClick={() => deleteGoal(goal.id)}
-                          >
-                            Delete
-                          </button>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </section>
+                            return (
+                              <li
+                                key={goal.id}
+                                className={`task-item goal-item${
+                                  progressed ? ' goal-progressed' : ''
+                                }`}
+                              >
+                                <button
+                                  type="button"
+                                  className="project-main-btn"
+                                  onClick={() => setActiveGoalId(goal.id)}
+                                >
+                                  <p className="task-title">{goal.name}</p>
+                                  {bullets.length === 0 ? (
+                                    <div className="badges">
+                                      <span className="badge rep">
+                                        Nothing linked yet
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <ul className="goal-bullets">
+                                      {bullets.map((line, index) => (
+                                        <li key={`${goal.id}-${index}`}>
+                                          {line}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="danger-btn"
+                                  onClick={() => deleteGoal(goal.id)}
+                                >
+                                  Delete
+                                </button>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      )}
+                    </section>
+                  )
+                })}
               </div>
             )
           ) : (
@@ -2299,114 +2575,96 @@ export default function App() {
           </div>
 
           <div className="task-groups settings-groups">
-            <SettingsSection title="Categories" ariaLabel="Categories">
-              <p className="muted reorder-hint view-hint">
-                Drag the bars to reorder. Tap the pencil to rename.
-              </p>
-              <ul className="task-list category-settings-list">
-                {state.categories.map((cat) => {
-                  const editing = editingCategoryId === cat.id
-                  return (
-                    <li
-                      key={cat.id}
-                      className={`category-settings-row${
-                        draggingCategoryId === cat.id ? ' dragging' : ''
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        className="drag-handle"
-                        aria-label={`Reorder ${cat.name}`}
-                        onPointerDown={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          event.currentTarget.setPointerCapture?.(
-                            event.pointerId,
-                          )
-                          beginCategoryDrag(cat.id, event.clientY)
-                        }}
-                      >
-                        <BarsIcon />
-                      </button>
-                      {editing ? (
-                        <input
-                          className="category-name-input category-settings-name-input"
-                          value={cat.name}
-                          aria-label="Category name"
-                          autoFocus
-                          onChange={(e) => {
-                            const value = e.target.value
-                            updateState((prev) => ({
-                              ...prev,
-                              categories: prev.categories.map((c) =>
-                                c.id === cat.id ? { ...c, name: value } : c,
-                              ),
-                            }))
-                          }}
-                          onBlur={(e) => finishCategoryEdit(cat.id, e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault()
-                              finishCategoryEdit(
-                                cat.id,
-                                (e.target as HTMLInputElement).value,
-                              )
-                            }
-                            if (e.key === 'Escape') {
-                              e.preventDefault()
-                              setEditingCategoryId(null)
-                            }
-                          }}
-                        />
-                      ) : (
-                        <span className="category-settings-name">
-                          {cat.name.trim() || 'Untitled'}
-                        </span>
-                      )}
-                      <div className="category-settings-actions">
-                        <button
-                          type="button"
-                          className="edit-btn"
-                          aria-label={`Edit ${cat.name}`}
-                          onClick={() => startCategoryEdit(cat.id)}
-                        >
-                          <PencilIcon />
-                        </button>
-                        <button
-                          type="button"
-                          className="delete-btn"
-                          aria-label={`Delete ${cat.name}`}
-                          onClick={() => deleteCategory(cat.id)}
-                        >
-                          <TrashIcon />
-                        </button>
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-              <div className="panel add-inline-panel">
-                <div className="inline-add">
-                  <input
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    placeholder="New category"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        addCategory()
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={addCategory}
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>
+            <SettingsSection
+              title="Task categories"
+              ariaLabel="Task categories"
+            >
+              <CategorySettingsPanel
+                categories={state.taskCategories}
+                newName={newCategoryByKind.task}
+                onNewNameChange={(value) =>
+                  setNewCategoryByKind((prev) => ({ ...prev, task: value }))
+                }
+                editingId={
+                  editingCategory?.kind === 'task' ? editingCategory.id : null
+                }
+                draggingId={
+                  draggingCategory?.kind === 'task' ? draggingCategory.id : null
+                }
+                onStartEdit={(id) => startCategoryEdit('task', id)}
+                onFinishEdit={(id, name) => finishCategoryEdit('task', id, name)}
+                onCancelEdit={cancelCategoryEdit}
+                onLiveRename={(id, name) => liveRenameCategory('task', id, name)}
+                onDelete={(id) => deleteCategory('task', id)}
+                onAdd={() => addCategory('task')}
+                onBeginDrag={(id, clientY) =>
+                  beginCategoryDrag('task', id, clientY)
+                }
+              />
+            </SettingsSection>
+
+            <SettingsSection
+              title="Project categories"
+              ariaLabel="Project categories"
+            >
+              <CategorySettingsPanel
+                categories={state.projectCategories}
+                newName={newCategoryByKind.project}
+                onNewNameChange={(value) =>
+                  setNewCategoryByKind((prev) => ({ ...prev, project: value }))
+                }
+                editingId={
+                  editingCategory?.kind === 'project'
+                    ? editingCategory.id
+                    : null
+                }
+                draggingId={
+                  draggingCategory?.kind === 'project'
+                    ? draggingCategory.id
+                    : null
+                }
+                onStartEdit={(id) => startCategoryEdit('project', id)}
+                onFinishEdit={(id, name) =>
+                  finishCategoryEdit('project', id, name)
+                }
+                onCancelEdit={cancelCategoryEdit}
+                onLiveRename={(id, name) =>
+                  liveRenameCategory('project', id, name)
+                }
+                onDelete={(id) => deleteCategory('project', id)}
+                onAdd={() => addCategory('project')}
+                onBeginDrag={(id, clientY) =>
+                  beginCategoryDrag('project', id, clientY)
+                }
+              />
+            </SettingsSection>
+
+            <SettingsSection
+              title="Goal categories"
+              ariaLabel="Goal categories"
+            >
+              <CategorySettingsPanel
+                categories={state.goalCategories}
+                newName={newCategoryByKind.goal}
+                onNewNameChange={(value) =>
+                  setNewCategoryByKind((prev) => ({ ...prev, goal: value }))
+                }
+                editingId={
+                  editingCategory?.kind === 'goal' ? editingCategory.id : null
+                }
+                draggingId={
+                  draggingCategory?.kind === 'goal' ? draggingCategory.id : null
+                }
+                onStartEdit={(id) => startCategoryEdit('goal', id)}
+                onFinishEdit={(id, name) => finishCategoryEdit('goal', id, name)}
+                onCancelEdit={cancelCategoryEdit}
+                onLiveRename={(id, name) => liveRenameCategory('goal', id, name)}
+                onDelete={(id) => deleteCategory('goal', id)}
+                onAdd={() => addCategory('goal')}
+                onBeginDrag={(id, clientY) =>
+                  beginCategoryDrag('goal', id, clientY)
+                }
+              />
             </SettingsSection>
 
             <CloudSyncSettings state={state} onCloudStateLoaded={setState} />
@@ -2722,19 +2980,45 @@ export default function App() {
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault()
-                        addProject()
-                        setAddOpen(false)
+                        if (addProject()) setAddOpen(false)
                       }
                     }}
                   />
                 </label>
+                <fieldset className="category-multi">
+                  <legend>Categories</legend>
+                  <p className="muted category-multi-hint">
+                    Pick one or more project categories.
+                  </p>
+                  <div className="category-multi-list">
+                    {state.projectCategories.map((cat) => {
+                      const checked = projectCategoryIds.includes(cat.id)
+                      return (
+                        <label
+                          key={cat.id}
+                          className={`category-multi-option${
+                            checked ? ' selected' : ''
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              toggleComposerProjectCategory(cat.id)
+                            }
+                          />
+                          <span>{cat.name}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </fieldset>
                 <div className="add-actions">
                   <button
                     type="button"
                     className="btn btn-primary"
                     onClick={() => {
-                      addProject()
-                      setAddOpen(false)
+                      if (addProject()) setAddOpen(false)
                     }}
                   >
                     Add project
@@ -2766,19 +3050,43 @@ export default function App() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault()
-                    addGoal()
-                    setAddOpen(false)
+                    if (addGoal()) setAddOpen(false)
                   }
                 }}
               />
             </label>
+            <fieldset className="category-multi">
+              <legend>Categories</legend>
+              <p className="muted category-multi-hint">
+                Pick one or more goal categories.
+              </p>
+              <div className="category-multi-list">
+                {state.goalCategories.map((cat) => {
+                  const checked = goalCategoryIds.includes(cat.id)
+                  return (
+                    <label
+                      key={cat.id}
+                      className={`category-multi-option${
+                        checked ? ' selected' : ''
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleComposerGoalCategory(cat.id)}
+                      />
+                      <span>{cat.name}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            </fieldset>
             <div className="add-actions">
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={() => {
-                  addGoal()
-                  setAddOpen(false)
+                  if (addGoal()) setAddOpen(false)
                 }}
               >
                 Add goal
@@ -2943,7 +3251,7 @@ export default function App() {
                 Afternoon, and completing it clears every spot.
               </p>
               <div className="category-multi-list">
-                {state.categories.map((cat) => {
+                {state.taskCategories.map((cat) => {
                   const checked = categoryIds.includes(cat.id)
                   return (
                     <label

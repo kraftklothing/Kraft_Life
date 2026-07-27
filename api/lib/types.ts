@@ -1,7 +1,10 @@
 /** Server-side mirror of AppState — kept server-side so routes do not import from src/. */
 export interface VaultAppState {
   tasks: unknown[]
-  categories: unknown[]
+  categories?: unknown[]
+  taskCategories?: unknown[]
+  projectCategories?: unknown[]
+  goalCategories?: unknown[]
   dollars: number
   rewards: unknown[]
   projects: unknown[]

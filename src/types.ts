@@ -8,6 +8,8 @@ export type Repetition =
 
 export type CategoryId = string
 
+export type CategoryKind = 'task' | 'project' | 'goal'
+
 export interface CustomRepeat {
   /** Repeat every N days (minimum 1). */
   everyDays: number
@@ -63,6 +65,7 @@ export interface ProjectStep {
 export interface Project {
   id: string
   name: string
+  categoryIds: CategoryId[]
   order: number
   steps: ProjectStep[]
   createdAt: number
@@ -71,6 +74,7 @@ export interface Project {
 export interface Goal {
   id: string
   name: string
+  categoryIds: CategoryId[]
   order: number
   taskIds: string[]
   projectIds: string[]
@@ -100,7 +104,9 @@ export interface FocusTimer {
 
 export interface AppState {
   tasks: Task[]
-  categories: Category[]
+  taskCategories: Category[]
+  projectCategories: Category[]
+  goalCategories: Category[]
   dollars: number
   rewards: Reward[]
   projects: Project[]
@@ -120,6 +126,18 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'general', name: 'General' },
   { id: 'personal', name: 'Personal' },
   { id: 'work', name: 'Work' },
+]
+
+export const DEFAULT_TASK_CATEGORIES = DEFAULT_CATEGORIES
+export const DEFAULT_PROJECT_CATEGORIES: Category[] = [
+  { id: 'proj-general', name: 'General' },
+  { id: 'proj-personal', name: 'Personal' },
+  { id: 'proj-work', name: 'Work' },
+]
+export const DEFAULT_GOAL_CATEGORIES: Category[] = [
+  { id: 'goal-general', name: 'General' },
+  { id: 'goal-personal', name: 'Personal' },
+  { id: 'goal-work', name: 'Work' },
 ]
 
 export const DEFAULT_REWARDS: Reward[] = [

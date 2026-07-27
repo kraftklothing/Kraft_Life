@@ -83,10 +83,20 @@ function hashPin(pin: string): string {
 function defaultState() {
   return {
     tasks: [],
-    categories: [
+    taskCategories: [
       { id: 'general', name: 'General' },
       { id: 'personal', name: 'Personal' },
       { id: 'work', name: 'Work' },
+    ],
+    projectCategories: [
+      { id: 'proj-general', name: 'General' },
+      { id: 'proj-personal', name: 'Personal' },
+      { id: 'proj-work', name: 'Work' },
+    ],
+    goalCategories: [
+      { id: 'goal-general', name: 'General' },
+      { id: 'goal-personal', name: 'Personal' },
+      { id: 'goal-work', name: 'Work' },
     ],
     dollars: 0,
     rewards: [

@@ -1,6 +1,8 @@
 import {
-  DEFAULT_CATEGORIES,
+  DEFAULT_GOAL_CATEGORIES,
+  DEFAULT_PROJECT_CATEGORIES,
   DEFAULT_REWARDS,
+  DEFAULT_TASK_CATEGORIES,
   DEFAULT_TIMERS,
   type AppState,
   type Category,
@@ -73,36 +75,7 @@ function normalizeSteps(raw: unknown): ProjectStep[] {
   return steps.sort((a, b) => a.order - b.order)
 }
 
-function normalizeProjects(raw: unknown): Project[] {
-  if (!Array.isArray(raw)) return []
-  const projects: Project[] = []
-  raw.forEach((item, index) => {
-    if (!item || typeof item !== 'object') return
-    const p = item as {
-      id?: unknown
-      name?: unknown
-      order?: unknown
-      steps?: unknown
-      createdAt?: unknown
-    }
-    if (typeof p.id !== 'string' || typeof p.name !== 'string') return
-    projects.push({
-      id: p.id,
-      name: p.name,
-      order: typeof p.order === 'number' ? p.order : index,
-      steps: normalizeSteps(p.steps),
-      createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
-    })
-  })
-  return projects.sort((a, b) => a.order - b.order)
-}
-
-function normalizeStringIds(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return []
-  return raw.filter((id): id is string => typeof id === 'string')
-}
-
-function normalizeTaskCategoryIds(raw: {
+function normalizeEntityCategoryIds(raw: {
   categoryIds?: unknown
   categoryId?: unknown
 }): string[] {
@@ -116,6 +89,38 @@ function normalizeTaskCategoryIds(raw: {
   return []
 }
 
+function normalizeProjects(raw: unknown): Project[] {
+  if (!Array.isArray(raw)) return []
+  const projects: Project[] = []
+  raw.forEach((item, index) => {
+    if (!item || typeof item !== 'object') return
+    const p = item as {
+      id?: unknown
+      name?: unknown
+      categoryIds?: unknown
+      categoryId?: unknown
+      order?: unknown
+      steps?: unknown
+      createdAt?: unknown
+    }
+    if (typeof p.id !== 'string' || typeof p.name !== 'string') return
+    projects.push({
+      id: p.id,
+      name: p.name,
+      categoryIds: normalizeEntityCategoryIds(p),
+      order: typeof p.order === 'number' ? p.order : index,
+      steps: normalizeSteps(p.steps),
+      createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(),
+    })
+  })
+  return projects.sort((a, b) => a.order - b.order)
+}
+
+function normalizeStringIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return raw.filter((id): id is string => typeof id === 'string')
+}
+
 function normalizeTasks(raw: unknown): Task[] {
   if (!Array.isArray(raw)) return []
   const tasks: Task[] = []
@@ -125,11 +130,10 @@ function normalizeTasks(raw: unknown): Task[] {
     if (typeof t.id !== 'string' || typeof t.title !== 'string') continue
     if (typeof t.startDate !== 'string') continue
     if (typeof t.repetition !== 'string') continue
-    const categoryIds = normalizeTaskCategoryIds(t)
     tasks.push({
       id: t.id,
       title: t.title,
-      categoryIds,
+      categoryIds: normalizeEntityCategoryIds(t),
       repetition: t.repetition,
       customRepeat: t.customRepeat,
       startDate: t.startDate,
@@ -150,6 +154,8 @@ function normalizeGoals(raw: unknown): Goal[] {
     const g = item as {
       id?: unknown
       name?: unknown
+      categoryIds?: unknown
+      categoryId?: unknown
       order?: unknown
       taskIds?: unknown
       projectIds?: unknown
@@ -159,6 +165,7 @@ function normalizeGoals(raw: unknown): Goal[] {
     goals.push({
       id: g.id,
       name: g.name,
+      categoryIds: normalizeEntityCategoryIds(g),
       order: typeof g.order === 'number' ? g.order : index,
       taskIds: normalizeStringIds(g.taskIds),
       projectIds: normalizeStringIds(g.projectIds),
@@ -272,7 +279,9 @@ export function appendLedgerEntry(
 export function normalizeState(raw: Partial<AppState> | null | undefined): AppState {
   const fallback: AppState = {
     tasks: [],
-    categories: DEFAULT_CATEGORIES,
+    taskCategories: DEFAULT_TASK_CATEGORIES,
+    projectCategories: DEFAULT_PROJECT_CATEGORIES,
+    goalCategories: DEFAULT_GOAL_CATEGORIES,
     dollars: 0,
     rewards: DEFAULT_REWARDS,
     projects: [],
@@ -285,12 +294,24 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
   }
   if (!raw || typeof raw !== 'object') return fallback
 
-  const categories = normalizeCategories(raw.categories) ?? DEFAULT_CATEGORIES
+  const legacyCategories = normalizeCategories(
+    (raw as Partial<AppState> & { categories?: unknown }).categories,
+  )
+  const taskCategories =
+    normalizeCategories(raw.taskCategories) ??
+    legacyCategories ??
+    DEFAULT_TASK_CATEGORIES
+  const projectCategories =
+    normalizeCategories(raw.projectCategories) ?? DEFAULT_PROJECT_CATEGORIES
+  const goalCategories =
+    normalizeCategories(raw.goalCategories) ?? DEFAULT_GOAL_CATEGORIES
   const rewards = normalizeRewards(raw.rewards)
   const timers = normalizeTimers(raw.timers)
   return {
     tasks: normalizeTasks(raw.tasks),
-    categories,
+    taskCategories,
+    projectCategories,
+    goalCategories,
     dollars: typeof raw.dollars === 'number' ? raw.dollars : 0,
     rewards: rewards !== null ? rewards : DEFAULT_REWARDS,
     projects: normalizeProjects(raw.projects),
