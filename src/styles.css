@@ -508,6 +508,72 @@ button {
   grid-template-columns: auto 1fr auto;
 }
 
+.reward-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.reward-cost-badge {
+  font-size: 0.95rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  background: var(--accent-wash);
+  border-radius: 999px;
+  padding: 8px 12px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.delivery-item {
+  grid-template-columns: 1fr auto;
+}
+
+.delivery-actions {
+  flex-wrap: wrap;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(58, 36, 24, 0.35);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.modal-card {
+  width: min(100%, 360px);
+  display: grid;
+  gap: 12px;
+  animation: sheet-up 0.2s ease both;
+}
+
+.modal-card h2 {
+  margin: 0;
+  font-family: var(--font-brand);
+  color: var(--accent);
+}
+
+.modal-card .muted {
+  margin: 0;
+}
+
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.modal-actions .btn {
+  flex: 1;
+  min-width: 72px;
+}
+
 .category-settings-list {
   gap: 6px;
 }

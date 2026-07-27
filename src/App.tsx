@@ -29,6 +29,7 @@ import {
   type Category,
   type FocusTimer,
   type Goal,
+  type PendingDelivery,
   type Project,
   type ProjectStep,
   type Repetition,
@@ -308,6 +309,10 @@ export default function App() {
   const [newCategory, setNewCategory] = useState('')
   const [newRewardName, setNewRewardName] = useState('')
   const [newRewardCost, setNewRewardCost] = useState('5')
+  const [editingRewardId, setEditingRewardId] = useState<string | null>(null)
+  const [spendConfirmReward, setSpendConfirmReward] = useState<Reward | null>(
+    null,
+  )
   const [newProjectName, setNewProjectName] = useState('')
   const [newStepTitle, setNewStepTitle] = useState('')
   const [newStepDollars, setNewStepDollars] = useState('5')
@@ -557,8 +562,11 @@ export default function App() {
     setAddError('')
     setEditingTaskId(null)
     setEditingTimerId(null)
+    setEditingRewardId(null)
     setNewTimerTitle('')
     setNewTimerMinutes('20')
+    setNewRewardName('')
+    setNewRewardCost('5')
   }
 
   function toggleComposerCategory(id: string) {
@@ -661,6 +669,11 @@ export default function App() {
         setEditingTimerId(null)
         setNewTimerTitle('')
         setNewTimerMinutes('20')
+      }
+      if (mainView === 'rewards') {
+        setEditingRewardId(null)
+        setNewRewardName('')
+        setNewRewardCost('5')
       }
       setAddOpen(true)
       setAddError('')
@@ -947,18 +960,77 @@ export default function App() {
       setToast(`Need $${reward.cost}`)
       return
     }
+    setSpendConfirmReward(reward)
+  }
+
+  function confirmSpend(delivered: boolean) {
+    const reward = spendConfirmReward
+    if (!reward) return
+    if (state.dollars < reward.cost) {
+      setToast(`Need $${reward.cost}`)
+      setSpendConfirmReward(null)
+      return
+    }
     const today = toDateKey(startToday())
+    updateState((prev) => {
+      const next: AppState = {
+        ...prev,
+        dollars: prev.dollars - reward.cost,
+        dollarLedger: appendLedgerEntry(prev.dollarLedger, {
+          dateKey: today,
+          amount: -reward.cost,
+          kind: 'spent',
+          label: reward.name,
+        }),
+      }
+      if (!delivered) {
+        const pending: PendingDelivery = {
+          id: uid('delivery'),
+          rewardId: reward.id,
+          rewardName: reward.name,
+          cost: reward.cost,
+          createdAt: Date.now(),
+        }
+        next.pendingDeliveries = [...prev.pendingDeliveries, pending]
+      }
+      return next
+    })
+    setSpendConfirmReward(null)
+    setToast(
+      delivered
+        ? `Spent $${reward.cost} on ${reward.name}`
+        : `${reward.name} is in delivery`,
+    )
+  }
+
+  function markDeliveryArrived(deliveryId: string) {
     updateState((prev) => ({
       ...prev,
-      dollars: prev.dollars - reward.cost,
-      dollarLedger: appendLedgerEntry(prev.dollarLedger, {
-        dateKey: today,
-        amount: -reward.cost,
-        kind: 'spent',
-        label: reward.name,
-      }),
+      pendingDeliveries: prev.pendingDeliveries.filter((d) => d.id !== deliveryId),
     }))
-    setToast(`Spent $${reward.cost} on ${reward.name}`)
+    setToast('Marked delivered')
+  }
+
+  function markDeliveryReturned(deliveryId: string) {
+    const today = toDateKey(startToday())
+    updateState((prev) => {
+      const delivery = prev.pendingDeliveries.find((d) => d.id === deliveryId)
+      if (!delivery) return prev
+      return {
+        ...prev,
+        dollars: prev.dollars + delivery.cost,
+        pendingDeliveries: prev.pendingDeliveries.filter(
+          (d) => d.id !== deliveryId,
+        ),
+        dollarLedger: appendLedgerEntry(prev.dollarLedger, {
+          dateKey: today,
+          amount: delivery.cost,
+          kind: 'adjusted',
+          label: `Returned · ${delivery.rewardName}`,
+        }),
+      }
+    })
+    setToast('Returned — $ back')
   }
 
   function openBalanceEdit() {
@@ -1003,11 +1075,30 @@ export default function App() {
       setToast('Cost must be at least $1')
       return
     }
-    const reward: Reward = { id: uid('reward'), name, cost }
-    updateState((prev) => ({ ...prev, rewards: [...prev.rewards, reward] }))
+    if (editingRewardId) {
+      updateState((prev) => ({
+        ...prev,
+        rewards: prev.rewards.map((reward) =>
+          reward.id === editingRewardId ? { ...reward, name, cost } : reward,
+        ),
+      }))
+      setToast('Reward updated')
+    } else {
+      const reward: Reward = { id: uid('reward'), name, cost }
+      updateState((prev) => ({ ...prev, rewards: [...prev.rewards, reward] }))
+      setToast('Reward added')
+    }
+    setEditingRewardId(null)
     setNewRewardName('')
     setNewRewardCost('5')
-    setToast('Reward added')
+  }
+
+  function openEditReward(reward: Reward) {
+    setEditingRewardId(reward.id)
+    setNewRewardName(reward.name)
+    setNewRewardCost(String(reward.cost))
+    setAddOpen(true)
+    setAddError('')
   }
 
   function deleteReward(id: string) {
@@ -1015,6 +1106,11 @@ export default function App() {
       ...prev,
       rewards: prev.rewards.filter((r) => r.id !== id),
     }))
+    if (editingRewardId === id) {
+      setEditingRewardId(null)
+      setAddOpen(false)
+    }
+    if (spendConfirmReward?.id === id) setSpendConfirmReward(null)
   }
 
   function addTimer() {
@@ -2010,6 +2106,44 @@ export default function App() {
             </div>
           )}
 
+          {state.pendingDeliveries.length > 0 ? (
+            <div className="task-groups">
+              <section className="task-group" aria-label="In delivery">
+                <h2 className="category-heading">In delivery</h2>
+                <ul className="task-list">
+                  {state.pendingDeliveries.map((delivery) => (
+                    <li key={delivery.id} className="task-item delivery-item">
+                      <div className="task-body">
+                        <p className="task-title">{delivery.rewardName}</p>
+                        <div className="badges">
+                          <span className="badge">
+                            In delivery · ${delivery.cost}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="task-actions delivery-actions">
+                        <button
+                          type="button"
+                          className="btn btn-primary spend-btn-inline"
+                          onClick={() => markDeliveryArrived(delivery.id)}
+                        >
+                          Delivered
+                        </button>
+                        <button
+                          type="button"
+                          className="btn spend-btn-inline"
+                          onClick={() => markDeliveryReturned(delivery.id)}
+                        >
+                          Returned
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </div>
+          ) : null}
+
           {state.rewards.length === 0 ? (
             <div className="panel empty">
               <h2>No rewards yet</h2>
@@ -2020,7 +2154,7 @@ export default function App() {
               <section className="task-group" aria-label="Spend rewards">
                 <h2 className="category-heading">Spend</h2>
                 <p className="muted reorder-hint view-hint">
-                  Drag the blue bars to reorder
+                  Drag the bars to reorder
                 </p>
                 <ul className="task-list">
                   {state.rewards.map((reward) => (
@@ -2037,7 +2171,9 @@ export default function App() {
                         onPointerDown={(event) => {
                           event.preventDefault()
                           event.stopPropagation()
-                          event.currentTarget.setPointerCapture?.(event.pointerId)
+                          event.currentTarget.setPointerCapture?.(
+                            event.pointerId,
+                          )
                           beginRewardDrag(reward.id, event.clientY)
                         }}
                       >
@@ -2045,27 +2181,38 @@ export default function App() {
                       </button>
                       <div className="task-body">
                         <p className="task-title">{reward.name}</p>
-                        <div className="badges">
-                          <span className="badge">${reward.cost}</span>
+                        <div className="reward-inline-actions">
+                          <button
+                            type="button"
+                            className="btn btn-primary spend-btn-inline"
+                            disabled={state.dollars < reward.cost}
+                            onClick={() => spendReward(reward)}
+                          >
+                            Spend
+                          </button>
+                          <button
+                            type="button"
+                            className="edit-btn"
+                            aria-label="Edit reward"
+                            onClick={() => openEditReward(reward)}
+                          >
+                            <PencilIcon />
+                          </button>
+                          <button
+                            type="button"
+                            className="danger-btn"
+                            onClick={() => deleteReward(reward.id)}
+                          >
+                            Delete
+                          </button>
                         </div>
                       </div>
-                      <div className="task-actions">
-                        <button
-                          type="button"
-                          className="btn btn-primary spend-btn-inline"
-                          disabled={state.dollars < reward.cost}
-                          onClick={() => spendReward(reward)}
-                        >
-                          Spend
-                        </button>
-                        <button
-                          type="button"
-                          className="danger-btn"
-                          onClick={() => deleteReward(reward.id)}
-                        >
-                          Delete
-                        </button>
-                      </div>
+                      <span
+                        className="reward-cost-badge"
+                        aria-label={`Cost $${reward.cost}`}
+                      >
+                        ${reward.cost}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -2074,6 +2221,50 @@ export default function App() {
           )}
         </section>
       )}
+
+      {spendConfirmReward ? (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={() => setSpendConfirmReward(null)}
+        >
+          <div
+            className="panel modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="spend-delivered-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="spend-delivered-title">Delivered?</h2>
+            <p className="muted">
+              Spend ${spendConfirmReward.cost} on {spendConfirmReward.name}.
+            </p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => confirmSpend(true)}
+              >
+                Yes
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => confirmSpend(false)}
+              >
+                No
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setSpendConfirmReward(null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {mainView === 'settings' && (
         <section className="day-pane" aria-label="Settings">
@@ -2370,7 +2561,9 @@ export default function App() {
                           ? 'Edit timer'
                           : 'New timer'
                         : mainView === 'rewards'
-                          ? 'New reward'
+                          ? editingRewardId
+                            ? 'Edit reward'
+                            : 'New reward'
                           : 'New task'
                 }
                 onClick={openAddComposer}
@@ -2620,7 +2813,7 @@ export default function App() {
         ) : mainView === 'rewards' ? (
           <div className="panel add-panel">
             <div className="composer-header">
-              <h2>New reward</h2>
+              <h2>{editingRewardId ? 'Edit reward' : 'New reward'}</h2>
               <button
                 type="button"
                 className="icon-btn"
@@ -2659,7 +2852,7 @@ export default function App() {
                   setAddOpen(false)
                 }}
               >
-                Add reward
+                {editingRewardId ? 'Save reward' : 'Add reward'}
               </button>
             </div>
           </div>

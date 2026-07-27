@@ -40,6 +40,15 @@ export interface Reward {
   cost: number
 }
 
+/** A spent reward waiting to arrive (or be returned). */
+export interface PendingDelivery {
+  id: string
+  rewardId: string
+  rewardName: string
+  cost: number
+  createdAt: number
+}
+
 export interface ProjectStep {
   id: string
   title: string
@@ -97,6 +106,8 @@ export interface AppState {
   projects: Project[]
   goals: Goal[]
   timers: FocusTimer[]
+  /** Spent rewards that are not delivered yet. */
+  pendingDeliveries: PendingDelivery[]
   /** Date keys (YYYY-MM-DD) with vacation mode on for that day only. */
   vacationDays: Record<string, boolean>
   /** When true, header shows percent complete instead of counts. */

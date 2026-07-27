@@ -7,6 +7,7 @@ export interface VaultAppState {
   projects: unknown[]
   goals: unknown[]
   timers?: unknown[]
+  pendingDeliveries?: unknown[]
   vacationDays: Record<string, boolean>
   showPercent: boolean
   dollarLedger?: unknown[]
