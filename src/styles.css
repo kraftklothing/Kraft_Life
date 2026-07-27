@@ -146,6 +146,10 @@ button {
   outline: none;
 }
 
+.day-pane:has(.settings-groups) {
+  gap: 4px;
+}
+
 .day-pane-dragging {
   transition: none;
 }
@@ -173,6 +177,10 @@ button {
     rgba(31, 77, 69, 0.28),
     transparent
   );
+}
+
+.day-pane:has(.settings-groups) .day-divider {
+  margin-top: 8px;
 }
 
 .category-divider {
@@ -938,7 +946,7 @@ button {
 }
 
 .settings-groups {
-  gap: 4px;
+  gap: 0;
 }
 
 .task-group {
@@ -953,6 +961,7 @@ button {
 .settings-section-body {
   display: grid;
   gap: 6px;
+  padding: 2px 0 10px;
 }
 
 .category-heading-toggle {
@@ -1347,6 +1356,20 @@ button {
   display: grid;
   gap: 10px;
   margin-bottom: 18px;
+}
+
+.settings-groups .settings-section {
+  gap: 0;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-groups .settings-section:last-child {
+  border-bottom: none;
+}
+
+.settings-groups .category-heading-toggle {
+  padding: 11px 2px 11px 4px;
 }
 
 .settings-section label {
