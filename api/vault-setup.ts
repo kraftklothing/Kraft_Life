@@ -1,11 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { hashPin, isValidPin } from './lib/pin'
+import { isStorageConfigured } from './lib/redis-env'
 import type { VaultAppState } from './lib/types'
-import {
-  createVault,
-  isStorageConfigured,
-  vaultConfigured,
-} from './lib/vault'
 
 function defaultState(): VaultAppState {
   return {
@@ -46,6 +42,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!isValidPin(pin)) {
       return res.status(400).json({ error: 'PIN must be 4–6 digits.' })
     }
+
+    const { createVault, vaultConfigured } = await import('./lib/vault')
 
     if (await vaultConfigured()) {
       return res.status(409).json({ error: 'A PIN is already set for this app.' })

@@ -1,13 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { isValidPin, verifyPin } from './lib/pin'
+import { isStorageConfigured } from './lib/redis-env'
 import type { VaultAppState } from './lib/types'
-import {
-  isStorageConfigured,
-  readVaultMeta,
-  readVaultState,
-  vaultConfigured,
-  writeVaultState,
-} from './lib/vault'
 
 function readPin(req: VercelRequest): string {
   const header = req.headers['x-kraft-pin']
@@ -16,17 +10,18 @@ function readPin(req: VercelRequest): string {
   return ''
 }
 
-async function authorizePin(pin: string): Promise<boolean> {
-  const meta = await readVaultMeta()
-  if (!meta?.pinHash) return false
-  return verifyPin(pin, meta.pinHash)
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     if (!isStorageConfigured()) {
       return res.status(503).json({ error: 'Cloud storage is not set up on Vercel yet.' })
     }
+
+    const {
+      readVaultMeta,
+      readVaultState,
+      vaultConfigured,
+      writeVaultState,
+    } = await import('./lib/vault')
 
     if (!(await vaultConfigured())) {
       return res.status(404).json({ error: 'No PIN has been set up yet.' })
@@ -37,7 +32,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Invalid PIN.' })
     }
 
-    if (!(await authorizePin(pin))) {
+    const meta = await readVaultMeta()
+    if (!meta?.pinHash || !verifyPin(pin, meta.pinHash)) {
       return res.status(401).json({ error: 'Wrong PIN.' })
     }
 

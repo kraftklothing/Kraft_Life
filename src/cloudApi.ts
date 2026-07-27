@@ -9,13 +9,25 @@ export interface VaultStatus {
 }
 
 async function parseJson<T>(response: Response): Promise<T> {
-  const data = (await response.json()) as T & { error?: string }
+  const raw = await response.text()
+  let data: (T & { error?: string }) | null = null
+  if (raw) {
+    try {
+      data = JSON.parse(raw) as T & { error?: string }
+    } catch {
+      throw new Error(
+        response.ok
+          ? 'Cloud save returned an unexpected response.'
+          : `Cloud save failed (${response.status}). Try again in a moment.`,
+      )
+    }
+  }
   if (!response.ok) {
     throw new Error(
-      typeof data.error === 'string' ? data.error : `Request failed (${response.status})`,
+      typeof data?.error === 'string' ? data.error : `Request failed (${response.status})`,
     )
   }
-  return data
+  return (data ?? ({} as T)) as T
 }
 
 export async function fetchVaultStatus(): Promise<VaultStatus> {
