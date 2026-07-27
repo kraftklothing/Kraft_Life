@@ -148,20 +148,22 @@ export function CloudSyncProvider({ children }: CloudSyncProviderProps) {
   const setupPin = useCallback(
     async (pin: string, confirmPin: string, state: AppState) => {
       setError('')
-      if (!/^\d{4,6}$/.test(pin)) {
+      const normalizedPin = pin.trim()
+      const normalizedConfirm = confirmPin.trim()
+      if (!/^\d{4,6}$/.test(normalizedPin)) {
         setError('Choose a PIN with 4–6 digits.')
         return false
       }
-      if (pin !== confirmPin) {
-        setError('PINs do not match.')
+      if (normalizedPin !== normalizedConfirm) {
+        setError(`PINs do not match (${normalizedPin} vs ${normalizedConfirm}).`)
         return false
       }
 
       setBusy(true)
       try {
-        await setupVault(pin, state)
+        await setupVault(normalizedPin, state)
         setVaultConfigured(true)
-        applyUnlock(pin, state, remember)
+        applyUnlock(normalizedPin, state, remember)
         return true
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not set up PIN')

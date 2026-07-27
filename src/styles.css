@@ -1278,6 +1278,9 @@ button {
   border-radius: 12px;
   padding: 12px 14px;
   background: var(--panel-solid);
+  font-size: 1.2rem;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
 }
 
 .pin-remember {
