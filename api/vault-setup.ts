@@ -14,47 +14,6 @@ function hashPin(pin: string): string {
   return createHash('sha256').update(`${SALT}:${pin}`).digest('hex')
 }
 
-<<<<<<< HEAD
-function verifyPin(pin: string, storedHash: string): boolean {
-  const attempt = hashPin(pin)
-  const a = Buffer.from(attempt, 'hex')
-  const b = Buffer.from(storedHash, 'hex')
-  if (a.length !== b.length) return false
-  return timingSafeEqual(a, b)
-}
-
-async function upstashCommand<T>(command: unknown[]): Promise<T> {
-  const creds = findRedisCredentials()
-  if (!creds) throw new Error('STORAGE_NOT_CONFIGURED')
-
-  const response = await fetch(`${creds.url}/pipeline`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${creds.token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify([command]),
-  })
-
-  if (!response.ok) {
-    throw new Error(`Redis request failed (${response.status})`)
-  }
-
-  const data = (await response.json()) as Array<{ result?: T; error?: string }>
-  const first = data[0]
-  if (first?.error) throw new Error(first.error)
-  return first?.result as T
-}
-
-async function redisGet<T>(key: string): Promise<T | null> {
-  const result = await upstashCommand<T | null>(['GET', key])
-  return result ?? null
-}
-
-async function redisSet(key: string, value: unknown): Promise<void> {
-  await upstashCommand(['SET', key, value])
-}
-
 function defaultState() {
   return {
     tasks: [],
@@ -91,8 +50,6 @@ function defaultState() {
   }
 }
 
-=======
->>>>>>> 24b13204767b87d8d4a14db7909ec172ebbefe8c
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
