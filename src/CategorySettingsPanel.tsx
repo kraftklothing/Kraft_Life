@@ -103,7 +103,7 @@ export default function CategorySettingsPanel({
           )
         })}
       </ul>
-      <div className="panel add-inline-panel">
+      <div className="add-inline-panel">
         <div className="inline-add">
           <input
             value={newName}

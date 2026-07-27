@@ -584,31 +584,50 @@ button {
 }
 
 .category-settings-list {
-  gap: 6px;
+  gap: 0;
 }
 
 .category-settings-row {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  background: var(--panel-solid);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  box-shadow: 0 8px 20px rgba(58, 36, 24, 0.06);
-  padding: 8px 10px 8px 8px;
-  transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  box-shadow: none;
+  padding: 5px 0;
+  min-height: 0;
+  transition: opacity 0.2s ease, background 0.2s ease;
+}
+
+.category-settings-row:last-child {
+  border-bottom: none;
 }
 
 .category-settings-row.dragging {
   opacity: 0.55;
-  box-shadow: var(--shadow);
-  transform: scale(1.02);
+  background: var(--accent-wash);
+}
+
+.category-settings-row .drag-handle,
+.category-settings-row .edit-btn,
+.category-settings-row .delete-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.category-settings-row .drag-handle svg {
+  width: 14px;
+  height: 11px;
 }
 
 .category-settings-name {
-  font-size: 1.02rem;
+  font-size: 0.95rem;
   font-weight: 600;
+  line-height: 1.2;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -617,12 +636,14 @@ button {
 
 .category-settings-name-input {
   min-width: 0;
+  font-size: 0.95rem;
+  padding: 4px 6px;
 }
 
 .category-settings-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   flex-shrink: 0;
 }
 
@@ -748,8 +769,23 @@ button {
 }
 
 .add-inline-panel {
-  margin-top: 10px;
-  padding: 12px;
+  margin-top: 8px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.add-inline-panel .inline-add input {
+  min-height: 36px;
+  padding: 8px 10px;
+  font-size: 0.95rem;
+}
+
+.add-inline-panel .btn {
+  min-height: 36px;
+  padding: 8px 14px;
 }
 
 .projects-title-row {
