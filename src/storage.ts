@@ -160,6 +160,8 @@ function normalizeTasks(raw: unknown): Task[] {
       completions:
         t.completions && typeof t.completions === 'object' ? t.completions : {},
       visibleInWorkMode: t.visibleInWorkMode !== false,
+      visibleInHomeMode: t.visibleInHomeMode !== false,
+      visibleInOutMode: t.visibleInOutMode !== false,
       order: typeof t.order === 'number' ? t.order : 0,
       createdAt: typeof t.createdAt === 'number' ? t.createdAt : Date.now(),
     })
@@ -308,6 +310,8 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     pendingDeliveries: [],
     vacationDays: {},
     workMode: false,
+    homeMode: false,
+    outMode: false,
     showPercent: false,
     dollarLedger: [],
   }
@@ -336,6 +340,8 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
         ? raw.vacationDays
         : {},
     workMode: Boolean(raw.workMode),
+    homeMode: Boolean(raw.homeMode),
+    outMode: Boolean(raw.outMode),
     showPercent: Boolean(raw.showPercent),
     dollarLedger: normalizeDollarLedger(raw.dollarLedger),
   }

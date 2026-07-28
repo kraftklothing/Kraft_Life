@@ -11,6 +11,8 @@ export interface VaultAppState {
   pendingDeliveries?: unknown[]
   vacationDays: Record<string, boolean>
   workMode?: boolean
+  homeMode?: boolean
+  outMode?: boolean
   showPercent: boolean
   dollarLedger?: unknown[]
 }

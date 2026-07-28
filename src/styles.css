@@ -259,6 +259,11 @@ button {
   color: var(--ink);
 }
 
+.mode-visibility-options {
+  display: grid;
+  gap: 8px;
+}
+
 .work-mode-option input {
   width: 18px;
   height: 18px;

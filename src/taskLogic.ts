@@ -172,36 +172,58 @@ export function previousOccurrence(
  * Consecutive satisfied scheduled reps ending at asOfDateKey.
  * An open (not-yet-due-to-close) incomplete current period does not reset
  * the streak — it still counts prior completed reps in a row.
+ * Vacation days pause the streak: missed reps on vacation do not break it
+ * and do not add to it unless actually completed.
  */
-export function completionStreak(task: Task, asOfDateKey: string): number {
-  if (task.repetition === 'none') {
-    if (task.startDate > asOfDateKey) return 0
-    return isOccurrenceSatisfied(task, task.startDate) ? 1 : 0
-  }
+export function completionStreak(
+  task: Task,
+  asOfDateKey: string,
+  vacationDays: Record<string, boolean> = {},
+): number {
+  if (task.repetition === 'none') return 0
 
   let cursor = latestOccurrenceOnOrBefore(task, asOfDateKey)
   if (!cursor) return 0
 
-  if (!isOccurrenceSatisfied(task, cursor)) {
+  // Walk past an open incomplete current period and vacation pauses at the tip.
+  while (cursor) {
+    if (isOccurrenceSatisfied(task, cursor)) break
+    if (vacationDays[cursor]) {
+      cursor = previousOccurrence(task, cursor)
+      continue
+    }
     const next = nextOccurrence(task, cursor)
     const stillOpen = !next || asOfDateKey < next
-    if (!stillOpen) return 0
-    cursor = previousOccurrence(task, cursor)
-    if (!cursor) return 0
+    if (stillOpen) {
+      cursor = previousOccurrence(task, cursor)
+      continue
+    }
+    return 0
   }
+  if (!cursor) return 0
 
   let streak = 0
-  while (cursor && isOccurrenceSatisfied(task, cursor)) {
-    streak += 1
+  while (cursor) {
+    if (isOccurrenceSatisfied(task, cursor)) {
+      streak += 1
+    } else if (vacationDays[cursor]) {
+      // Vacation pause — skip without breaking.
+    } else {
+      break
+    }
     cursor = previousOccurrence(task, cursor)
   }
   return streak
 }
 
 /** Highest consecutive satisfied-rep run at or before asOfDateKey. */
-export function recordCompletionStreak(task: Task, asOfDateKey: string): number {
-  const current = completionStreak(task, asOfDateKey)
-  if (task.repetition === 'none') return current
+export function recordCompletionStreak(
+  task: Task,
+  asOfDateKey: string,
+  vacationDays: Record<string, boolean> = {},
+): number {
+  if (task.repetition === 'none') return 0
+  const current = completionStreak(task, asOfDateKey, vacationDays)
 
   let cursor: string | null = task.startDate
   if (
@@ -218,6 +240,8 @@ export function recordCompletionStreak(task: Task, asOfDateKey: string): number 
     if (isOccurrenceSatisfied(task, cursor)) {
       run += 1
       if (run > max) max = run
+    } else if (vacationDays[cursor]) {
+      // Vacation pause — leave run intact.
     } else {
       const stillOpen = !next || asOfDateKey < next
       if (stillOpen) break
@@ -341,4 +365,12 @@ export function taskVisibleInVacationMode(
 
 export function taskVisibleInWorkMode(task: Task): boolean {
   return task.visibleInWorkMode !== false
+}
+
+export function taskVisibleInHomeMode(task: Task): boolean {
+  return task.visibleInHomeMode !== false
+}
+
+export function taskVisibleInOutMode(task: Task): boolean {
+  return task.visibleInOutMode !== false
 }

@@ -23,6 +23,8 @@ import {
   taskVisibleOnDate,
   taskVisibleInVacationMode,
   taskVisibleInWorkMode,
+  taskVisibleInHomeMode,
+  taskVisibleInOutMode,
 } from './taskLogic'
 import { goalProgressedOnDate } from './goalLogic'
 import CategorySettingsPanel from './CategorySettingsPanel'
@@ -209,6 +211,38 @@ function BriefcaseIcon() {
   )
 }
 
+function HomeIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9.5Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function CarIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M5 11 6.5 7.5A2 2 0 0 1 8.3 6.5h7.4a2 2 0 0 1 1.8 1L19 11"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M3 11h18v6a1 1 0 0 1-1 1h-1a2 2 0 0 1-4 0H9a2 2 0 0 1-4 0H4a1 1 0 0 1-1-1v-6Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 function CheckIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
@@ -310,6 +344,8 @@ export default function App() {
   const [customEveryDays, setCustomEveryDays] = useState('2')
   const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>([])
   const [visibleInWorkMode, setVisibleInWorkMode] = useState(true)
+  const [visibleInHomeMode, setVisibleInHomeMode] = useState(true)
+  const [visibleInOutMode, setVisibleInOutMode] = useState(true)
   const [categoryIds, setCategoryIds] = useState<string[]>([])
   const [addError, setAddError] = useState('')
   const [addOpen, setAddOpen] = useState(false)
@@ -411,6 +447,8 @@ export default function App() {
   const viewKey = toDateKey(viewDate)
   const vacationOn = Boolean(state.vacationDays[viewKey])
   const workModeOn = state.workMode
+  const homeModeOn = state.homeMode
+  const outModeOn = state.outMode
 
   useEffect(() => {
     saveState(state)
@@ -449,6 +487,8 @@ export default function App() {
         return false
       }
       if (workModeOn && !taskVisibleInWorkMode(task)) return false
+      if (homeModeOn && !taskVisibleInHomeMode(task)) return false
+      if (outModeOn && !taskVisibleInOutMode(task)) return false
       return true
     })
     return sortTasksForDay(applicable)
@@ -458,6 +498,8 @@ export default function App() {
     viewKey,
     vacationOn,
     workModeOn,
+    homeModeOn,
+    outModeOn,
   ])
 
   const sortedProjects = useMemo(
@@ -641,6 +683,8 @@ export default function App() {
     setCustomEveryDays('2')
     setSelectedWeekdays([])
     setVisibleInWorkMode(true)
+    setVisibleInHomeMode(true)
+    setVisibleInOutMode(true)
     setAddError('')
     setEditingTaskId(null)
     setEditingTimerId(null)
@@ -735,6 +779,8 @@ export default function App() {
                 repetition,
                 customRepeat: keepsCustomRepeat ? customRepeat : undefined,
                 visibleInWorkMode,
+                visibleInHomeMode,
+                visibleInOutMode,
               }
             : task,
         ),
@@ -755,6 +801,8 @@ export default function App() {
       startDate: viewKey,
       completions: {},
       visibleInWorkMode,
+      visibleInHomeMode,
+      visibleInOutMode,
       order: maxOrder + 1,
       createdAt: Date.now(),
     }
@@ -821,6 +869,8 @@ export default function App() {
     setCustomEveryDays(String(task.customRepeat?.everyDays ?? 2))
     setSelectedWeekdays([...(task.customRepeat?.weekdays ?? [])])
     setVisibleInWorkMode(task.visibleInWorkMode !== false)
+    setVisibleInHomeMode(task.visibleInHomeMode !== false)
+    setVisibleInOutMode(task.visibleInOutMode !== false)
     setAddError('')
     setAddOpen(true)
     window.setTimeout(() => titleInputRef.current?.focus(), 80)
@@ -1182,6 +1232,14 @@ export default function App() {
 
   function toggleWorkMode() {
     updateState((prev) => ({ ...prev, workMode: !prev.workMode }))
+  }
+
+  function toggleHomeMode() {
+    updateState((prev) => ({ ...prev, homeMode: !prev.homeMode }))
+  }
+
+  function toggleOutMode() {
+    updateState((prev) => ({ ...prev, outMode: !prev.outMode }))
   }
 
   function spendReward(reward: Reward) {
@@ -1945,6 +2003,28 @@ export default function App() {
                   >
                     <BriefcaseIcon />
                   </button>
+                  <button
+                    type="button"
+                    className={`plane-btn${homeModeOn ? ' active' : ''}`}
+                    aria-label={
+                      homeModeOn ? 'Turn off home mode' : 'Turn on home mode'
+                    }
+                    aria-pressed={homeModeOn}
+                    onClick={toggleHomeMode}
+                  >
+                    <HomeIcon />
+                  </button>
+                  <button
+                    type="button"
+                    className={`plane-btn${outModeOn ? ' active' : ''}`}
+                    aria-label={
+                      outModeOn ? 'Turn off out mode' : 'Turn on out mode'
+                    }
+                    aria-pressed={outModeOn}
+                    onClick={toggleOutMode}
+                  >
+                    <CarIcon />
+                  </button>
                 </div>
               </div>
               <button
@@ -1961,6 +2041,8 @@ export default function App() {
 
           {vacationOn ? <p className="vacation-banner">Vacation mode</p> : null}
           {workModeOn ? <p className="work-banner">Work mode</p> : null}
+          {homeModeOn ? <p className="work-banner">Home mode</p> : null}
+          {outModeOn ? <p className="work-banner">Out mode</p> : null}
 
           {dayTasks.length === 0 ? (
             <div className="panel empty">
@@ -2005,11 +2087,21 @@ export default function App() {
                       <ul className="task-list">
                         {group.tasks.map((task) => {
                           const done = isCompletedForDateView(task, viewKey)
-                          const streak = completionStreak(task, viewKey)
-                          const recordStreak = recordCompletionStreak(
-                            task,
-                            viewKey,
-                          )
+                          const showStreak = task.repetition !== 'none'
+                          const streak = showStreak
+                            ? completionStreak(
+                                task,
+                                viewKey,
+                                state.vacationDays,
+                              )
+                            : 0
+                          const recordStreak = showStreak
+                            ? recordCompletionStreak(
+                                task,
+                                viewKey,
+                                state.vacationDays,
+                              )
+                            : 0
                           return (
                             <li
                               key={task.id}
@@ -2031,15 +2123,17 @@ export default function App() {
                               </button>
                               <div className="task-body">
                                 <p className="task-title">{task.title}</p>
-                                <div className="badges">
-                                  <span
-                                    className="badge"
-                                    aria-label={`Streak ${streak}, record streak ${recordStreak}`}
-                                  >
-                                    Streak: {streak} / Record Streak:{' '}
-                                    {recordStreak}
-                                  </span>
-                                </div>
+                                {showStreak ? (
+                                  <div className="badges">
+                                    <span
+                                      className="badge"
+                                      aria-label={`Streak ${streak}, record streak ${recordStreak}`}
+                                    >
+                                      Streak: {streak} / Record Streak:{' '}
+                                      {recordStreak}
+                                    </span>
+                                  </div>
+                                ) : null}
                               </div>
                               <div className="task-actions">
                                 <button
@@ -3399,14 +3493,32 @@ export default function App() {
               </fieldset>
             ) : null}
 
-            <label className="work-mode-option">
-              <input
-                type="checkbox"
-                checked={visibleInWorkMode}
-                onChange={(e) => setVisibleInWorkMode(e.target.checked)}
-              />
-              <span>Visible in work mode</span>
-            </label>
+            <div className="mode-visibility-options">
+              <label className="work-mode-option">
+                <input
+                  type="checkbox"
+                  checked={visibleInWorkMode}
+                  onChange={(e) => setVisibleInWorkMode(e.target.checked)}
+                />
+                <span>Visible in work mode</span>
+              </label>
+              <label className="work-mode-option">
+                <input
+                  type="checkbox"
+                  checked={visibleInHomeMode}
+                  onChange={(e) => setVisibleInHomeMode(e.target.checked)}
+                />
+                <span>Visible in home mode</span>
+              </label>
+              <label className="work-mode-option">
+                <input
+                  type="checkbox"
+                  checked={visibleInOutMode}
+                  onChange={(e) => setVisibleInOutMode(e.target.checked)}
+                />
+                <span>Visible in out mode</span>
+              </label>
+            </div>
 
             {addError ? <p className="error-text">{addError}</p> : null}
 

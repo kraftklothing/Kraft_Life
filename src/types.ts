@@ -33,6 +33,10 @@ export interface Task {
   completions: Record<string, boolean>
   /** When false, hidden while work mode is on. Defaults to true. */
   visibleInWorkMode: boolean
+  /** When false, hidden while home mode is on. Defaults to true. */
+  visibleInHomeMode: boolean
+  /** When false, hidden while out mode is on. Defaults to true. */
+  visibleInOutMode: boolean
   /** Sort order within a day view (lower = higher). */
   order: number
   createdAt: number
@@ -123,6 +127,10 @@ export interface AppState {
   vacationDays: Record<string, boolean>
   /** When true, tasks marked not visible in work mode are hidden. */
   workMode: boolean
+  /** When true, tasks marked not visible in home mode are hidden. */
+  homeMode: boolean
+  /** When true, tasks marked not visible in out mode are hidden. */
+  outMode: boolean
   /** When true, header shows percent complete instead of counts. */
   showPercent: boolean
   /** Recent $ earned / spent / balance edits (newest last). */
