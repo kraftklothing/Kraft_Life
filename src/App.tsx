@@ -7,7 +7,7 @@ import {
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
-import { addDays, formatDayHeading, toDateKey } from './dates'
+import { addDays, formatDayHeading, parseDateKey, toDateKey } from './dates'
 import { appendLedgerEntry, loadState, normalizeState, saveState } from './storage'
 import { useCloudSync } from './CloudSyncProvider'
 import CloudSyncSettings from './CloudSyncSettings'
@@ -347,6 +347,8 @@ export default function App() {
   const [visibleInHomeMode, setVisibleInHomeMode] = useState(true)
   const [visibleInOutMode, setVisibleInOutMode] = useState(true)
   const [categoryIds, setCategoryIds] = useState<string[]>([])
+  /** YYYY-MM-DD the task is scheduled / starts on (editable to move days). */
+  const [taskDay, setTaskDay] = useState(() => toDateKey(startToday()))
   const [addError, setAddError] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
@@ -685,6 +687,7 @@ export default function App() {
     setVisibleInWorkMode(true)
     setVisibleInHomeMode(true)
     setVisibleInOutMode(true)
+    setTaskDay(toDateKey(viewDate))
     setAddError('')
     setEditingTaskId(null)
     setEditingTimerId(null)
@@ -733,6 +736,19 @@ export default function App() {
       setAddError('Choose how often this repeats.')
       return
     }
+    const dayKey = taskDay.trim()
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dayKey)) {
+      setAddError('Pick a valid day.')
+      return
+    }
+    const parsedDay = parseDateKey(dayKey)
+    if (
+      Number.isNaN(parsedDay.getTime()) ||
+      toDateKey(parsedDay) !== dayKey
+    ) {
+      setAddError('Pick a valid day.')
+      return
+    }
     const selectedCategories = categoryIds.filter((id) =>
       state.taskCategories.some((c) => c.id === id),
     )
@@ -778,6 +794,7 @@ export default function App() {
                 categoryIds: selectedCategories,
                 repetition,
                 customRepeat: keepsCustomRepeat ? customRepeat : undefined,
+                startDate: dayKey,
                 visibleInWorkMode,
                 visibleInHomeMode,
                 visibleInOutMode,
@@ -785,20 +802,29 @@ export default function App() {
             : task,
         ),
       }))
+      if (dayKey !== viewKey) {
+        setViewDate(parsedDay)
+      }
       resetComposerFields()
       setAddOpen(false)
-      setToast('Task updated')
+      setToast(dayKey !== viewKey ? 'Task moved' : 'Task updated')
       return
     }
 
-    const maxOrder = dayTasks.reduce((max, t) => Math.max(max, t.order), -1)
+    const tasksOnTargetDay = state.tasks.filter((t) =>
+      taskVisibleOnDate(t, dayKey),
+    )
+    const maxOrder = tasksOnTargetDay.reduce(
+      (max, t) => Math.max(max, t.order),
+      -1,
+    )
     const task: Task = {
       id: uid('task'),
       title: trimmed,
       categoryIds: selectedCategories,
       repetition,
       customRepeat,
-      startDate: viewKey,
+      startDate: dayKey,
       completions: {},
       visibleInWorkMode,
       visibleInHomeMode,
@@ -808,6 +834,9 @@ export default function App() {
     }
 
     updateState((prev) => ({ ...prev, tasks: [...prev.tasks, task] }))
+    if (dayKey !== viewKey) {
+      setViewDate(parsedDay)
+    }
     resetComposerFields()
     setAddOpen(false)
     setToast('Task added')
@@ -868,6 +897,7 @@ export default function App() {
     setCategoryIds([...task.categoryIds])
     setCustomEveryDays(String(task.customRepeat?.everyDays ?? 2))
     setSelectedWeekdays([...(task.customRepeat?.weekdays ?? [])])
+    setTaskDay(task.startDate)
     setVisibleInWorkMode(task.visibleInWorkMode !== false)
     setVisibleInHomeMode(task.visibleInHomeMode !== false)
     setVisibleInOutMode(task.visibleInOutMode !== false)
@@ -3389,6 +3419,26 @@ export default function App() {
                 enterKeyHint="done"
               />
             </label>
+
+            <label htmlFor={`${formId}-day`}>
+              Day
+              <input
+                id={`${formId}-day`}
+                name="taskDay"
+                type="date"
+                value={taskDay}
+                onChange={(e) => {
+                  setTaskDay(e.target.value)
+                  if (addError) setAddError('')
+                }}
+                required
+              />
+            </label>
+            {editingTaskId ? (
+              <p className="muted category-multi-hint">
+                Change the day to move this task.
+              </p>
+            ) : null}
 
             <label htmlFor={`${formId}-rep`}>
               Repetition
