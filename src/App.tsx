@@ -13,12 +13,11 @@ import { useCloudSync } from './CloudSyncProvider'
 import CloudSyncSettings from './CloudSyncSettings'
 import SettingsSection from './SettingsSection'
 import {
-  completionStreak,
+  allTimeCompletionCount,
   isCompletedForDateView,
   isOccurrenceSatisfied,
   nextOccurrence,
   occurrenceForDate,
-  recordCompletionStreak,
   sortTasksForDay,
   taskVisibleOnDate,
   taskVisibleInVacationMode,
@@ -2117,20 +2116,9 @@ export default function App() {
                       <ul className="task-list">
                         {group.tasks.map((task) => {
                           const done = isCompletedForDateView(task, viewKey)
-                          const showStreak = task.repetition !== 'none'
-                          const streak = showStreak
-                            ? completionStreak(
-                                task,
-                                viewKey,
-                                state.vacationDays,
-                              )
-                            : 0
-                          const recordStreak = showStreak
-                            ? recordCompletionStreak(
-                                task,
-                                viewKey,
-                                state.vacationDays,
-                              )
+                          const showAllTimeCount = task.repetition !== 'none'
+                          const allTimeCount = showAllTimeCount
+                            ? allTimeCompletionCount(task)
                             : 0
                           return (
                             <li
@@ -2153,14 +2141,13 @@ export default function App() {
                               </button>
                               <div className="task-body">
                                 <p className="task-title">{task.title}</p>
-                                {showStreak ? (
+                                {showAllTimeCount ? (
                                   <div className="badges">
                                     <span
                                       className="badge"
-                                      aria-label={`Streak ${streak}, record streak ${recordStreak}`}
+                                      aria-label={`Alltime count: ${allTimeCount}`}
                                     >
-                                      Streak: {streak} / Record Streak:{' '}
-                                      {recordStreak}
+                                      Alltime count: {allTimeCount}
                                     </span>
                                   </div>
                                 ) : null}
