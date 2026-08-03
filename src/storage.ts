@@ -155,6 +155,7 @@ function normalizeTasks(raw: unknown): Task[] {
     tasks.push({
       id: t.id,
       title: t.title,
+      description: typeof t.description === 'string' ? t.description : '',
       categoryIds: normalizeEntityCategoryIds(t),
       repetition: t.repetition as Task['repetition'],
       customRepeat: normalizeCustomRepeat(t.customRepeat),

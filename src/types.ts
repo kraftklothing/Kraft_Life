@@ -23,6 +23,8 @@ export interface CustomRepeat {
 export interface Task {
   id: string
   title: string
+  /** Optional notes; lines starting with "- " render as bullets. */
+  description: string
   /** One or more categories this task appears under. */
   categoryIds: CategoryId[]
   repetition: Repetition
