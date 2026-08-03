@@ -45,6 +45,8 @@ export interface Task {
 export interface Category {
   id: CategoryId
   name: string
+  /** When true, the day-view heading is larger, bolder, and more colorful. */
+  attention?: boolean
 }
 
 export interface Reward {

@@ -567,11 +567,21 @@ export default function App() {
       }
     }
 
-    const groups: { id: string; name: string; tasks: Task[] }[] = []
+    const groups: {
+      id: string
+      name: string
+      attention?: boolean
+      tasks: Task[]
+    }[] = []
     for (const cat of state.taskCategories) {
       const tasks = byCat.get(cat.id)
       if (!tasks?.length) continue
-      groups.push({ id: cat.id, name: cat.name, tasks: sortTasksForDay(tasks) })
+      groups.push({
+        id: cat.id,
+        name: cat.name,
+        attention: cat.attention === true,
+        tasks: sortTasksForDay(tasks),
+      })
     }
     const uncategorized = byCat.get('uncategorized')
     if (uncategorized?.length) {
@@ -1570,6 +1580,20 @@ export default function App() {
     }))
   }
 
+  function toggleCategoryAttention(id: string) {
+    updateState((prev) => ({
+      ...prev,
+      taskCategories: prev.taskCategories.map((c) => {
+        if (c.id !== id) return c
+        if (c.attention) {
+          const { attention: _removed, ...rest } = c
+          return rest
+        }
+        return { ...c, attention: true }
+      }),
+    }))
+  }
+
   function beginRewardDrag(rewardId: string, clientY: number) {
     rewardDragRef.current = {
       id: rewardId,
@@ -2086,9 +2110,12 @@ export default function App() {
             <div className="task-groups">
               {groupedDayTasks.map((group, groupIndex) => {
                 const collapsed = collapsedTaskCategoryIds.includes(group.id)
+                const attention = group.attention === true
                 return (
                   <section
-                    className={`task-group${collapsed ? ' collapsed' : ''}`}
+                    className={`task-group${collapsed ? ' collapsed' : ''}${
+                      attention ? ' attention' : ''
+                    }`}
                     key={group.id}
                     aria-label={group.name}
                   >
@@ -2101,7 +2128,13 @@ export default function App() {
                       aria-expanded={!collapsed}
                       onClick={() => toggleTaskCategoryCollapsed(group.id)}
                     >
-                      <h2 className="category-heading">{group.name}</h2>
+                      <h2
+                        className={`category-heading${
+                          attention ? ' attention' : ''
+                        }`}
+                      >
+                        {group.name}
+                      </h2>
                       <span className="category-heading-meta">
                         {collapsed
                           ? group.id === COMPLETED_GROUP_ID
@@ -2858,6 +2891,7 @@ export default function App() {
                 onFinishEdit={finishCategoryEdit}
                 onCancelEdit={cancelCategoryEdit}
                 onLiveRename={liveRenameCategory}
+                onToggleAttention={toggleCategoryAttention}
                 onDelete={deleteCategory}
                 onAdd={addCategory}
                 onBeginDrag={beginCategoryDrag}
