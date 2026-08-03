@@ -3499,7 +3499,7 @@ export default function App() {
           </div>
         ) : (
           <form
-            className="panel add-panel"
+            className="panel add-panel task-composer"
             onSubmit={handleSaveTask}
             id={formId}
             noValidate
@@ -3517,7 +3517,7 @@ export default function App() {
             </div>
 
             <label htmlFor={`${formId}-title`}>
-              What do you want to complete?
+              Task
               <input
                 ref={titleInputRef}
                 id={`${formId}-title`}
@@ -3527,61 +3527,55 @@ export default function App() {
                   setTitle(e.target.value)
                   if (addError) setAddError('')
                 }}
-                placeholder="Add a task for this day"
+                placeholder="What do you want to complete?"
                 autoComplete="off"
                 enterKeyHint="done"
               />
             </label>
 
-            <label htmlFor={`${formId}-day`}>
-              Day
-              <input
-                id={`${formId}-day`}
-                name="taskDay"
-                type="date"
-                value={taskDay}
-                onChange={(e) => {
-                  setTaskDay(e.target.value)
-                  if (addError) setAddError('')
-                }}
-                required
-              />
-            </label>
-            {editingTaskId ? (
-              <p className="muted category-multi-hint">
-                Change the day to move this task.
-              </p>
-            ) : null}
-
-            <label htmlFor={`${formId}-rep`}>
-              Repetition
-              <select
-                id={`${formId}-rep`}
-                name="repetition"
-                value={repetition}
-                onChange={(e) => {
-                  setRepetition(e.target.value as Repetition | '')
-                  if (addError) setAddError('')
-                }}
-                required
-              >
-                <option value="" disabled>
-                  Choose repetition
-                </option>
-                {(Object.keys(REPETITION_LABELS) as Repetition[]).map((key) => (
-                  <option key={key} value={key}>
-                    {REPETITION_LABELS[key]}
+            <div className="field-row task-composer-row">
+              <label htmlFor={`${formId}-day`}>
+                Day
+                <input
+                  id={`${formId}-day`}
+                  name="taskDay"
+                  type="date"
+                  value={taskDay}
+                  onChange={(e) => {
+                    setTaskDay(e.target.value)
+                    if (addError) setAddError('')
+                  }}
+                  required
+                />
+              </label>
+              <label htmlFor={`${formId}-rep`}>
+                Repeat
+                <select
+                  id={`${formId}-rep`}
+                  name="repetition"
+                  value={repetition}
+                  onChange={(e) => {
+                    setRepetition(e.target.value as Repetition | '')
+                    if (addError) setAddError('')
+                  }}
+                  required
+                >
+                  <option value="" disabled>
+                    Choose…
                   </option>
-                ))}
-              </select>
-            </label>
+                  {(Object.keys(REPETITION_LABELS) as Repetition[]).map(
+                    (key) => (
+                      <option key={key} value={key}>
+                        {REPETITION_LABELS[key]}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+            </div>
 
-            <fieldset className="category-multi">
+            <fieldset className="category-multi category-multi-compact">
               <legend>Categories</legend>
-              <p className="muted category-multi-hint">
-                Pick one or more — the same task can show in Morning and
-                Afternoon, and completing it clears every spot.
-              </p>
               <div className="category-multi-list">
                 {state.taskCategories.map((cat) => {
                   const checked = categoryIds.includes(cat.id)
@@ -3608,7 +3602,7 @@ export default function App() {
               <label htmlFor={`${formId}-custom`}>
                 {repetition === 'after_completion'
                   ? 'Days in between'
-                  : 'Repeat every N days'}
+                  : 'Every N days'}
                 <input
                   id={`${formId}-custom`}
                   name="customEveryDays"
@@ -3621,18 +3615,9 @@ export default function App() {
                 />
               </label>
             ) : null}
-            {repetition === 'after_completion' ? (
-              <p className="muted category-multi-hint">
-                After you complete it, it stays hidden for that many days, then
-                shows each day until you complete it again.
-              </p>
-            ) : null}
             {repetition === 'weekdays' ? (
               <fieldset className="category-multi weekday-multi">
                 <legend>Show on</legend>
-                <p className="muted category-multi-hint">
-                  Pick the days this task should appear — for example Sun–Thu.
-                </p>
                 <div className="weekday-multi-list">
                   {WEEKDAY_OPTIONS.map((day) => {
                     const checked = selectedWeekdays.includes(day.value)
@@ -3656,32 +3641,44 @@ export default function App() {
               </fieldset>
             ) : null}
 
-            <div className="mode-visibility-options">
-              <label className="work-mode-option">
-                <input
-                  type="checkbox"
-                  checked={visibleInWorkMode}
-                  onChange={(e) => setVisibleInWorkMode(e.target.checked)}
-                />
-                <span>Visible in work mode</span>
-              </label>
-              <label className="work-mode-option">
-                <input
-                  type="checkbox"
-                  checked={visibleInHomeMode}
-                  onChange={(e) => setVisibleInHomeMode(e.target.checked)}
-                />
-                <span>Visible in home mode</span>
-              </label>
-              <label className="work-mode-option">
-                <input
-                  type="checkbox"
-                  checked={visibleInOutMode}
-                  onChange={(e) => setVisibleInOutMode(e.target.checked)}
-                />
-                <span>Visible in out mode</span>
-              </label>
-            </div>
+            <fieldset className="category-multi mode-visibility-compact">
+              <legend>Show in</legend>
+              <div className="mode-visibility-options">
+                <label
+                  className={`mode-chip${visibleInWorkMode ? ' selected' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={visibleInWorkMode}
+                    onChange={(e) => setVisibleInWorkMode(e.target.checked)}
+                  />
+                  <BriefcaseIcon />
+                  <span>Work</span>
+                </label>
+                <label
+                  className={`mode-chip${visibleInHomeMode ? ' selected' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={visibleInHomeMode}
+                    onChange={(e) => setVisibleInHomeMode(e.target.checked)}
+                  />
+                  <HomeIcon />
+                  <span>Home</span>
+                </label>
+                <label
+                  className={`mode-chip${visibleInOutMode ? ' selected' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={visibleInOutMode}
+                    onChange={(e) => setVisibleInOutMode(e.target.checked)}
+                  />
+                  <CarIcon />
+                  <span>Out</span>
+                </label>
+              </div>
+            </fieldset>
 
             {addError ? <p className="error-text">{addError}</p> : null}
 
