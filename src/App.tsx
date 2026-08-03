@@ -399,6 +399,7 @@ export default function App() {
 
   const formId = useId()
   const titleInputRef = useRef<HTMLInputElement>(null)
+  const dayPickerRef = useRef<HTMLInputElement>(null)
   const swipeRef = useRef<{
     x: number
     y: number
@@ -1663,6 +1664,29 @@ export default function App() {
     setSwipeOffset(0)
   }
 
+  function jumpToDay(dateKey: string) {
+    const trimmed = dateKey.trim()
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed) || trimmed === viewKey) return
+    setDayAnim(trimmed > viewKey ? 'from-right' : 'from-left')
+    setViewDate(parseDateKey(trimmed))
+    setSwipeOffset(0)
+  }
+
+  function openDayPicker() {
+    const input = dayPickerRef.current
+    if (!input) return
+    try {
+      if (typeof input.showPicker === 'function') {
+        input.showPicker()
+        return
+      }
+    } catch {
+      // Some browsers require a direct user gesture for showPicker.
+    }
+    input.focus()
+    input.click()
+  }
+
   function isInteractiveTarget(target: EventTarget | null): boolean {
     if (!(target instanceof Element)) return false
     return Boolean(
@@ -2030,7 +2054,25 @@ export default function App() {
                 ‹
               </button>
               <div className="day-label-row">
-                <p className="day-label">{formatDayHeading(viewDate, todayKey)}</p>
+                <div className="day-picker">
+                  <button
+                    type="button"
+                    className="day-label day-label-btn"
+                    aria-label={`Pick a day, currently ${formatDayHeading(viewDate, todayKey)}`}
+                    onClick={openDayPicker}
+                  >
+                    {formatDayHeading(viewDate, todayKey)}
+                  </button>
+                  <input
+                    ref={dayPickerRef}
+                    type="date"
+                    className="day-picker-input"
+                    value={viewKey}
+                    onChange={(e) => jumpToDay(e.target.value)}
+                    tabIndex={-1}
+                    aria-hidden="true"
+                  />
+                </div>
                 <div className="mode-btns">
                   <button
                     type="button"
