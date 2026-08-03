@@ -22,9 +22,11 @@ function normalizeCategories(raw: unknown): Category[] | null {
   const cats: Category[] = []
   for (const item of raw) {
     if (!item || typeof item !== 'object') continue
-    const c = item as { id?: unknown; name?: unknown }
+    const c = item as { id?: unknown; name?: unknown; attention?: unknown }
     if (typeof c.id !== 'string' || typeof c.name !== 'string') continue
-    cats.push({ id: c.id, name: c.name })
+    const cat: Category = { id: c.id, name: c.name }
+    if (c.attention === true) cat.attention = true
+    cats.push(cat)
   }
   return cats.length > 0 ? cats : null
 }
