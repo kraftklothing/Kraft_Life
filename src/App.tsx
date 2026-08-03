@@ -27,6 +27,9 @@ import {
 } from './taskLogic'
 import { goalProgressedOnDate } from './goalLogic'
 import CategorySettingsPanel from './CategorySettingsPanel'
+import TaskNotesPanel, {
+  TaskDescriptionPreview,
+} from './TaskNotesPanel'
 import {
   REPETITION_LABELS,
   WEEKDAY_OPTIONS,
@@ -351,6 +354,8 @@ export default function App() {
   const [addError, setAddError] = useState('')
   const [addOpen, setAddOpen] = useState(false)
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
+  const [notesTaskId, setNotesTaskId] = useState<string | null>(null)
+  const [notesDraft, setNotesDraft] = useState('')
   const [mainView, setMainView] = useState<MainView>('tasks')
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [activeGoalId, setActiveGoalId] = useState<string | null>(null)
@@ -451,6 +456,9 @@ export default function App() {
   const workModeOn = state.workMode
   const homeModeOn = state.homeMode
   const outModeOn = state.outMode
+  const notesTask = notesTaskId
+    ? state.tasks.find((task) => task.id === notesTaskId) ?? null
+    : null
 
   useEffect(() => {
     saveState(state)
@@ -831,6 +839,7 @@ export default function App() {
     const task: Task = {
       id: uid('task'),
       title: trimmed,
+      description: '',
       categoryIds: selectedCategories,
       repetition,
       customRepeat,
@@ -900,6 +909,7 @@ export default function App() {
   }
 
   function openEditComposer(task: Task) {
+    closeTaskNotes()
     setMainView('tasks')
     setEditingTaskId(task.id)
     setTitle(task.title)
@@ -914,6 +924,28 @@ export default function App() {
     setAddError('')
     setAddOpen(true)
     window.setTimeout(() => titleInputRef.current?.focus(), 80)
+  }
+
+  function openTaskNotes(task: Task) {
+    setNotesTaskId(task.id)
+    setNotesDraft(task.description ?? '')
+  }
+
+  function closeTaskNotes() {
+    setNotesTaskId(null)
+    setNotesDraft('')
+  }
+
+  function saveTaskNotes() {
+    if (!notesTaskId) return
+    const description = notesDraft.replace(/\s+$/g, '')
+    updateState((prev) => ({
+      ...prev,
+      tasks: prev.tasks.map((task) =>
+        task.id === notesTaskId ? { ...task, description } : task,
+      ),
+    }))
+    closeTaskNotes()
   }
 
   function closeAddComposer() {
@@ -2214,8 +2246,16 @@ export default function App() {
                               >
                                 <CheckIcon />
                               </button>
-                              <div className="task-body">
+                              <button
+                                type="button"
+                                className="task-main-btn"
+                                aria-label={`Notes for ${task.title}`}
+                                onClick={() => openTaskNotes(task)}
+                              >
                                 <p className="task-title">{task.title}</p>
+                                <TaskDescriptionPreview
+                                  text={task.description ?? ''}
+                                />
                                 {showAllTimeCount ? (
                                   <div className="badges">
                                     <span
@@ -2226,7 +2266,7 @@ export default function App() {
                                     </span>
                                   </div>
                                 ) : null}
-                              </div>
+                              </button>
                               <div className="task-actions">
                                 <button
                                   type="button"
@@ -2852,6 +2892,16 @@ export default function App() {
           )}
         </section>
       )}
+
+      {notesTask ? (
+        <TaskNotesPanel
+          title={notesTask.title}
+          description={notesDraft}
+          onDescriptionChange={setNotesDraft}
+          onClose={closeTaskNotes}
+          onSave={saveTaskNotes}
+        />
+      ) : null}
 
       {spendConfirmReward ? (
         <div
