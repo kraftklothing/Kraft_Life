@@ -90,6 +90,25 @@ button {
   animation: rise-in 0.45s ease both;
 }
 
+.top-bar-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.brand-mini {
+  margin: 0;
+  font-family: var(--font-brand);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
 .stat-chip,
 .dollar-chip {
   border: 1px solid var(--line);
@@ -132,7 +151,7 @@ button {
 
 .brand-block {
   text-align: center;
-  padding: 4px 8px 0;
+  padding: 2px 8px 0;
   animation: rise-in 0.45s ease both;
 }
 
@@ -144,6 +163,35 @@ button {
   letter-spacing: -0.02em;
   color: var(--accent);
   line-height: 1.05;
+}
+
+.day-hero-btn {
+  border: none;
+  background: transparent;
+  padding: 8px 16px;
+  min-height: 52px;
+  border-radius: 16px;
+  cursor: pointer;
+  color: var(--accent);
+  font: inherit;
+  font-family: var(--font-brand);
+  font-size: clamp(2rem, 8vw, 2.7rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  text-decoration: underline;
+  text-decoration-color: rgba(154, 74, 36, 0.28);
+  text-underline-offset: 0.12em;
+  transition: background 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+.day-hero-btn:active {
+  background: var(--accent-wash);
+  text-decoration-color: var(--accent);
+}
+
+.day-modes-only {
+  justify-content: center;
 }
 
 .day-pane {

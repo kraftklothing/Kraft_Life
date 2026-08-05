@@ -948,12 +948,10 @@ export default function App() {
     }
 
     updateState((prev) => ({ ...prev, tasks: [...prev.tasks, task] }))
-    if (dayKey !== viewKey) {
-      setViewDate(parsedDay)
-    }
+    // Stay on the day you're viewing — don't jump when adding for another day.
     resetComposerFields()
     setAddOpen(false)
-    setToast('Task added')
+    setToast(dayKey !== viewKey ? 'Task added for that day' : 'Task added')
   }
 
   function goToView(view: MainView) {
@@ -2092,41 +2090,42 @@ export default function App() {
   return (
     <div className={`app${vacationOn ? ' vacation-day' : ''}`}>
       <header className="top-bar">
-        {mainView === 'tasks' ? (
-          <button
-            type="button"
-            className="stat-chip"
-            onClick={() =>
-              updateState((prev) => ({
-                ...prev,
-                showPercent: !prev.showPercent,
-              }))
-            }
-            aria-label={
-              state.showPercent
-                ? 'Show completed and remaining counts'
-                : 'Show percent complete'
-            }
-          >
-            {state.showPercent
-              ? `${percent}% complete`
-              : `${completedCount} done · ${remainingCount} left`}
-          </button>
-        ) : mainView === 'projects' ? (
-          <span className="stat-chip stat-chip-static">
-            {sortedProjects.length === 1
-              ? '1 project on the go'
-              : `${sortedProjects.length} projects on the go`}
-          </span>
-        ) : mainView === 'goals' ? (
-          <span className="stat-chip stat-chip-static">
-            {sortedGoals.length === 1
-              ? '1 goal on the go'
-              : `${sortedGoals.length} goals on the go`}
-          </span>
-        ) : (
-          <span className="stat-chip-spacer" aria-hidden="true" />
-        )}
+        <div className="top-bar-left">
+          <p className="brand-mini">Kraft Life</p>
+          {mainView === 'tasks' ? (
+            <button
+              type="button"
+              className="stat-chip"
+              onClick={() =>
+                updateState((prev) => ({
+                  ...prev,
+                  showPercent: !prev.showPercent,
+                }))
+              }
+              aria-label={
+                state.showPercent
+                  ? 'Show completed and remaining counts'
+                  : 'Show percent complete'
+              }
+            >
+              {state.showPercent
+                ? `${percent}% complete`
+                : `${completedCount} done · ${remainingCount} left`}
+            </button>
+          ) : mainView === 'projects' ? (
+            <span className="stat-chip stat-chip-static">
+              {sortedProjects.length === 1
+                ? '1 project on the go'
+                : `${sortedProjects.length} projects on the go`}
+            </span>
+          ) : mainView === 'goals' ? (
+            <span className="stat-chip stat-chip-static">
+              {sortedGoals.length === 1
+                ? '1 goal on the go'
+                : `${sortedGoals.length} goals on the go`}
+            </span>
+          ) : null}
+        </div>
         <button
           type="button"
           className="dollar-chip"
@@ -2137,9 +2136,20 @@ export default function App() {
         </button>
       </header>
 
-      <div className="brand-block">
-        <h1 className="brand">Kraft Life</h1>
-      </div>
+      {mainView === 'tasks' ? (
+        <div className="brand-block">
+          <button
+            type="button"
+            className="brand day-hero-btn"
+            aria-label={`Pick a day, currently ${formatDayHeading(viewDate, todayKey)}`}
+            aria-haspopup="dialog"
+            aria-expanded={dayPickerOpen}
+            onClick={openDayPicker}
+          >
+            {formatDayHeading(viewDate, todayKey)}
+          </button>
+        </div>
+      ) : null}
 
       {mainView === 'tasks' && (
         <section
@@ -2174,19 +2184,7 @@ export default function App() {
               >
                 ‹
               </button>
-              <div className="day-label-row">
-                <div className="day-picker">
-                  <button
-                    type="button"
-                    className="day-label day-label-btn"
-                    aria-label={`Pick a day, currently ${formatDayHeading(viewDate, todayKey)}`}
-                    aria-haspopup="dialog"
-                    aria-expanded={dayPickerOpen}
-                    onClick={openDayPicker}
-                  >
-                    {formatDayHeading(viewDate, todayKey)}
-                  </button>
-                </div>
+              <div className="day-label-row day-modes-only">
                 <div className="mode-btns">
                   <button
                     type="button"
