@@ -21,6 +21,7 @@ import {
   nextOccurrence,
   occurrenceForDate,
   sortTasksForDay,
+  taskIsHighPriority,
   taskVisibleOnDate,
   taskVisibleInVacationMode,
   taskVisibleInWorkMode,
@@ -29,6 +30,7 @@ import {
 } from './taskLogic'
 import { goalProgressedOnDate } from './goalLogic'
 import CategorySettingsPanel from './CategorySettingsPanel'
+import DayPickerSheet from './DayPickerSheet'
 import TaskNotesPanel, {
   TaskDescriptionPreview,
 } from './TaskNotesPanel'
@@ -373,6 +375,7 @@ export default function App() {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [notesTaskId, setNotesTaskId] = useState<string | null>(null)
   const [notesDraft, setNotesDraft] = useState('')
+  const [dayPickerOpen, setDayPickerOpen] = useState(false)
   const [mainView, setMainView] = useState<MainView>('tasks')
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [activeGoalId, setActiveGoalId] = useState<string | null>(null)
@@ -422,7 +425,6 @@ export default function App() {
 
   const formId = useId()
   const titleInputRef = useRef<HTMLInputElement>(null)
-  const dayPickerRef = useRef<HTMLInputElement>(null)
   const swipeRef = useRef<{
     x: number
     y: number
@@ -895,6 +897,8 @@ export default function App() {
       repetition === 'weekdays'
 
     if (editingTaskId) {
+      const original = state.tasks.find((task) => task.id === editingTaskId)
+      const dayChanged = Boolean(original && original.startDate !== dayKey)
       updateState((prev) => ({
         ...prev,
         tasks: prev.tasks.map((task) =>
@@ -913,12 +917,10 @@ export default function App() {
             : task,
         ),
       }))
-      if (dayKey !== viewKey) {
-        setViewDate(parsedDay)
-      }
+      // Stay on the day you're viewing — don't jump to the task's start date.
       resetComposerFields()
       setAddOpen(false)
-      setToast(dayKey !== viewKey ? 'Task moved' : 'Task updated')
+      setToast(dayChanged ? 'Task moved' : 'Task updated')
       return
     }
 
@@ -946,12 +948,10 @@ export default function App() {
     }
 
     updateState((prev) => ({ ...prev, tasks: [...prev.tasks, task] }))
-    if (dayKey !== viewKey) {
-      setViewDate(parsedDay)
-    }
+    // Stay on the day you're viewing — don't jump when adding for another day.
     resetComposerFields()
     setAddOpen(false)
-    setToast('Task added')
+    setToast(dayKey !== viewKey ? 'Task added for that day' : 'Task added')
   }
 
   function goToView(view: MainView) {
@@ -1793,25 +1793,17 @@ export default function App() {
 
   function jumpToDay(dateKey: string) {
     const trimmed = dateKey.trim()
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed) || trimmed === viewKey) return
-    setDayAnim(trimmed > viewKey ? 'from-right' : 'from-left')
-    setViewDate(parseDateKey(trimmed))
-    setSwipeOffset(0)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return
+    if (trimmed !== viewKey) {
+      setDayAnim(trimmed > viewKey ? 'from-right' : 'from-left')
+      setViewDate(parseDateKey(trimmed))
+      setSwipeOffset(0)
+    }
+    setDayPickerOpen(false)
   }
 
   function openDayPicker() {
-    const input = dayPickerRef.current
-    if (!input) return
-    try {
-      if (typeof input.showPicker === 'function') {
-        input.showPicker()
-        return
-      }
-    } catch {
-      // Some browsers require a direct user gesture for showPicker.
-    }
-    input.focus()
-    input.click()
+    setDayPickerOpen(true)
   }
 
   function isInteractiveTarget(target: EventTarget | null): boolean {
@@ -2098,41 +2090,42 @@ export default function App() {
   return (
     <div className={`app${vacationOn ? ' vacation-day' : ''}`}>
       <header className="top-bar">
-        {mainView === 'tasks' ? (
-          <button
-            type="button"
-            className="stat-chip"
-            onClick={() =>
-              updateState((prev) => ({
-                ...prev,
-                showPercent: !prev.showPercent,
-              }))
-            }
-            aria-label={
-              state.showPercent
-                ? 'Show completed and remaining counts'
-                : 'Show percent complete'
-            }
-          >
-            {state.showPercent
-              ? `${percent}% complete`
-              : `${completedCount} done · ${remainingCount} left`}
-          </button>
-        ) : mainView === 'projects' ? (
-          <span className="stat-chip stat-chip-static">
-            {sortedProjects.length === 1
-              ? '1 project on the go'
-              : `${sortedProjects.length} projects on the go`}
-          </span>
-        ) : mainView === 'goals' ? (
-          <span className="stat-chip stat-chip-static">
-            {sortedGoals.length === 1
-              ? '1 goal on the go'
-              : `${sortedGoals.length} goals on the go`}
-          </span>
-        ) : (
-          <span className="stat-chip-spacer" aria-hidden="true" />
-        )}
+        <div className="top-bar-left">
+          <p className="brand-mini">Kraft Life</p>
+          {mainView === 'tasks' ? (
+            <button
+              type="button"
+              className="stat-chip"
+              onClick={() =>
+                updateState((prev) => ({
+                  ...prev,
+                  showPercent: !prev.showPercent,
+                }))
+              }
+              aria-label={
+                state.showPercent
+                  ? 'Show completed and remaining counts'
+                  : 'Show percent complete'
+              }
+            >
+              {state.showPercent
+                ? `${percent}% complete`
+                : `${completedCount} done · ${remainingCount} left`}
+            </button>
+          ) : mainView === 'projects' ? (
+            <span className="stat-chip stat-chip-static">
+              {sortedProjects.length === 1
+                ? '1 project on the go'
+                : `${sortedProjects.length} projects on the go`}
+            </span>
+          ) : mainView === 'goals' ? (
+            <span className="stat-chip stat-chip-static">
+              {sortedGoals.length === 1
+                ? '1 goal on the go'
+                : `${sortedGoals.length} goals on the go`}
+            </span>
+          ) : null}
+        </div>
         <button
           type="button"
           className="dollar-chip"
@@ -2143,9 +2136,20 @@ export default function App() {
         </button>
       </header>
 
-      <div className="brand-block">
-        <h1 className="brand">Kraft Life</h1>
-      </div>
+      {mainView === 'tasks' ? (
+        <div className="brand-block">
+          <button
+            type="button"
+            className="brand day-hero-btn"
+            aria-label={`Pick a day, currently ${formatDayHeading(viewDate, todayKey)}`}
+            aria-haspopup="dialog"
+            aria-expanded={dayPickerOpen}
+            onClick={openDayPicker}
+          >
+            {formatDayHeading(viewDate, todayKey)}
+          </button>
+        </div>
+      ) : null}
 
       {mainView === 'tasks' && (
         <section
@@ -2180,26 +2184,7 @@ export default function App() {
               >
                 ‹
               </button>
-              <div className="day-label-row">
-                <div className="day-picker">
-                  <button
-                    type="button"
-                    className="day-label day-label-btn"
-                    aria-label={`Pick a day, currently ${formatDayHeading(viewDate, todayKey)}`}
-                    onClick={openDayPicker}
-                  >
-                    {formatDayHeading(viewDate, todayKey)}
-                  </button>
-                  <input
-                    ref={dayPickerRef}
-                    type="date"
-                    className="day-picker-input"
-                    value={viewKey}
-                    onChange={(e) => jumpToDay(e.target.value)}
-                    tabIndex={-1}
-                    aria-hidden="true"
-                  />
-                </div>
+              <div className="day-label-row day-modes-only">
                 <div className="mode-btns">
                   <button
                     type="button"
@@ -2319,6 +2304,10 @@ export default function App() {
                           const allTimeCount = showAllTimeCount
                             ? allTimeCompletionCount(task)
                             : 0
+                          const highPriority = taskIsHighPriority(
+                            task,
+                            state.taskCategories,
+                          )
                           return (
                             <li
                               key={task.id}
@@ -2326,7 +2315,9 @@ export default function App() {
                                 done ? ' completed' : ''
                               }${calendarTask ? ' calendar-task' : ''}${
                                 draggingId === task.id ? ' dragging' : ''
-                              }${vacationOn ? ' vacation' : ''}`}
+                              }${vacationOn ? ' vacation' : ''}${
+                                highPriority ? ' high-priority' : ''
+                              }`}
                             >
                               {calendarTask ? (
                                 <span className="calendar-task-marker" aria-hidden="true">
@@ -3006,6 +2997,15 @@ export default function App() {
           )}
         </section>
       )}
+
+      {dayPickerOpen ? (
+        <DayPickerSheet
+          selectedKey={viewKey}
+          todayKey={todayKey}
+          onSelect={jumpToDay}
+          onClose={() => setDayPickerOpen(false)}
+        />
+      ) : null}
 
       {notesTask ? (
         <TaskNotesPanel
