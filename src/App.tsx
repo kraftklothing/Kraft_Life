@@ -31,6 +31,7 @@ import {
 } from './taskLogic'
 import { goalProgressedOnDate } from './goalLogic'
 import CategorySettingsPanel from './CategorySettingsPanel'
+import DayPickerSheet from './DayPickerSheet'
 import TaskNotesPanel, {
   TaskDescriptionPreview,
 } from './TaskNotesPanel'
@@ -374,6 +375,7 @@ export default function App() {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [notesTaskId, setNotesTaskId] = useState<string | null>(null)
   const [notesDraft, setNotesDraft] = useState('')
+  const [dayPickerOpen, setDayPickerOpen] = useState(false)
   const [mainView, setMainView] = useState<MainView>('tasks')
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [activeGoalId, setActiveGoalId] = useState<string | null>(null)
@@ -424,7 +426,6 @@ export default function App() {
 
   const formId = useId()
   const titleInputRef = useRef<HTMLInputElement>(null)
-  const dayPickerRef = useRef<HTMLInputElement>(null)
   const swipeRef = useRef<{
     x: number
     y: number
@@ -1782,25 +1783,17 @@ export default function App() {
 
   function jumpToDay(dateKey: string) {
     const trimmed = dateKey.trim()
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed) || trimmed === viewKey) return
-    setDayAnim(trimmed > viewKey ? 'from-right' : 'from-left')
-    setViewDate(parseDateKey(trimmed))
-    setSwipeOffset(0)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return
+    if (trimmed !== viewKey) {
+      setDayAnim(trimmed > viewKey ? 'from-right' : 'from-left')
+      setViewDate(parseDateKey(trimmed))
+      setSwipeOffset(0)
+    }
+    setDayPickerOpen(false)
   }
 
   function openDayPicker() {
-    const input = dayPickerRef.current
-    if (!input) return
-    try {
-      if (typeof input.showPicker === 'function') {
-        input.showPicker()
-        return
-      }
-    } catch {
-      // Some browsers require a direct user gesture for showPicker.
-    }
-    input.focus()
-    input.click()
+    setDayPickerOpen(true)
   }
 
   function isInteractiveTarget(target: EventTarget | null): boolean {
@@ -2175,19 +2168,12 @@ export default function App() {
                     type="button"
                     className="day-label day-label-btn"
                     aria-label={`Pick a day, currently ${formatDayHeading(viewDate, todayKey)}`}
+                    aria-haspopup="dialog"
+                    aria-expanded={dayPickerOpen}
                     onClick={openDayPicker}
                   >
                     {formatDayHeading(viewDate, todayKey)}
                   </button>
-                  <input
-                    ref={dayPickerRef}
-                    type="date"
-                    className="day-picker-input"
-                    value={viewKey}
-                    onChange={(e) => jumpToDay(e.target.value)}
-                    tabIndex={-1}
-                    aria-hidden="true"
-                  />
                 </div>
                 <div className="mode-btns">
                   <button
@@ -3000,6 +2986,15 @@ export default function App() {
           )}
         </section>
       )}
+
+      {dayPickerOpen ? (
+        <DayPickerSheet
+          selectedKey={viewKey}
+          todayKey={todayKey}
+          onSelect={jumpToDay}
+          onClose={() => setDayPickerOpen(false)}
+        />
+      ) : null}
 
       {notesTask ? (
         <TaskNotesPanel
