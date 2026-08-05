@@ -1468,39 +1468,39 @@ form.add-panel select {
 }
 
 .task-item.high-priority {
-  background: var(--high-priority-wash);
-  border-color: var(--high-priority-border);
-  box-shadow: 0 8px 20px rgba(198, 40, 40, 0.12);
+  background: rgba(198, 40, 40, 0.22);
+  border-color: rgba(198, 40, 40, 0.55);
+  box-shadow: 0 8px 20px rgba(198, 40, 40, 0.16);
 }
 
 .task-item.high-priority .task-title {
-  color: var(--high-priority);
+  color: #9b1c1c;
 }
 
 .task-item.high-priority .badge {
-  background: rgba(198, 40, 40, 0.14);
-  color: var(--high-priority);
+  background: rgba(198, 40, 40, 0.18);
+  color: #9b1c1c;
 }
 
 .task-item.high-priority .check {
-  border-color: var(--high-priority);
+  border-color: #c62828;
 }
 
 .task-item.high-priority.completed .check {
-  background: var(--high-priority);
-  border-color: var(--high-priority);
+  background: #c62828;
+  border-color: #c62828;
   color: #fff;
 }
 
 .task-item.high-priority .edit-btn,
 .task-item.high-priority .drag-handle {
-  background: rgba(198, 40, 40, 0.12);
-  color: var(--high-priority);
+  background: rgba(198, 40, 40, 0.18);
+  color: #c62828;
 }
 
 .task-item.high-priority.vacation {
-  background: rgba(198, 40, 40, 0.08);
-  border-color: rgba(198, 40, 40, 0.28);
+  background: rgba(198, 40, 40, 0.12);
+  border-color: rgba(198, 40, 40, 0.35);
 }
 
 .task-actions {
