@@ -11,7 +11,10 @@ import { addDays, formatDayHeading, parseDateKey, toDateKey } from './dates'
 import { appendLedgerEntry, loadState, normalizeState, saveState } from './storage'
 import { useCloudSync } from './CloudSyncProvider'
 import CloudSyncSettings from './CloudSyncSettings'
+import CalendarSettings from './CalendarSettings'
 import SettingsSection from './SettingsSection'
+import { fetchCalendarEvents, type CalendarEventItem } from './calendarApi'
+import { getConnectedCalendars } from './calendarSession'
 import {
   allTimeCompletionCount,
   isCompletedForDateView,
@@ -174,6 +177,11 @@ function TargetIcon() {
 type MainView = 'tasks' | 'projects' | 'goals' | 'timer' | 'rewards' | 'settings'
 
 const COMPLETED_GROUP_ID = '__completed__'
+const CALENDAR_GROUP_ID = '__calendar__'
+
+function isCalendarTask(taskId: string): boolean {
+  return taskId.startsWith('calendar:')
+}
 
 function PlaneIcon() {
   return (
@@ -310,6 +318,15 @@ function NavClockIcon() {
   )
 }
 
+function CalendarIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="4" y="5" width="16" height="15" rx="2" stroke="currentColor" strokeWidth="2" />
+      <path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg
@@ -380,6 +397,8 @@ export default function App() {
   const [balanceDraft, setBalanceDraft] = useState('')
   const [ledgerOpen, setLedgerOpen] = useState(false)
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEventItem[]>([])
+  const [calendarConnectionVersion, setCalendarConnectionVersion] = useState(0)
   const [collapsedTaskCategoryIds, setCollapsedTaskCategoryIds] = useState<
     string[]
   >([COMPLETED_GROUP_ID])
@@ -609,6 +628,68 @@ export default function App() {
     }
     return groups
   }, [dayTasks, state.taskCategories, viewKey])
+
+  useEffect(() => {
+    const calendars = getConnectedCalendars()
+    if (calendars.length === 0) {
+      setCalendarEvents([])
+      return
+    }
+
+    let cancelled = false
+    void fetchCalendarEvents(
+      calendars.map((calendar) => calendar.icsUrl),
+      viewKey,
+    )
+      .then((events) => {
+        if (!cancelled) setCalendarEvents(events)
+      })
+      .catch(() => {
+        if (!cancelled) setCalendarEvents([])
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [viewKey, calendarConnectionVersion])
+
+  const groupedDayView = useMemo(() => {
+    if (calendarEvents.length === 0) return groupedDayTasks
+
+    const calendarTasks: Task[] = calendarEvents.map((event, index) => ({
+      id: `calendar:${event.id}`,
+      title: `${event.timeLabel} · ${event.title}`,
+      description: '',
+      categoryIds: [CALENDAR_GROUP_ID],
+      repetition: 'none',
+      startDate: viewKey,
+      completions: {},
+      visibleInWorkMode: true,
+      visibleInHomeMode: true,
+      visibleInOutMode: true,
+      order: index,
+      createdAt: 0,
+    }))
+
+    const withoutCompleted = groupedDayTasks.filter(
+      (group) => group.id !== COMPLETED_GROUP_ID,
+    )
+    const completedGroup = groupedDayTasks.find(
+      (group) => group.id === COMPLETED_GROUP_ID,
+    )
+
+    return [
+      {
+        id: CALENDAR_GROUP_ID,
+        name: 'Calendar',
+        tasks: calendarTasks,
+      },
+      ...withoutCompleted,
+      ...(completedGroup ? [completedGroup] : []),
+    ]
+  }, [calendarEvents, groupedDayTasks, viewKey])
+
+  const hasDayContent = dayTasks.length > 0 || calendarEvents.length > 0
 
   const completedCount = dayTasks.filter((t) =>
     isCompletedForDateView(t, viewKey),
@@ -910,6 +991,7 @@ export default function App() {
   }
 
   function openEditComposer(task: Task) {
+    if (isCalendarTask(task.id)) return
     closeTaskNotes()
     setMainView('tasks')
     setEditingTaskId(task.id)
@@ -969,6 +1051,7 @@ export default function App() {
   }
 
   function toggleComplete(taskId: string) {
+    if (isCalendarTask(taskId)) return
     updateState((prev) => {
       let dollars = prev.dollars
       let dollarLedger = prev.dollarLedger
@@ -2172,17 +2255,9 @@ export default function App() {
           {homeModeOn ? <p className="work-banner">Home mode</p> : null}
           {outModeOn ? <p className="work-banner">Out mode</p> : null}
 
-          {dayTasks.length === 0 ? (
-            <div className="panel empty">
-              <h2>Nothing listed yet</h2>
-              <p>
-                Tap the plus at the bottom to add what you want to finish{' '}
-                {viewKey === todayKey ? 'today' : 'this day'}.
-              </p>
-            </div>
-          ) : (
+          {hasDayContent ? (
             <div className="task-groups">
-              {groupedDayTasks.map((group, groupIndex) => {
+              {groupedDayView.map((group, groupIndex) => {
                 const collapsed = collapsedTaskCategoryIds.includes(group.id)
                 const attention = group.attention === true
                 return (
@@ -2223,8 +2298,12 @@ export default function App() {
                     {collapsed ? null : (
                       <ul className="task-list">
                         {group.tasks.map((task) => {
-                          const done = isCompletedForDateView(task, viewKey)
-                          const showAllTimeCount = task.repetition !== 'none'
+                          const calendarTask = isCalendarTask(task.id)
+                          const done = calendarTask
+                            ? false
+                            : isCompletedForDateView(task, viewKey)
+                          const showAllTimeCount =
+                            !calendarTask && task.repetition !== 'none'
                           const allTimeCount = showAllTimeCount
                             ? allTimeCompletionCount(task)
                             : 0
@@ -2237,68 +2316,84 @@ export default function App() {
                               key={task.id}
                               className={`task-item compact${
                                 done ? ' completed' : ''
-                              }${draggingId === task.id ? ' dragging' : ''}${
-                                vacationOn ? ' vacation' : ''
-                              }${highPriority ? ' high-priority' : ''}`}
+                              }${calendarTask ? ' calendar-task' : ''}${
+                                draggingId === task.id ? ' dragging' : ''
+                              }${vacationOn ? ' vacation' : ''}${
+                                highPriority ? ' high-priority' : ''
+                              }`}
                             >
-                              <button
-                                type="button"
-                                className="check"
-                                aria-label={
-                                  done ? 'Mark incomplete' : 'Mark complete'
-                                }
-                                onClick={() => toggleComplete(task.id)}
-                              >
-                                <CheckIcon />
-                              </button>
-                              <button
-                                type="button"
-                                className="task-main-btn"
-                                aria-label={`Notes for ${task.title}`}
-                                onClick={() => openTaskNotes(task)}
-                              >
-                                <p className="task-title">{task.title}</p>
-                                <TaskDescriptionPreview
-                                  text={task.description ?? ''}
-                                />
-                                {showAllTimeCount ? (
-                                  <div className="badges">
-                                    <span
-                                      className="badge"
-                                      aria-label={`Alltime count: ${allTimeCount}`}
-                                    >
-                                      Alltime count: {allTimeCount}
-                                    </span>
-                                  </div>
-                                ) : null}
-                              </button>
-                              <div className="task-actions">
+                              {calendarTask ? (
+                                <span className="calendar-task-marker" aria-hidden="true">
+                                  <CalendarIcon />
+                                </span>
+                              ) : (
                                 <button
                                   type="button"
-                                  className="edit-btn"
-                                  aria-label="Edit task"
-                                  onClick={() => openEditComposer(task)}
+                                  className="check"
+                                  aria-label={
+                                    done ? 'Mark incomplete' : 'Mark complete'
+                                  }
+                                  onClick={() => toggleComplete(task.id)}
                                 >
-                                  <PencilIcon />
+                                  <CheckIcon />
                                 </button>
+                              )}
+                              {calendarTask ? (
+                                <div className="task-main-btn calendar-task-main">
+                                  <p className="task-title">{task.title}</p>
+                                </div>
+                              ) : (
                                 <button
                                   type="button"
-                                  className="drag-handle"
-                                  aria-label="Reorder task"
-                                  onPointerDown={(event) => {
-                                    event.preventDefault()
-                                    event.stopPropagation()
-                                    swipeRef.current = null
-                                    setSwipeOffset(0)
-                                    event.currentTarget.setPointerCapture?.(
-                                      event.pointerId,
-                                    )
-                                    beginDrag(task.id, event.clientY, group.id)
-                                  }}
+                                  className="task-main-btn"
+                                  aria-label={`Notes for ${task.title}`}
+                                  onClick={() => openTaskNotes(task)}
                                 >
-                                  <BarsIcon />
+                                  <p className="task-title">{task.title}</p>
+                                  <TaskDescriptionPreview
+                                    text={task.description ?? ''}
+                                  />
+                                  {showAllTimeCount ? (
+                                    <div className="badges">
+                                      <span
+                                        className="badge"
+                                        aria-label={`Alltime count: ${allTimeCount}`}
+                                      >
+                                        Alltime count: {allTimeCount}
+                                      </span>
+                                    </div>
+                                  ) : null}
                                 </button>
-                              </div>
+                              )}
+                              {calendarTask ? null : (
+                                <div className="task-actions">
+                                  <button
+                                    type="button"
+                                    className="edit-btn"
+                                    aria-label="Edit task"
+                                    onClick={() => openEditComposer(task)}
+                                  >
+                                    <PencilIcon />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="drag-handle"
+                                    aria-label="Reorder task"
+                                    onPointerDown={(event) => {
+                                      event.preventDefault()
+                                      event.stopPropagation()
+                                      swipeRef.current = null
+                                      setSwipeOffset(0)
+                                      event.currentTarget.setPointerCapture?.(
+                                        event.pointerId,
+                                      )
+                                      beginDrag(task.id, event.clientY, group.id)
+                                    }}
+                                  >
+                                    <BarsIcon />
+                                  </button>
+                                </div>
+                              )}
                             </li>
                           )
                         })}
@@ -2307,6 +2402,14 @@ export default function App() {
                   </section>
                 )
               })}
+            </div>
+          ) : (
+            <div className="panel empty">
+              <h2>Nothing listed yet</h2>
+              <p>
+                Tap the plus at the bottom to add what you want to finish{' '}
+                {viewKey === todayKey ? 'today' : 'this day'}.
+              </p>
             </div>
           )}
         </section>
@@ -2983,6 +3086,12 @@ export default function App() {
             </SettingsSection>
 
             <CloudSyncSettings state={state} onCloudStateLoaded={setState} />
+
+            <CalendarSettings
+              onConnectionChange={() =>
+                setCalendarConnectionVersion((version) => version + 1)
+              }
+            />
           </div>
         </section>
       )}
