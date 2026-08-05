@@ -14,7 +14,7 @@ import CloudSyncSettings from './CloudSyncSettings'
 import CalendarSettings from './CalendarSettings'
 import SettingsSection from './SettingsSection'
 import { fetchCalendarEvents, type CalendarEventItem } from './calendarApi'
-import { getCalendarIcsUrl } from './calendarSession'
+import { getConnectedCalendars } from './calendarSession'
 import {
   allTimeCompletionCount,
   isCompletedForDateView,
@@ -629,14 +629,17 @@ export default function App() {
   }, [dayTasks, state.taskCategories, viewKey])
 
   useEffect(() => {
-    const icsUrl = getCalendarIcsUrl()
-    if (!icsUrl) {
+    const calendars = getConnectedCalendars()
+    if (calendars.length === 0) {
       setCalendarEvents([])
       return
     }
 
     let cancelled = false
-    void fetchCalendarEvents(icsUrl, viewKey)
+    void fetchCalendarEvents(
+      calendars.map((calendar) => calendar.icsUrl),
+      viewKey,
+    )
       .then((events) => {
         if (!cancelled) setCalendarEvents(events)
       })
@@ -654,9 +657,7 @@ export default function App() {
 
     const calendarTasks: Task[] = calendarEvents.map((event, index) => ({
       id: `calendar:${event.id}`,
-      title: event.allDay
-        ? event.title
-        : `${event.timeLabel ?? ''} · ${event.title}`.replace(/^ · /, ''),
+      title: `${event.timeLabel} · ${event.title}`,
       description: '',
       categoryIds: [CALENDAR_GROUP_ID],
       repetition: 'none',

@@ -2,18 +2,19 @@ export interface CalendarEventItem {
   id: string
   title: string
   dateKey: string
-  timeLabel?: string
+  timeLabel: string
   allDay: boolean
+  calendarName?: string
 }
 
 export async function fetchCalendarEvents(
-  icsUrl: string,
+  icsUrls: string[],
   dateKey: string,
 ): Promise<CalendarEventItem[]> {
   const response = await fetch('/api/calendar-events', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ icsUrl, date: dateKey }),
+    body: JSON.stringify({ icsUrls, date: dateKey }),
   })
 
   const raw = await response.text()
