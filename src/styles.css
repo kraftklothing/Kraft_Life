@@ -1814,6 +1814,22 @@ form.add-panel select {
   color: #9aa7a3;
 }
 
+.task-group.attention .task-item.vacation {
+  background: linear-gradient(180deg, #ffe0d8 0%, #ffc9bd 100%);
+  border-color: rgba(209, 50, 10, 0.35);
+  box-shadow: 0 6px 18px rgba(209, 50, 10, 0.1);
+}
+
+.task-group.attention .task-item.vacation .task-title {
+  color: #9a3412;
+}
+
+.task-group.attention .task-item.vacation .edit-btn,
+.task-group.attention .task-item.vacation .drag-handle {
+  background: rgba(209, 50, 10, 0.14);
+  color: var(--attention);
+}
+
 .rewards-balance {
   margin: 0 0 8px;
   font-size: 1.05rem;
