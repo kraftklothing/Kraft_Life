@@ -3,13 +3,14 @@ import SettingsSection from './SettingsSection'
 import { fetchCalendarEvents } from './calendarApi'
 import {
   addConnectedCalendar,
-  getConnectedCalendars,
   removeConnectedCalendar,
-  type ConnectedCalendar,
 } from './calendarSession'
+import type { ConnectedCalendar } from './types'
 
 interface CalendarSettingsProps {
-  onConnectionChange: () => void
+  calendars: ConnectedCalendar[]
+  cloudSyncConnected: boolean
+  onCalendarsChange: (calendars: ConnectedCalendar[]) => void
 }
 
 function todayDateKey(): string {
@@ -17,20 +18,16 @@ function todayDateKey(): string {
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 }
 
-export default function CalendarSettings({ onConnectionChange }: CalendarSettingsProps) {
-  const [calendars, setCalendars] = useState<ConnectedCalendar[]>(() =>
-    getConnectedCalendars(),
-  )
+export default function CalendarSettings({
+  calendars,
+  cloudSyncConnected,
+  onCalendarsChange,
+}: CalendarSettingsProps) {
   const [name, setName] = useState('')
   const [icsUrl, setIcsUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
-
-  function refreshList() {
-    setCalendars(getConnectedCalendars())
-    onConnectionChange()
-  }
 
   async function handleAdd(event: FormEvent) {
     event.preventDefault()
@@ -46,15 +43,10 @@ export default function CalendarSettings({ onConnectionChange }: CalendarSetting
 
     setBusy(true)
     try {
-      const nextCalendars = [...getConnectedCalendars()]
-      if (nextCalendars.some((calendar) => calendar.icsUrl === trimmedUrl)) {
-        throw new Error('That calendar link is already connected.')
-      }
-
-      const testUrls = [...nextCalendars.map((calendar) => calendar.icsUrl), trimmedUrl]
+      const testUrls = [...calendars.map((calendar) => calendar.icsUrl), trimmedUrl]
       const events = await fetchCalendarEvents(testUrls, todayDateKey())
-      addConnectedCalendar(trimmedName || 'Calendar', trimmedUrl)
-      refreshList()
+      const nextCalendars = addConnectedCalendar(calendars, trimmedName || 'Calendar', trimmedUrl)
+      onCalendarsChange(nextCalendars)
       setName('')
       setIcsUrl('')
       setMessage(
@@ -70,8 +62,7 @@ export default function CalendarSettings({ onConnectionChange }: CalendarSetting
   }
 
   function handleRemove(id: string) {
-    removeConnectedCalendar(id)
-    refreshList()
+    onCalendarsChange(removeConnectedCalendar(calendars, id))
     setMessage('')
     setError('')
   }
@@ -82,6 +73,9 @@ export default function CalendarSettings({ onConnectionChange }: CalendarSetting
         Connect one or more Google calendars using their secret iCal links. Events
         show at the top of each day under <strong>Calendar</strong> in Mountain
         Time, like <strong>1:00–2:00pm</strong> or <strong>All day</strong>.
+        {cloudSyncConnected
+          ? ' Calendar links sync with cloud save — add them once on any device.'
+          : ' Connect cloud sync to use the same calendars on phone and computer.'}
       </p>
 
       {calendars.length > 0 ? (

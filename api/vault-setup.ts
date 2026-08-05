@@ -117,6 +117,7 @@ function defaultState() {
     showPercent: false,
     dollarLedger: [],
     pendingDeliveries: [],
+    connectedCalendars: [],
   }
 }
 

@@ -117,6 +117,12 @@ export interface FocusTimer {
   order: number
 }
 
+export interface ConnectedCalendar {
+  id: string
+  name: string
+  icsUrl: string
+}
+
 export interface AppState {
   tasks: Task[]
   taskCategories: Category[]
@@ -125,6 +131,8 @@ export interface AppState {
   projects: Project[]
   goals: Goal[]
   timers: FocusTimer[]
+  /** Google Calendar iCal links synced with cloud save. */
+  connectedCalendars: ConnectedCalendar[]
   /** Spent rewards that are not delivered yet. */
   pendingDeliveries: PendingDelivery[]
   /** Date keys (YYYY-MM-DD) with vacation mode on for that day only. */
