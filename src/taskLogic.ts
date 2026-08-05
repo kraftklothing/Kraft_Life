@@ -275,6 +275,23 @@ export function isVacationKeepCategoryName(name: string): boolean {
   return false
 }
 
+export function isHighPriorityCategoryName(name: string): boolean {
+  const n = name.trim().toLowerCase()
+  return n === 'high' || n === 'high priority' || n.startsWith('high ')
+}
+
+export function taskIsHighPriority(
+  task: Task,
+  categories: { id: string; name: string }[],
+): boolean {
+  if (task.categoryIds.length === 0) return false
+  const byId = new Map(categories.map((c) => [c.id, c]))
+  return task.categoryIds.some((id) => {
+    const cat = byId.get(id)
+    return cat ? isHighPriorityCategoryName(cat.name) : false
+  })
+}
+
 export function taskVisibleInVacationMode(
   task: Task,
   categories: { id: string; name: string }[],

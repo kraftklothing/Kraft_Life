@@ -19,6 +19,7 @@ import {
   nextOccurrence,
   occurrenceForDate,
   sortTasksForDay,
+  taskIsHighPriority,
   taskVisibleOnDate,
   taskVisibleInVacationMode,
   taskVisibleInWorkMode,
@@ -802,6 +803,8 @@ export default function App() {
       repetition === 'weekdays'
 
     if (editingTaskId) {
+      const original = state.tasks.find((task) => task.id === editingTaskId)
+      const dayChanged = Boolean(original && original.startDate !== dayKey)
       updateState((prev) => ({
         ...prev,
         tasks: prev.tasks.map((task) =>
@@ -820,12 +823,10 @@ export default function App() {
             : task,
         ),
       }))
-      if (dayKey !== viewKey) {
-        setViewDate(parsedDay)
-      }
+      // Stay on the day you're viewing — don't jump to the task's start date.
       resetComposerFields()
       setAddOpen(false)
-      setToast(dayKey !== viewKey ? 'Task moved' : 'Task updated')
+      setToast(dayChanged ? 'Task moved' : 'Task updated')
       return
     }
 
@@ -2227,6 +2228,10 @@ export default function App() {
                           const allTimeCount = showAllTimeCount
                             ? allTimeCompletionCount(task)
                             : 0
+                          const highPriority = taskIsHighPriority(
+                            task,
+                            state.taskCategories,
+                          )
                           return (
                             <li
                               key={task.id}
@@ -2234,7 +2239,7 @@ export default function App() {
                                 done ? ' completed' : ''
                               }${draggingId === task.id ? ' dragging' : ''}${
                                 vacationOn ? ' vacation' : ''
-                              }`}
+                              }${highPriority ? ' high-priority' : ''}`}
                             >
                               <button
                                 type="button"
