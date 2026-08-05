@@ -12,6 +12,8 @@
   --accent-wash: rgba(196, 92, 42, 0.14);
   --attention: #d1320a;
   --attention-wash: rgba(209, 50, 10, 0.16);
+  --calendar-accent: #b8860b;
+  --calendar-wash: rgba(184, 134, 11, 0.18);
   --handle: #b45309;
   --danger: #b23a3a;
   --shadow: 0 18px 40px rgba(58, 36, 24, 0.1);
@@ -1411,6 +1413,14 @@ form.add-panel select {
   line-height: 1.15;
 }
 
+.category-heading.calendar {
+  font-size: 1.48rem;
+  font-weight: 800;
+  color: var(--calendar-accent);
+  letter-spacing: -0.025em;
+  line-height: 1.15;
+}
+
 .category-heading-meta {
   display: inline-flex;
   align-items: center;
@@ -1426,12 +1436,22 @@ form.add-panel select {
   padding-bottom: 4px;
 }
 
+.task-group.calendar .category-heading-toggle {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
 .vacation-day .category-heading {
   color: #7a8683;
 }
 
 .vacation-day .category-heading.attention {
   color: #4f5f5b;
+  font-weight: 800;
+}
+
+.vacation-day .category-heading.calendar {
+  color: #8a7428;
   font-weight: 800;
 }
 
@@ -2164,8 +2184,8 @@ form.add-panel select {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: rgba(74, 124, 255, 0.12);
-  color: #4a7cff;
+  background: var(--calendar-wash);
+  color: var(--calendar-accent);
   display: grid;
   place-items: center;
   flex-shrink: 0;
