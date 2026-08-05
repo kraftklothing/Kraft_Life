@@ -8,8 +8,9 @@ type CalendarEventItem = {
   id: string
   title: string
   dateKey: string
-  timeLabel?: string
+  timeLabel: string
   allDay: boolean
+  calendarName?: string
 }
 
 type ParsedEvent = {
@@ -27,6 +28,7 @@ type MountainParts = {
   month: number
   day: number
   hour: number
+  minute: number
 }
 
 const mountainFormatter = new Intl.DateTimeFormat('en-US', {
@@ -49,6 +51,7 @@ function getMountainParts(date: Date): MountainParts {
     month: get('month'),
     day: get('day'),
     hour: get('hour'),
+    minute: get('minute'),
   }
 }
 
@@ -86,13 +89,55 @@ function mountainDayBounds(dateKey: string): { start: Date; end: Date } {
   return { start, end }
 }
 
-function formatTimeMountain(date: Date): string {
-  return date.toLocaleTimeString('en-US', {
-    timeZone: MOUNTAIN_TZ,
-    hour: 'numeric',
-    minute: '2-digit',
-    timeZoneName: 'short',
-  })
+function formatClock(date: Date): string {
+  const parts = getMountainParts(date)
+  const hour12 = parts.hour % 12 === 0 ? 12 : parts.hour % 12
+  const minute = String(parts.minute).padStart(2, '0')
+  const suffix = parts.hour >= 12 ? 'pm' : 'am'
+  return `${hour12}:${minute}${suffix}`
+}
+
+function formatTimeRange(start: Date, end: Date): string {
+  const startParts = getMountainParts(start)
+  const endParts = getMountainParts(end)
+  const startSuffix = startParts.hour >= 12 ? 'pm' : 'am'
+  const endSuffix = endParts.hour >= 12 ? 'pm' : 'am'
+  const startClock = formatClock(start)
+  const endClock = formatClock(end)
+
+  if (startClock === endClock) return startClock
+  if (startSuffix === endSuffix) {
+    const startHourMinute = startClock.replace(/(am|pm)$/, '')
+    return `${startHourMinute}–${endClock}`
+  }
+  return `${startClock}–${endClock}`
+}
+
+function eventDurationMs(event: ParsedEvent): number {
+  if (event.start && event.end) {
+    const duration = event.end.getTime() - event.start.getTime()
+    if (duration > 0) return duration
+  }
+  return 60 * 60 * 1000
+}
+
+function occurrenceEnd(event: ParsedEvent, occurrenceStart: Date): Date {
+  if (event.end && event.start && event.datetype !== 'date') {
+    return new Date(occurrenceStart.getTime() + eventDurationMs(event))
+  }
+  return new Date(occurrenceStart.getTime() + 60 * 60 * 1000)
+}
+
+function clipToMountainDay(
+  start: Date,
+  end: Date,
+  dateKey: string,
+): { start: Date; end: Date } {
+  const { start: dayStart, end: dayEnd } = mountainDayBounds(dateKey)
+  return {
+    start: start < dayStart ? dayStart : start,
+    end: end > dayEnd ? dayEnd : end,
+  }
 }
 
 function isAllowedIcsUrl(url: string): boolean {
@@ -111,6 +156,21 @@ function isAllowedIcsUrl(url: string): boolean {
 
 function isValidDateKey(key: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(key)
+}
+
+function normalizeIcsUrls(body: {
+  icsUrls?: unknown
+  icsUrl?: unknown
+}): string[] {
+  const urls: string[] = []
+  if (Array.isArray(body.icsUrls)) {
+    for (const value of body.icsUrls) {
+      if (typeof value === 'string' && value.trim()) urls.push(value.trim())
+    }
+  } else if (typeof body.icsUrl === 'string' && body.icsUrl.trim()) {
+    urls.push(body.icsUrl.trim())
+  }
+  return [...new Set(urls)]
 }
 
 function allDayEventOnDate(event: ParsedEvent, dateKey: string): boolean {
@@ -138,30 +198,47 @@ function timedEventOnDate(event: ParsedEvent, dateKey: string): boolean {
 function buildEventItem(
   event: ParsedEvent,
   dateKey: string,
+  sourceId: string,
   occurrenceStart?: Date,
 ): CalendarEventItem | null {
   const title = typeof event.summary === 'string' ? event.summary.trim() : ''
   if (!title) return null
 
   const uid = typeof event.uid === 'string' ? event.uid : 'event'
-  const start = occurrenceStart ?? event.start
-  if (!start) return null
+  const rawStart = occurrenceStart ?? event.start
+  if (!rawStart) return null
 
   const allDay = event.datetype === 'date'
+  const rawEnd = occurrenceStart
+    ? occurrenceEnd(event, occurrenceStart)
+    : event.end
+      ? new Date(event.end)
+      : occurrenceEnd(event, rawStart)
+
+  let timeLabel = 'All day'
+  if (!allDay) {
+    const clipped = clipToMountainDay(new Date(rawStart), rawEnd, dateKey)
+    timeLabel = formatTimeRange(clipped.start, clipped.end)
+  }
+
   const id = occurrenceStart
-    ? `${uid}-${occurrenceStart.getTime()}`
-    : `${uid}-${start.getTime()}`
+    ? `${sourceId}:${uid}-${occurrenceStart.getTime()}`
+    : `${sourceId}:${uid}-${rawStart.getTime()}`
 
   return {
     id,
     title,
     dateKey,
     allDay,
-    timeLabel: allDay ? undefined : formatTimeMountain(start),
+    timeLabel,
   }
 }
 
-function eventsForDate(events: ParsedEvent[], dateKey: string): CalendarEventItem[] {
+function eventsForDate(
+  events: ParsedEvent[],
+  dateKey: string,
+  sourceId: string,
+): CalendarEventItem[] {
   const { start: dayStart, end: dayEnd } = mountainDayBounds(dateKey)
   const items: CalendarEventItem[] = []
 
@@ -176,7 +253,7 @@ function eventsForDate(events: ParsedEvent[], dateKey: string): CalendarEventIte
         const occurrenceKey =
           event.datetype === 'date' ? utcDateKey(occurrence) : mountainDateKey(occurrence)
         if (occurrenceKey !== dateKey) continue
-        const item = buildEventItem(event, dateKey, occurrence)
+        const item = buildEventItem(event, dateKey, sourceId, occurrence)
         if (item) items.push(item)
       }
       continue
@@ -188,16 +265,18 @@ function eventsForDate(events: ParsedEvent[], dateKey: string): CalendarEventIte
       continue
     }
 
-    const item = buildEventItem(event, dateKey)
+    const item = buildEventItem(event, dateKey, sourceId)
     if (item) items.push(item)
   }
 
-  items.sort((a, b) => {
-    if (a.allDay !== b.allDay) return a.allDay ? -1 : 1
-    return (a.timeLabel ?? '').localeCompare(b.timeLabel ?? '')
-  })
-
   return items
+}
+
+function sortEvents(items: CalendarEventItem[]): CalendarEventItem[] {
+  return items.sort((a, b) => {
+    if (a.allDay !== b.allDay) return a.allDay ? -1 : 1
+    return a.timeLabel.localeCompare(b.timeLabel)
+  })
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -207,25 +286,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const body = req.body as { icsUrl?: string; date?: string }
-    const icsUrl = typeof body?.icsUrl === 'string' ? body.icsUrl.trim() : ''
+    const body = req.body as { icsUrls?: unknown; icsUrl?: unknown; date?: string }
+    const icsUrls = normalizeIcsUrls(body)
     const dateKey = typeof body?.date === 'string' ? body.date.trim() : ''
 
-    if (!icsUrl || !isAllowedIcsUrl(icsUrl)) {
-      return res.status(400).json({ error: 'Paste your Google Calendar secret iCal link.' })
+    if (icsUrls.length === 0) {
+      return res.status(400).json({ error: 'Add at least one calendar link.' })
+    }
+    if (icsUrls.some((url) => !isAllowedIcsUrl(url))) {
+      return res.status(400).json({ error: 'One or more calendar links look invalid.' })
     }
     if (!isValidDateKey(dateKey)) {
       return res.status(400).json({ error: 'Invalid date.' })
     }
 
-    const parsed = await ical.async.fromURL(icsUrl)
-    const vevents = Object.values(parsed).filter(
-      (item): item is ParsedEvent =>
-        !!item && typeof item === 'object' && (item as ParsedEvent).type === 'VEVENT',
+    const merged: CalendarEventItem[] = []
+    const seen = new Set<string>()
+
+    await Promise.all(
+      icsUrls.map(async (icsUrl, index) => {
+        const parsed = await ical.async.fromURL(icsUrl)
+        const vevents = Object.values(parsed).filter(
+          (item): item is ParsedEvent =>
+            !!item && typeof item === 'object' && (item as ParsedEvent).type === 'VEVENT',
+        )
+        const sourceId = `src${index}`
+        const events = eventsForDate(vevents, dateKey, sourceId)
+        for (const event of events) {
+          if (seen.has(event.id)) continue
+          seen.add(event.id)
+          merged.push(event)
+        }
+      }),
     )
 
-    const events = eventsForDate(vevents, dateKey)
-    return res.status(200).json({ events })
+    return res.status(200).json({ events: sortEvents(merged) })
   } catch (error) {
     console.error('calendar-events error', error)
     return res.status(500).json({ error: 'Could not load calendar events.' })
