@@ -14,7 +14,6 @@ import CloudSyncSettings from './CloudSyncSettings'
 import CalendarSettings from './CalendarSettings'
 import SettingsSection from './SettingsSection'
 import { fetchCalendarEvents, type CalendarEventItem } from './calendarApi'
-import { getConnectedCalendars } from './calendarSession'
 import {
   allTimeCompletionCount,
   isCompletedForDateView,
@@ -40,6 +39,7 @@ import {
   WEEKDAY_OPTIONS,
   type AppState,
   type Category,
+  type ConnectedCalendar,
   type FocusTimer,
   type Goal,
   type PendingDelivery,
@@ -357,7 +357,7 @@ function formatTimerSeconds(totalSeconds: number): string {
 }
 
 export default function App() {
-  const { scheduleSave, takeLoadedState, cloudLoadCount } = useCloudSync()
+  const { scheduleSave, takeLoadedState, cloudLoadCount, unlocked } = useCloudSync()
   const [state, setState] = useState<AppState>(() => loadState())
   const [viewDate, setViewDate] = useState(() => startToday())
   const [title, setTitle] = useState('')
@@ -400,7 +400,6 @@ export default function App() {
   const [ledgerOpen, setLedgerOpen] = useState(false)
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
   const [calendarEvents, setCalendarEvents] = useState<CalendarEventItem[]>([])
-  const [calendarConnectionVersion, setCalendarConnectionVersion] = useState(0)
   const [collapsedTaskCategoryIds, setCollapsedTaskCategoryIds] = useState<
     string[]
   >([COMPLETED_GROUP_ID])
@@ -488,7 +487,18 @@ export default function App() {
 
   useEffect(() => {
     const loaded = takeLoadedState()
-    if (loaded) setState(normalizeState(loaded))
+    if (loaded) {
+      setState((prev) => {
+        const next = normalizeState(loaded)
+        if (
+          next.connectedCalendars.length === 0 &&
+          prev.connectedCalendars.length > 0
+        ) {
+          return { ...next, connectedCalendars: prev.connectedCalendars }
+        }
+        return next
+      })
+    }
   }, [cloudLoadCount, takeLoadedState])
 
   useEffect(() => {
@@ -631,15 +641,14 @@ export default function App() {
   }, [dayTasks, state.taskCategories, viewKey])
 
   useEffect(() => {
-    const calendars = getConnectedCalendars()
-    if (calendars.length === 0) {
+    if (state.connectedCalendars.length === 0) {
       setCalendarEvents([])
       return
     }
 
     let cancelled = false
     void fetchCalendarEvents(
-      calendars.map((calendar) => calendar.icsUrl),
+      state.connectedCalendars.map((calendar) => calendar.icsUrl),
       viewKey,
     )
       .then((events) => {
@@ -652,7 +661,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [viewKey, calendarConnectionVersion])
+  }, [viewKey, state.connectedCalendars])
 
   const groupedDayView = useMemo(() => {
     if (calendarEvents.length === 0) return groupedDayTasks
@@ -678,14 +687,17 @@ export default function App() {
     const completedGroup = groupedDayTasks.find(
       (group) => group.id === COMPLETED_GROUP_ID,
     )
+    const attentionGroups = withoutCompleted.filter((group) => group.attention === true)
+    const otherGroups = withoutCompleted.filter((group) => group.attention !== true)
 
     return [
+      ...attentionGroups,
       {
         id: CALENDAR_GROUP_ID,
         name: 'Calendar',
         tasks: calendarTasks,
       },
-      ...withoutCompleted,
+      ...otherGroups,
       ...(completedGroup ? [completedGroup] : []),
     ]
   }, [calendarEvents, groupedDayTasks, viewKey])
@@ -2246,11 +2258,12 @@ export default function App() {
               {groupedDayView.map((group, groupIndex) => {
                 const collapsed = collapsedTaskCategoryIds.includes(group.id)
                 const attention = group.attention === true
+                const isCalendar = group.id === CALENDAR_GROUP_ID
                 return (
                   <section
                     className={`task-group${collapsed ? ' collapsed' : ''}${
                       attention ? ' attention' : ''
-                    }`}
+                    }${isCalendar ? ' calendar' : ''}`}
                     key={group.id}
                     aria-label={group.name}
                   >
@@ -2266,7 +2279,7 @@ export default function App() {
                       <h2
                         className={`category-heading${
                           attention ? ' attention' : ''
-                        }`}
+                        }${isCalendar ? ' calendar' : ''}`}
                       >
                         {group.name}
                       </h2>
@@ -3083,9 +3096,11 @@ export default function App() {
             <CloudSyncSettings state={state} onCloudStateLoaded={setState} />
 
             <CalendarSettings
-              onConnectionChange={() =>
-                setCalendarConnectionVersion((version) => version + 1)
-              }
+              calendars={state.connectedCalendars}
+              cloudSyncConnected={unlocked}
+              onCalendarsChange={(connectedCalendars: ConnectedCalendar[]) => {
+                updateState((prev) => ({ ...prev, connectedCalendars }))
+              }}
             />
           </div>
         </section>

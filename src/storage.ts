@@ -13,6 +13,11 @@ import {
   type Reward,
   type Task,
 } from './types'
+import {
+  clearLegacyLocalCalendars,
+  normalizeConnectedCalendars,
+  readLegacyLocalCalendars,
+} from './calendarSession'
 
 const STORAGE_KEY = 'kraft-life-v1'
 const MAX_LEDGER_ENTRIES = 400
@@ -317,6 +322,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     outMode: false,
     showPercent: false,
     dollarLedger: [],
+    connectedCalendars: [],
   }
   if (!raw || typeof raw !== 'object') return fallback
 
@@ -329,6 +335,14 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     DEFAULT_TASK_CATEGORIES
   const rewards = normalizeRewards(raw.rewards)
   const timers = normalizeTimers(raw.timers)
+  let connectedCalendars = normalizeConnectedCalendars(raw.connectedCalendars)
+  if (connectedCalendars.length === 0) {
+    const legacyCalendars = readLegacyLocalCalendars()
+    if (legacyCalendars.length > 0) {
+      connectedCalendars = legacyCalendars
+      clearLegacyLocalCalendars()
+    }
+  }
   return {
     tasks: normalizeTasks(raw.tasks),
     taskCategories,
@@ -347,6 +361,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     outMode: Boolean(raw.outMode),
     showPercent: Boolean(raw.showPercent),
     dollarLedger: normalizeDollarLedger(raw.dollarLedger),
+    connectedCalendars,
   }
 }
 
