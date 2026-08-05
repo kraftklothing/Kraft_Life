@@ -329,8 +329,8 @@ button {
 }
 
 .day-picker-sheet {
-  width: min(420px, 100%);
-  padding: 14px;
+  width: min(440px, 100%);
+  padding: 12px;
 }
 
 .day-picker-sheet-header {
@@ -338,7 +338,7 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .day-picker-sheet-header h2 {
@@ -347,20 +347,20 @@ button {
 
 .day-picker-month-nav {
   display: grid;
-  grid-template-columns: 48px 1fr 48px;
+  grid-template-columns: 52px 1fr 52px;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 6px;
+  margin-bottom: 8px;
 }
 
 .day-picker-nav-btn {
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   border-radius: 14px;
   border: 1px solid var(--line);
   background: var(--panel-solid);
   color: var(--accent);
-  font-size: 1.7rem;
+  font-size: 1.8rem;
   line-height: 1;
   display: grid;
   place-items: center;
@@ -375,7 +375,7 @@ button {
   margin: 0;
   text-align: center;
   font-family: var(--font-brand);
-  font-size: 1.15rem;
+  font-size: 1.2rem;
   font-weight: 700;
   color: var(--accent);
 }
@@ -383,32 +383,32 @@ button {
 .day-picker-weekdays {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 4px;
-  margin-bottom: 4px;
+  gap: 2px;
+  margin-bottom: 2px;
 }
 
 .day-picker-weekdays span {
   text-align: center;
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 700;
   color: var(--ink-soft);
-  padding: 4px 0;
+  padding: 6px 0;
 }
 
 .day-picker-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 4px;
+  gap: 2px;
 }
 
 .day-picker-day {
-  min-height: 48px;
+  min-height: 52px;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 14px;
   background: transparent;
   color: var(--ink);
-  font-size: 1rem;
-  font-weight: 600;
+  font-size: 1.08rem;
+  font-weight: 700;
   display: grid;
   place-items: center;
   padding: 0;
