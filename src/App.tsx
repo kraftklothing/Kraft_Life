@@ -676,14 +676,17 @@ export default function App() {
     const completedGroup = groupedDayTasks.find(
       (group) => group.id === COMPLETED_GROUP_ID,
     )
+    const attentionGroups = withoutCompleted.filter((group) => group.attention === true)
+    const otherGroups = withoutCompleted.filter((group) => group.attention !== true)
 
     return [
+      ...attentionGroups,
       {
         id: CALENDAR_GROUP_ID,
         name: 'Calendar',
         tasks: calendarTasks,
       },
-      ...withoutCompleted,
+      ...otherGroups,
       ...(completedGroup ? [completedGroup] : []),
     ]
   }, [calendarEvents, groupedDayTasks, viewKey])
@@ -2259,11 +2262,12 @@ export default function App() {
               {groupedDayView.map((group, groupIndex) => {
                 const collapsed = collapsedTaskCategoryIds.includes(group.id)
                 const attention = group.attention === true
+                const isCalendar = group.id === CALENDAR_GROUP_ID
                 return (
                   <section
                     className={`task-group${collapsed ? ' collapsed' : ''}${
                       attention ? ' attention' : ''
-                    }`}
+                    }${isCalendar ? ' calendar' : ''}`}
                     key={group.id}
                     aria-label={group.name}
                   >
@@ -2279,7 +2283,7 @@ export default function App() {
                       <h2
                         className={`category-heading${
                           attention ? ' attention' : ''
-                        }`}
+                        }${isCalendar ? ' calendar' : ''}`}
                       >
                         {group.name}
                       </h2>
