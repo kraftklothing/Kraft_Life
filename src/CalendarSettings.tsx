@@ -59,7 +59,7 @@ export default function CalendarSettings({ onConnectionChange }: CalendarSetting
     <SettingsSection title="Calendar" ariaLabel="Calendar" className="calendar-settings">
       <p className="muted view-hint">
         Paste the secret iCal link from Google Calendar. Events show at the top of
-        each day under <strong>Calendar</strong>.
+        each day under <strong>Calendar</strong>, using Mountain Time (MST/MDT).
       </p>
       <form className="calendar-settings-form" onSubmit={(event) => void handleSave(event)}>
         <label className="calendar-field">

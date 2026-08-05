@@ -1,6 +1,9 @@
 import ical from 'node-ical'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
+/** Mountain Time — uses MST in winter and MDT in summer. */
+const MOUNTAIN_TZ = 'America/Denver'
+
 type CalendarEventItem = {
   id: string
   title: string
@@ -19,22 +22,39 @@ type ParsedEvent = {
   rrule?: { between: (start: Date, end: Date, inc?: boolean) => Date[] }
 }
 
-function parseDateKey(key: string): Date {
-  const [y, m, d] = key.split('-').map(Number)
-  return new Date(y, m - 1, d)
+type MountainParts = {
+  year: number
+  month: number
+  day: number
+  hour: number
 }
 
-function addDays(date: Date, days: number): Date {
-  const next = new Date(date)
-  next.setDate(next.getDate() + days)
-  return next
+const mountainFormatter = new Intl.DateTimeFormat('en-US', {
+  timeZone: MOUNTAIN_TZ,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+})
+
+function getMountainParts(date: Date): MountainParts {
+  const parts = mountainFormatter.formatToParts(date)
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value ?? '0')
+  return {
+    year: get('year'),
+    month: get('month'),
+    day: get('day'),
+    hour: get('hour'),
+  }
 }
 
-function toDateKey(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
+function mountainDateKey(date: Date): string {
+  const parts = getMountainParts(date)
+  return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
 }
 
 function utcDateKey(date: Date): string {
@@ -44,10 +64,34 @@ function utcDateKey(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
-function formatTime(date: Date): string {
-  return date.toLocaleTimeString(undefined, {
+function mountainDayStartUtc(dateKey: string): Date {
+  const [year, month, day] = dateKey.split('-').map(Number)
+
+  for (let dayOffset = -1; dayOffset <= 1; dayOffset += 1) {
+    for (let utcHour = 0; utcHour < 24; utcHour += 1) {
+      const candidate = new Date(Date.UTC(year, month - 1, day + dayOffset, utcHour, 0, 0))
+      const parts = getMountainParts(candidate)
+      if (parts.year === year && parts.month === month && parts.day === day && parts.hour === 0) {
+        return candidate
+      }
+    }
+  }
+
+  return new Date(Date.UTC(year, month - 1, day, 7, 0, 0))
+}
+
+function mountainDayBounds(dateKey: string): { start: Date; end: Date } {
+  const start = mountainDayStartUtc(dateKey)
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000)
+  return { start, end }
+}
+
+function formatTimeMountain(date: Date): string {
+  return date.toLocaleTimeString('en-US', {
+    timeZone: MOUNTAIN_TZ,
     hour: 'numeric',
     minute: '2-digit',
+    timeZoneName: 'short',
   })
 }
 
@@ -72,10 +116,10 @@ function isValidDateKey(key: string): boolean {
 function allDayEventOnDate(event: ParsedEvent, dateKey: string): boolean {
   if (!event.start) return false
   const startKey =
-    event.datetype === 'date' ? utcDateKey(event.start) : toDateKey(event.start)
-  const endDate = event.end ?? addDays(event.start, 1)
+    event.datetype === 'date' ? utcDateKey(event.start) : mountainDateKey(event.start)
+  const endDate = event.end ?? new Date(event.start.getTime() + 86_400_000)
   const endKey =
-    event.datetype === 'date' ? utcDateKey(endDate) : toDateKey(endDate)
+    event.datetype === 'date' ? utcDateKey(endDate) : mountainDateKey(endDate)
 
   if (event.datetype === 'date') {
     return dateKey >= startKey && dateKey < endKey
@@ -83,8 +127,9 @@ function allDayEventOnDate(event: ParsedEvent, dateKey: string): boolean {
   return dateKey === startKey
 }
 
-function timedEventOnDate(event: ParsedEvent, dayStart: Date, dayEnd: Date): boolean {
+function timedEventOnDate(event: ParsedEvent, dateKey: string): boolean {
   if (!event.start) return false
+  const { start: dayStart, end: dayEnd } = mountainDayBounds(dateKey)
   const start = new Date(event.start)
   const end = event.end ? new Date(event.end) : start
   return start < dayEnd && end > dayStart
@@ -112,25 +157,24 @@ function buildEventItem(
     title,
     dateKey,
     allDay,
-    timeLabel: allDay ? undefined : formatTime(start),
+    timeLabel: allDay ? undefined : formatTimeMountain(start),
   }
 }
 
 function eventsForDate(events: ParsedEvent[], dateKey: string): CalendarEventItem[] {
-  const dayStart = parseDateKey(dateKey)
-  const dayEnd = addDays(dayStart, 1)
+  const { start: dayStart, end: dayEnd } = mountainDayBounds(dateKey)
   const items: CalendarEventItem[] = []
 
   for (const event of events) {
     if (event.type !== 'VEVENT') continue
 
     if (event.rrule) {
-      const windowStart = addDays(dayStart, -1)
-      const windowEnd = addDays(dayEnd, 1)
+      const windowStart = new Date(dayStart.getTime() - 86_400_000)
+      const windowEnd = new Date(dayEnd.getTime() + 86_400_000)
       const occurrences = event.rrule.between(windowStart, windowEnd, true)
       for (const occurrence of occurrences) {
         const occurrenceKey =
-          event.datetype === 'date' ? utcDateKey(occurrence) : toDateKey(occurrence)
+          event.datetype === 'date' ? utcDateKey(occurrence) : mountainDateKey(occurrence)
         if (occurrenceKey !== dateKey) continue
         const item = buildEventItem(event, dateKey, occurrence)
         if (item) items.push(item)
@@ -140,7 +184,7 @@ function eventsForDate(events: ParsedEvent[], dateKey: string): CalendarEventIte
 
     if (event.datetype === 'date') {
       if (!allDayEventOnDate(event, dateKey)) continue
-    } else if (!timedEventOnDate(event, dayStart, dayEnd)) {
+    } else if (!timedEventOnDate(event, dateKey)) {
       continue
     }
 
