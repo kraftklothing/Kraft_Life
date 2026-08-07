@@ -39,6 +39,7 @@ import { ModeIcon } from './modeIcons'
 import TaskNotesPanel, {
   TaskDescriptionPreview,
 } from './TaskNotesPanel'
+import { playTimerDing } from './timerDing'
 import {
   OPTIONAL_NAV_VIEWS,
   REPETITION_LABELS,
@@ -852,6 +853,7 @@ export default function App() {
         ? `+$1 · ${timer.title}`
         : `+$${cycles} · ${timer.title}`,
     )
+    playTimerDing()
   }, [runningTimerId, state.timers])
 
   function startCategoryEdit(id: string) {
