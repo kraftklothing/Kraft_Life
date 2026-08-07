@@ -22,10 +22,8 @@ import {
   occurrenceForDate,
   sortTasksForDay,
   taskVisibleOnDate,
-  taskVisibleInVacationMode,
-  taskVisibleInWorkMode,
-  taskVisibleInHomeMode,
-  taskVisibleInOutMode,
+  taskVisibleInDayMode,
+  taskVisibleInMode,
 } from './taskLogic'
 import {
   goalProgressedOnDate,
@@ -33,7 +31,10 @@ import {
   unassignedProgressedOnDate,
   unassignedRecurringTasks,
 } from './goalLogic'
+import { nextIncompleteStep } from './projectLogic'
 import CategorySettingsPanel from './CategorySettingsPanel'
+import ModeSettingsPanel from './ModeSettingsPanel'
+import { ModeIcon } from './modeIcons'
 import TaskNotesPanel, {
   TaskDescriptionPreview,
 } from './TaskNotesPanel'
@@ -45,6 +46,9 @@ import {
   type ConnectedCalendar,
   type FocusTimer,
   type Goal,
+  type Mode,
+  type ModeBehavior,
+  type ModeIconId,
   type PendingDelivery,
   type Project,
   type ProjectStep,
@@ -187,77 +191,6 @@ function isCalendarTask(taskId: string): boolean {
   return taskId.startsWith('calendar:')
 }
 
-function PlaneIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M10.5 12.5 3 10l1-2 7.5 1.5L17 3l2 1-3.5 8.5L22 15l-1 2-7.5-2.5L10 21l-2-1 2.5-7.5Z"
-        fill="currentColor"
-      />
-    </svg>
-  )
-}
-
-function BriefcaseIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M8 7V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <rect
-        x="3"
-        y="7"
-        width="18"
-        height="13"
-        rx="2"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <path
-        d="M3 12h18"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  )
-}
-
-function HomeIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9.5Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function CarIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M5 11 6.5 7.5A2 2 0 0 1 8.3 6.5h7.4a2 2 0 0 1 1.8 1L19 11"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M3 11h18v6a1 1 0 0 1-1 1h-1a2 2 0 0 1-4 0H9a2 2 0 0 1-4 0H4a1 1 0 0 1-1-1v-6Z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
 function CheckIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
@@ -288,6 +221,25 @@ function PencilIcon() {
         strokeWidth="2"
         strokeLinecap="round"
       />
+    </svg>
+  )
+}
+
+function PlayIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M8 5.75v12.5L18.5 12 8 5.75Z"
+        fill="currentColor"
+      />
+    </svg>
+  )
+}
+
+function PauseIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M7 5.5h3.25v13H7v-13Zm6.75 0H17v13h-3.25v-13Z" fill="currentColor" />
     </svg>
   )
 }
@@ -367,9 +319,9 @@ export default function App() {
   const [repetition, setRepetition] = useState<Repetition | ''>('')
   const [customEveryDays, setCustomEveryDays] = useState('2')
   const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>([])
-  const [visibleInWorkMode, setVisibleInWorkMode] = useState(true)
-  const [visibleInHomeMode, setVisibleInHomeMode] = useState(true)
-  const [visibleInOutMode, setVisibleInOutMode] = useState(true)
+  const [visibleInModes, setVisibleInModes] = useState<Record<string, boolean>>(
+    {},
+  )
   const [categoryIds, setCategoryIds] = useState<string[]>([])
   /** YYYY-MM-DD the task is scheduled / starts on (editable to move days). */
   const [taskDay, setTaskDay] = useState(() => toDateKey(startToday()))
@@ -385,6 +337,10 @@ export default function App() {
   const [editingStepId, setEditingStepId] = useState<string | null>(null)
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null)
   const [newCategory, setNewCategory] = useState('')
+  const [newModeName, setNewModeName] = useState('')
+  const [newModeIcon, setNewModeIcon] = useState<ModeIconId>('star')
+  const [newModeBehavior, setNewModeBehavior] = useState<ModeBehavior>('filter')
+  const [editingModeId, setEditingModeId] = useState<string | null>(null)
   const [newRewardName, setNewRewardName] = useState('')
   const [newRewardCost, setNewRewardCost] = useState('5')
   const [editingRewardId, setEditingRewardId] = useState<string | null>(null)
@@ -407,7 +363,6 @@ export default function App() {
   >([COMPLETED_GROUP_ID])
   const [activeTimerId, setActiveTimerId] = useState<string | null>(null)
   const [runningTimerId, setRunningTimerId] = useState<string | null>(null)
-  const [timerElapsed, setTimerElapsed] = useState<Record<string, number>>({})
   const [editingTimerId, setEditingTimerId] = useState<string | null>(null)
   const [newTimerTitle, setNewTimerTitle] = useState('')
   const [newTimerMinutes, setNewTimerMinutes] = useState('20')
@@ -418,6 +373,7 @@ export default function App() {
   const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(
     null,
   )
+  const [draggingModeId, setDraggingModeId] = useState<string | null>(null)
   const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null)
   const [draggingGoalId, setDraggingGoalId] = useState<string | null>(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
@@ -427,7 +383,6 @@ export default function App() {
 
   const formId = useId()
   const titleInputRef = useRef<HTMLInputElement>(null)
-  const dayPickerRef = useRef<HTMLInputElement>(null)
   const swipeRef = useRef<{
     x: number
     y: number
@@ -462,6 +417,11 @@ export default function App() {
     startY: number
     orderSnapshot: string[]
   } | null>(null)
+  const modeDragRef = useRef<{
+    id: string
+    startY: number
+    orderSnapshot: string[]
+  } | null>(null)
   const projectDragRef = useRef<{
     id: string
     startY: number
@@ -475,10 +435,31 @@ export default function App() {
 
   const todayKey = toDateKey(startToday())
   const viewKey = toDateKey(viewDate)
-  const vacationOn = Boolean(state.vacationDays[viewKey])
-  const workModeOn = state.workMode
-  const homeModeOn = state.homeMode
-  const outModeOn = state.outMode
+  const sortedModes = useMemo(
+    () => [...state.modes].sort((a, b) => a.order - b.order),
+    [state.modes],
+  )
+  const filterModes = useMemo(
+    () => sortedModes.filter((mode) => mode.behavior === 'filter'),
+    [sortedModes],
+  )
+  const activeDayModes = useMemo(
+    () =>
+      sortedModes.filter(
+        (mode) =>
+          mode.behavior === 'day' && Boolean(state.modeDays[mode.id]?.[viewKey]),
+      ),
+    [sortedModes, state.modeDays, viewKey],
+  )
+  const activeFilterModes = useMemo(
+    () =>
+      sortedModes.filter(
+        (mode) =>
+          mode.behavior === 'filter' && state.activeModeIds.includes(mode.id),
+      ),
+    [sortedModes, state.activeModeIds],
+  )
+  const dayModeOn = activeDayModes.length > 0
   const notesTask = notesTaskId
     ? state.tasks.find((task) => task.id === notesTaskId) ?? null
     : null
@@ -513,9 +494,16 @@ export default function App() {
   useEffect(() => {
     if (!runningTimerId) return
     const id = window.setInterval(() => {
-      setTimerElapsed((prev) => ({
+      setState((prev) => ({
         ...prev,
-        [runningTimerId]: (prev[runningTimerId] ?? 0) + 1,
+        timers: prev.timers.map((timer) =>
+          timer.id === runningTimerId
+            ? {
+                ...timer,
+                elapsedSeconds: Math.max(0, timer.elapsedSeconds ?? 0) + 1,
+              }
+            : timer,
+        ),
       }))
     }, 1000)
     return () => window.clearInterval(id)
@@ -525,14 +513,14 @@ export default function App() {
     const applicable = state.tasks.filter((task) => {
       if (!taskVisibleOnDate(task, viewKey)) return false
       if (
-        vacationOn &&
-        !taskVisibleInVacationMode(task, state.taskCategories)
+        dayModeOn &&
+        !taskVisibleInDayMode(task, state.taskCategories)
       ) {
         return false
       }
-      if (workModeOn && !taskVisibleInWorkMode(task)) return false
-      if (homeModeOn && !taskVisibleInHomeMode(task)) return false
-      if (outModeOn && !taskVisibleInOutMode(task)) return false
+      for (const mode of activeFilterModes) {
+        if (!taskVisibleInMode(task, mode.id)) return false
+      }
       return true
     })
     return sortTasksForDay(applicable)
@@ -540,10 +528,8 @@ export default function App() {
     state.tasks,
     state.taskCategories,
     viewKey,
-    vacationOn,
-    workModeOn,
-    homeModeOn,
-    outModeOn,
+    dayModeOn,
+    activeFilterModes,
   ])
 
   const sortedProjects = useMemo(
@@ -623,6 +609,7 @@ export default function App() {
       id: string
       name: string
       attention?: boolean
+      reminders?: boolean
       tasks: Task[]
     }[] = []
     for (const cat of state.taskCategories) {
@@ -632,6 +619,7 @@ export default function App() {
         id: cat.id,
         name: cat.name,
         attention: cat.attention === true,
+        reminders: cat.reminders === true,
         tasks: sortTasksForDay(tasks),
       })
     }
@@ -677,7 +665,19 @@ export default function App() {
   }, [viewKey, state.connectedCalendars])
 
   const groupedDayView = useMemo(() => {
-    if (calendarEvents.length === 0) return groupedDayTasks
+    const withoutCompleted = groupedDayTasks.filter(
+      (group) => group.id !== COMPLETED_GROUP_ID,
+    )
+    const completedGroup = groupedDayTasks.find(
+      (group) => group.id === COMPLETED_GROUP_ID,
+    )
+    const attentionGroups = withoutCompleted.filter((group) => group.attention === true)
+    const reminderGroups = withoutCompleted.filter(
+      (group) => group.attention !== true && group.reminders === true,
+    )
+    const otherGroups = withoutCompleted.filter(
+      (group) => group.attention !== true && group.reminders !== true,
+    )
 
     const calendarTasks: Task[] = calendarEvents.map((event, index) => ({
       id: `calendar:${event.id}`,
@@ -687,29 +687,23 @@ export default function App() {
       repetition: 'none',
       startDate: viewKey,
       completions: {},
-      visibleInWorkMode: true,
-      visibleInHomeMode: true,
-      visibleInOutMode: true,
+      visibleInModes: {},
       order: index,
       createdAt: 0,
     }))
 
-    const withoutCompleted = groupedDayTasks.filter(
-      (group) => group.id !== COMPLETED_GROUP_ID,
-    )
-    const completedGroup = groupedDayTasks.find(
-      (group) => group.id === COMPLETED_GROUP_ID,
-    )
-    const attentionGroups = withoutCompleted.filter((group) => group.attention === true)
-    const otherGroups = withoutCompleted.filter((group) => group.attention !== true)
-
     return [
       ...attentionGroups,
-      {
-        id: CALENDAR_GROUP_ID,
-        name: 'Calendar',
-        tasks: calendarTasks,
-      },
+      ...(calendarTasks.length > 0
+        ? [
+            {
+              id: CALENDAR_GROUP_ID,
+              name: 'Calendar',
+              tasks: calendarTasks,
+            },
+          ]
+        : []),
+      ...reminderGroups,
       ...otherGroups,
       ...(completedGroup ? [completedGroup] : []),
     ]
@@ -750,31 +744,47 @@ export default function App() {
     const timer = state.timers.find((t) => t.id === runningTimerId)
     if (!timer) return
     const goalSeconds = Math.max(1, timer.minutesForDollar) * 60
-    const elapsed = timerElapsed[runningTimerId] ?? 0
+    const elapsed = Math.max(0, timer.elapsedSeconds ?? 0)
     if (elapsed < goalSeconds) return
     const cycles = Math.floor(elapsed / goalSeconds)
     if (cycles < 1) return
     const today = toDateKey(startToday())
     updateState((prev) => {
+      const current = prev.timers.find((t) => t.id === runningTimerId)
+      if (!current) return prev
+      const currentElapsed = Math.max(0, current.elapsedSeconds ?? 0)
+      const currentGoal = Math.max(1, current.minutesForDollar) * 60
+      if (currentElapsed < currentGoal) return prev
+      const earnedCycles = Math.floor(currentElapsed / currentGoal)
+      if (earnedCycles < 1) return prev
       let dollars = prev.dollars
       let dollarLedger = prev.dollarLedger
-      for (let i = 0; i < cycles; i += 1) {
+      for (let i = 0; i < earnedCycles; i += 1) {
         dollars += 1
         dollarLedger = appendLedgerEntry(dollarLedger, {
           dateKey: today,
           amount: 1,
           kind: 'earned',
-          label: timer.title,
+          label: current.title,
         })
       }
-      return { ...prev, dollars, dollarLedger }
+      return {
+        ...prev,
+        dollars,
+        dollarLedger,
+        timers: prev.timers.map((t) =>
+          t.id === runningTimerId
+            ? { ...t, elapsedSeconds: currentElapsed % currentGoal }
+            : t,
+        ),
+      }
     })
-    setTimerElapsed((prev) => ({
-      ...prev,
-      [runningTimerId]: elapsed % goalSeconds,
-    }))
-    setToast(cycles === 1 ? `+$1 · ${timer.title}` : `+$${cycles} · ${timer.title}`)
-  }, [timerElapsed, runningTimerId, state.timers])
+    setToast(
+      cycles === 1
+        ? `+$1 · ${timer.title}`
+        : `+$${cycles} · ${timer.title}`,
+    )
+  }, [runningTimerId, state.timers])
 
   function startCategoryEdit(id: string) {
     setEditingCategoryId(id)
@@ -810,9 +820,7 @@ export default function App() {
     setCategoryIds([])
     setCustomEveryDays('2')
     setSelectedWeekdays([])
-    setVisibleInWorkMode(true)
-    setVisibleInHomeMode(true)
-    setVisibleInOutMode(true)
+    setVisibleInModes({})
     setTaskDay(toDateKey(viewDate))
     setAddError('')
     setEditingTaskId(null)
@@ -921,9 +929,7 @@ export default function App() {
                 repetition,
                 customRepeat: keepsCustomRepeat ? customRepeat : undefined,
                 startDate: dayKey,
-                visibleInWorkMode,
-                visibleInHomeMode,
-                visibleInOutMode,
+                visibleInModes: { ...visibleInModes },
               }
             : task,
         ),
@@ -953,9 +959,7 @@ export default function App() {
       customRepeat,
       startDate: dayKey,
       completions: {},
-      visibleInWorkMode,
-      visibleInHomeMode,
-      visibleInOutMode,
+      visibleInModes: { ...visibleInModes },
       order: maxOrder + 1,
       createdAt: Date.now(),
     }
@@ -1027,9 +1031,7 @@ export default function App() {
     setCustomEveryDays(String(task.customRepeat?.everyDays ?? 2))
     setSelectedWeekdays([...(task.customRepeat?.weekdays ?? [])])
     setTaskDay(task.startDate)
-    setVisibleInWorkMode(task.visibleInWorkMode !== false)
-    setVisibleInHomeMode(task.visibleInHomeMode !== false)
-    setVisibleInOutMode(task.visibleInOutMode !== false)
+    setVisibleInModes({ ...(task.visibleInModes ?? {}) })
     setAddError('')
     setAddOpen(true)
     window.setTimeout(() => titleInputRef.current?.focus(), 80)
@@ -1096,13 +1098,21 @@ export default function App() {
           }
         } else {
           nextCompletions[viewKey] = true
-          dollars += 1
-          dollarLedger = appendLedgerEntry(dollarLedger, {
-            dateKey: viewKey,
-            amount: 1,
-            kind: 'earned',
-            label: task.title,
-          })
+          const isReminderTask = task.categoryIds.some((categoryId) =>
+            prev.taskCategories.some(
+              (category) =>
+                category.id === categoryId && category.reminders === true,
+            ),
+          )
+          if (!isReminderTask) {
+            dollars += 1
+            dollarLedger = appendLedgerEntry(dollarLedger, {
+              dateKey: viewKey,
+              amount: 1,
+              kind: 'earned',
+              label: task.title,
+            })
+          }
         }
         return { ...task, completions: nextCompletions }
       })
@@ -1403,25 +1413,171 @@ export default function App() {
     setToast('Step deleted')
   }
 
-  function toggleVacationMode() {
+  function toggleMode(mode: Mode) {
+    if (mode.behavior === 'day') {
+      updateState((prev) => {
+        const forMode = { ...(prev.modeDays[mode.id] ?? {}) }
+        if (forMode[viewKey]) delete forMode[viewKey]
+        else forMode[viewKey] = true
+        const modeDays = { ...prev.modeDays }
+        if (Object.keys(forMode).length === 0) delete modeDays[mode.id]
+        else modeDays[mode.id] = forMode
+        return { ...prev, modeDays }
+      })
+      return
+    }
     updateState((prev) => {
-      const next = { ...prev.vacationDays }
-      if (next[viewKey]) delete next[viewKey]
-      else next[viewKey] = true
-      return { ...prev, vacationDays: next }
+      const on = prev.activeModeIds.includes(mode.id)
+      return {
+        ...prev,
+        activeModeIds: on
+          ? prev.activeModeIds.filter((id) => id !== mode.id)
+          : [...prev.activeModeIds, mode.id],
+      }
     })
   }
 
-  function toggleWorkMode() {
-    updateState((prev) => ({ ...prev, workMode: !prev.workMode }))
+  function isModeActive(mode: Mode): boolean {
+    if (mode.behavior === 'day') {
+      return Boolean(state.modeDays[mode.id]?.[viewKey])
+    }
+    return state.activeModeIds.includes(mode.id)
   }
 
-  function toggleHomeMode() {
-    updateState((prev) => ({ ...prev, homeMode: !prev.homeMode }))
+  function startModeEdit(id: string) {
+    setEditingModeId(id)
   }
 
-  function toggleOutMode() {
-    updateState((prev) => ({ ...prev, outMode: !prev.outMode }))
+  function finishModeEdit(id: string, name: string) {
+    renameMode(id, name)
+    setEditingModeId((current) => (current === id ? null : current))
+  }
+
+  function cancelModeEdit() {
+    setEditingModeId(null)
+  }
+
+  function liveRenameMode(id: string, name: string) {
+    updateState((prev) => ({
+      ...prev,
+      modes: prev.modes.map((mode) =>
+        mode.id === id ? { ...mode, name } : mode,
+      ),
+    }))
+  }
+
+  function addMode() {
+    const name = newModeName.trim()
+    if (!name) return
+    if (
+      state.modes.some((mode) => mode.name.toLowerCase() === name.toLowerCase())
+    ) {
+      setToast('Mode already exists')
+      return
+    }
+    const maxOrder = state.modes.reduce((max, mode) => Math.max(max, mode.order), -1)
+    const mode: Mode = {
+      id: uid('mode'),
+      name,
+      icon: newModeIcon,
+      behavior: newModeBehavior,
+      order: maxOrder + 1,
+    }
+    updateState((prev) => ({
+      ...prev,
+      modes: [...prev.modes, mode],
+    }))
+    setNewModeName('')
+    setNewModeIcon('star')
+    setNewModeBehavior('filter')
+    setToast('Mode added')
+  }
+
+  function deleteMode(id: string) {
+    updateState((prev) => {
+      const { [id]: _removedDays, ...restModeDays } = prev.modeDays
+      return {
+        ...prev,
+        modes: prev.modes.filter((mode) => mode.id !== id),
+        activeModeIds: prev.activeModeIds.filter((modeId) => modeId !== id),
+        modeDays: restModeDays,
+        tasks: prev.tasks.map((task) => {
+          if (!(id in (task.visibleInModes ?? {}))) return task
+          const nextVisibility = { ...task.visibleInModes }
+          delete nextVisibility[id]
+          return { ...task, visibleInModes: nextVisibility }
+        }),
+      }
+    })
+    setEditingModeId((current) => (current === id ? null : current))
+    setVisibleInModes((prev) => {
+      if (!(id in prev)) return prev
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+    setToast('Mode removed')
+  }
+
+  function renameMode(id: string, name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const clash = state.modes.some(
+      (mode) =>
+        mode.id !== id && mode.name.toLowerCase() === trimmed.toLowerCase(),
+    )
+    if (clash) {
+      setToast('Mode already exists')
+      return
+    }
+    updateState((prev) => ({
+      ...prev,
+      modes: prev.modes.map((mode) =>
+        mode.id === id ? { ...mode, name: trimmed } : mode,
+      ),
+    }))
+  }
+
+  function changeModeIcon(id: string, icon: ModeIconId) {
+    updateState((prev) => ({
+      ...prev,
+      modes: prev.modes.map((mode) =>
+        mode.id === id ? { ...mode, icon } : mode,
+      ),
+    }))
+  }
+
+  function changeModeBehavior(id: string, behavior: ModeBehavior) {
+    updateState((prev) => {
+      const modes = prev.modes.map((mode) =>
+        mode.id === id ? { ...mode, behavior } : mode,
+      )
+      let activeModeIds = prev.activeModeIds
+      let modeDays = prev.modeDays
+      if (behavior === 'day') {
+        activeModeIds = activeModeIds.filter((modeId) => modeId !== id)
+      } else {
+        const { [id]: _removed, ...rest } = modeDays
+        modeDays = rest
+      }
+      return { ...prev, modes, activeModeIds, modeDays }
+    })
+  }
+
+  function beginModeDrag(modeId: string, clientY: number) {
+    modeDragRef.current = {
+      id: modeId,
+      startY: clientY,
+      orderSnapshot: sortedModes.map((mode) => mode.id),
+    }
+    setDraggingModeId(modeId)
+  }
+
+  function toggleComposerModeVisibility(modeId: string) {
+    setVisibleInModes((prev) => ({
+      ...prev,
+      [modeId]: prev[modeId] === false,
+    }))
   }
 
   function spendReward(reward: Reward) {
@@ -1612,6 +1768,7 @@ export default function App() {
         title,
         minutesForDollar: minutes,
         order: maxOrder + 1,
+        elapsedSeconds: 0,
       }
       updateState((prev) => ({ ...prev, timers: [...prev.timers, timer] }))
       setToast('Timer added')
@@ -1634,11 +1791,6 @@ export default function App() {
       ...prev,
       timers: prev.timers.filter((t) => t.id !== id),
     }))
-    setTimerElapsed((prev) => {
-      const next = { ...prev }
-      delete next[id]
-      return next
-    })
     if (runningTimerId === id) setRunningTimerId(null)
     if (activeTimerId === id) setActiveTimerId(null)
     if (editingTimerId === id) {
@@ -1655,7 +1807,12 @@ export default function App() {
 
   function resetActiveTimer(timerId: string) {
     setRunningTimerId((current) => (current === timerId ? null : current))
-    setTimerElapsed((prev) => ({ ...prev, [timerId]: 0 }))
+    updateState((prev) => ({
+      ...prev,
+      timers: prev.timers.map((timer) =>
+        timer.id === timerId ? { ...timer, elapsedSeconds: 0 } : timer,
+      ),
+    }))
   }
 
   function addCategory() {
@@ -1731,7 +1888,23 @@ export default function App() {
           const { attention: _removed, ...rest } = c
           return rest
         }
-        return { ...c, attention: true }
+        const { reminders: _reminders, ...rest } = c
+        return { ...rest, attention: true }
+      }),
+    }))
+  }
+
+  function toggleCategoryReminders(id: string) {
+    updateState((prev) => ({
+      ...prev,
+      taskCategories: prev.taskCategories.map((c) => {
+        if (c.id !== id) return c
+        if (c.reminders) {
+          const { reminders: _removed, ...rest } = c
+          return rest
+        }
+        const { attention: _attention, ...rest } = c
+        return { ...rest, reminders: true }
       }),
     }))
   }
@@ -1812,21 +1985,6 @@ export default function App() {
     setDayAnim(trimmed > viewKey ? 'from-right' : 'from-left')
     setViewDate(parseDateKey(trimmed))
     setSwipeOffset(0)
-  }
-
-  function openDayPicker() {
-    const input = dayPickerRef.current
-    if (!input) return
-    try {
-      if (typeof input.showPicker === 'function') {
-        input.showPicker()
-        return
-      }
-    } catch {
-      // Some browsers require a direct user gesture for showPicker.
-    }
-    input.focus()
-    input.click()
   }
 
   function isInteractiveTarget(target: EventTarget | null): boolean {
@@ -2058,16 +2216,35 @@ export default function App() {
       }
 
       const categoryDrag = categoryDragRef.current
-      if (!categoryDrag) return
+      if (categoryDrag) {
+        event.preventDefault()
+        const nextOrder = reorderSnapshot(categoryDrag, event.clientY, 64)
+        if (!nextOrder) return
+        setState((prev) => {
+          const byId = new Map(prev.taskCategories.map((c) => [c.id, c]))
+          const taskCategories = nextOrder
+            .map((id) => byId.get(id))
+            .filter((c): c is Category => Boolean(c))
+          return { ...prev, taskCategories }
+        })
+        return
+      }
+
+      const modeDrag = modeDragRef.current
+      if (!modeDrag) return
       event.preventDefault()
-      const nextOrder = reorderSnapshot(categoryDrag, event.clientY, 64)
+      const nextOrder = reorderSnapshot(modeDrag, event.clientY, 72)
       if (!nextOrder) return
       setState((prev) => {
-        const byId = new Map(prev.taskCategories.map((c) => [c.id, c]))
-        const taskCategories = nextOrder
-          .map((id) => byId.get(id))
-          .filter((c): c is Category => Boolean(c))
-        return { ...prev, taskCategories }
+        const orderMap = new Map(nextOrder.map((id, index) => [id, index]))
+        return {
+          ...prev,
+          modes: prev.modes.map((mode) =>
+            orderMap.has(mode.id)
+              ? { ...mode, order: orderMap.get(mode.id)! }
+              : mode,
+          ),
+        }
       })
     }
     function onUp() {
@@ -2099,6 +2276,10 @@ export default function App() {
         categoryDragRef.current = null
         setDraggingCategoryId(null)
       }
+      if (modeDragRef.current) {
+        modeDragRef.current = null
+        setDraggingModeId(null)
+      }
     }
     window.addEventListener('pointermove', onMove, { passive: false })
     window.addEventListener('pointerup', onUp)
@@ -2111,7 +2292,7 @@ export default function App() {
   }, [])
 
   return (
-    <div className={`app${vacationOn ? ' vacation-day' : ''}`}>
+    <div className={`app${dayModeOn ? ' vacation-day' : ''}`}>
       <header className="top-bar">
         {mainView === 'tasks' ? (
           <button
@@ -2192,74 +2373,17 @@ export default function App() {
               >
                 ‹
               </button>
-              <div className="day-label-row">
-                <div className="day-picker">
-                  <button
-                    type="button"
-                    className="day-label day-label-btn"
-                    aria-label={`Pick a day, currently ${formatDayHeading(viewDate, todayKey)}`}
-                    onClick={openDayPicker}
-                  >
-                    {formatDayHeading(viewDate, todayKey)}
-                  </button>
-                  <input
-                    ref={dayPickerRef}
-                    type="date"
-                    className="day-picker-input"
-                    value={viewKey}
-                    onChange={(e) => jumpToDay(e.target.value)}
-                    tabIndex={-1}
-                    aria-hidden="true"
-                  />
-                </div>
-                <div className="mode-btns">
-                  <button
-                    type="button"
-                    className={`plane-btn${vacationOn ? ' active' : ''}`}
-                    aria-label={
-                      vacationOn
-                        ? 'Turn off vacation mode'
-                        : 'Turn on vacation mode'
-                    }
-                    aria-pressed={vacationOn}
-                    onClick={toggleVacationMode}
-                  >
-                    <PlaneIcon />
-                  </button>
-                  <button
-                    type="button"
-                    className={`plane-btn${workModeOn ? ' active' : ''}`}
-                    aria-label={
-                      workModeOn ? 'Turn off work mode' : 'Turn on work mode'
-                    }
-                    aria-pressed={workModeOn}
-                    onClick={toggleWorkMode}
-                  >
-                    <BriefcaseIcon />
-                  </button>
-                  <button
-                    type="button"
-                    className={`plane-btn${homeModeOn ? ' active' : ''}`}
-                    aria-label={
-                      homeModeOn ? 'Turn off home mode' : 'Turn on home mode'
-                    }
-                    aria-pressed={homeModeOn}
-                    onClick={toggleHomeMode}
-                  >
-                    <HomeIcon />
-                  </button>
-                  <button
-                    type="button"
-                    className={`plane-btn${outModeOn ? ' active' : ''}`}
-                    aria-label={
-                      outModeOn ? 'Turn off out mode' : 'Turn on out mode'
-                    }
-                    aria-pressed={outModeOn}
-                    onClick={toggleOutMode}
-                  >
-                    <CarIcon />
-                  </button>
-                </div>
+              <div className="day-picker">
+                <span className="day-label day-label-display" aria-hidden="true">
+                  {formatDayHeading(viewDate, todayKey)}
+                </span>
+                <input
+                  type="date"
+                  className="day-picker-input"
+                  value={viewKey}
+                  onChange={(e) => jumpToDay(e.target.value)}
+                  aria-label={`Pick a day, currently ${formatDayHeading(viewDate, todayKey)}`}
+                />
               </div>
               <button
                 type="button"
@@ -2270,25 +2394,56 @@ export default function App() {
                 ›
               </button>
             </div>
+            {sortedModes.length > 0 ? (
+              <div className="mode-btns mode-btns-row">
+                {sortedModes.map((mode) => {
+                  const active = isModeActive(mode)
+                  return (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      className={`plane-btn${active ? ' active' : ''}`}
+                      aria-label={
+                        active
+                          ? `Turn off ${mode.name} mode`
+                          : `Turn on ${mode.name} mode`
+                      }
+                      aria-pressed={active}
+                      onClick={() => toggleMode(mode)}
+                    >
+                      <ModeIcon icon={mode.icon} />
+                    </button>
+                  )
+                })}
+              </div>
+            ) : null}
             <div className="day-divider" aria-hidden="true" />
           </div>
 
-          {vacationOn ? <p className="vacation-banner">Vacation mode</p> : null}
-          {workModeOn ? <p className="work-banner">Work mode</p> : null}
-          {homeModeOn ? <p className="work-banner">Home mode</p> : null}
-          {outModeOn ? <p className="work-banner">Out mode</p> : null}
+          {activeDayModes.map((mode) => (
+            <p key={mode.id} className="vacation-banner">
+              {mode.name} mode
+            </p>
+          ))}
+          {activeFilterModes.map((mode) => (
+            <p key={mode.id} className="work-banner">
+              {mode.name} mode
+            </p>
+          ))}
 
           {hasDayContent ? (
             <div className="task-groups">
               {groupedDayView.map((group, groupIndex) => {
                 const collapsed = collapsedTaskCategoryIds.includes(group.id)
                 const attention = group.attention === true
+                const reminders = group.reminders === true
                 const isCalendar = group.id === CALENDAR_GROUP_ID
+                const yellowHeading = isCalendar || reminders
                 return (
                   <section
                     className={`task-group${collapsed ? ' collapsed' : ''}${
                       attention ? ' attention' : ''
-                    }${isCalendar ? ' calendar' : ''}`}
+                    }${yellowHeading ? ' calendar' : ''}`}
                     key={group.id}
                     aria-label={group.name}
                   >
@@ -2304,7 +2459,7 @@ export default function App() {
                       <h2
                         className={`category-heading${
                           attention ? ' attention' : ''
-                        }${isCalendar ? ' calendar' : ''}`}
+                        }${yellowHeading ? ' calendar' : ''}`}
                       >
                         {group.name}
                       </h2>
@@ -2338,7 +2493,7 @@ export default function App() {
                                 done ? ' completed' : ''
                               }${calendarTask ? ' calendar-task' : ''}${
                                 draggingId === task.id ? ' dragging' : ''
-                              }${vacationOn ? ' vacation' : ''}`}
+                              }${dayModeOn ? ' vacation' : ''}`}
                             >
                               {calendarTask ? (
                                 <span className="calendar-task-marker" aria-hidden="true">
@@ -2476,6 +2631,7 @@ export default function App() {
                         (s) => s.completed,
                       ).length
                       const total = project.steps.length
+                      const nextStep = nextIncompleteStep(project)
                       return (
                         <li
                           className={`task-item project-item${
@@ -2504,6 +2660,15 @@ export default function App() {
                             onClick={() => setActiveProjectId(project.id)}
                           >
                             <p className="task-title">{project.name}</p>
+                            {nextStep ? (
+                              <p className="project-next-step">
+                                Next: {nextStep.title}
+                              </p>
+                            ) : total > 0 ? (
+                              <p className="project-next-step project-next-step-done">
+                                All steps done
+                              </p>
+                            ) : null}
                             <div className="badges">
                               <span className="badge rep">
                                 {total === 0
@@ -3169,9 +3334,33 @@ export default function App() {
                 onCancelEdit={cancelCategoryEdit}
                 onLiveRename={liveRenameCategory}
                 onToggleAttention={toggleCategoryAttention}
+                onToggleReminders={toggleCategoryReminders}
                 onDelete={deleteCategory}
                 onAdd={addCategory}
                 onBeginDrag={beginCategoryDrag}
+              />
+            </SettingsSection>
+
+            <SettingsSection title="Modes" ariaLabel="Modes">
+              <ModeSettingsPanel
+                modes={sortedModes}
+                newName={newModeName}
+                newIcon={newModeIcon}
+                newBehavior={newModeBehavior}
+                onNewNameChange={setNewModeName}
+                onNewIconChange={setNewModeIcon}
+                onNewBehaviorChange={setNewModeBehavior}
+                editingId={editingModeId}
+                draggingId={draggingModeId}
+                onStartEdit={startModeEdit}
+                onFinishEdit={finishModeEdit}
+                onCancelEdit={cancelModeEdit}
+                onLiveRename={liveRenameMode}
+                onChangeIcon={changeModeIcon}
+                onChangeBehavior={changeModeBehavior}
+                onDelete={deleteMode}
+                onAdd={addMode}
+                onBeginDrag={beginModeDrag}
               />
             </SettingsSection>
 
@@ -3215,16 +3404,17 @@ export default function App() {
           {activeTimer ? (
             <div className="panel timer-panel">
               <p className="timer-display" aria-live="polite">
-                {formatTimerSeconds(timerElapsed[activeTimer.id] ?? 0)}
+                {formatTimerSeconds(activeTimer.elapsedSeconds ?? 0)}
               </p>
               <p className="timer-seconds-label">
-                {timerElapsed[activeTimer.id] ?? 0} second
-                {(timerElapsed[activeTimer.id] ?? 0) === 1 ? '' : 's'}
+                {activeTimer.elapsedSeconds ?? 0} second
+                {(activeTimer.elapsedSeconds ?? 0) === 1 ? '' : 's'}
               </p>
               <p className="muted timer-hint">
                 Earn $1 every {activeTimer.minutesForDollar} minute
-                {activeTimer.minutesForDollar === 1 ? '' : 's'}. Pause keeps
-                your place.
+                {activeTimer.minutesForDollar === 1 ? '' : 's'}. Progress is
+                saved when you pause — even across days — until you earn $1.
+                Leftover time carries to the next dollar.
               </p>
               <p className="timer-next">
                 Next $ in{' '}
@@ -3232,7 +3422,7 @@ export default function App() {
                   Math.max(
                     0,
                     activeTimer.minutesForDollar * 60 -
-                      (timerElapsed[activeTimer.id] ?? 0),
+                      (activeTimer.elapsedSeconds ?? 0),
                   ),
                 )}
               </p>
@@ -3263,12 +3453,12 @@ export default function App() {
               <section className="task-group" aria-label="Your timers">
                 <h2 className="category-heading">Your timers</h2>
                 <p className="muted reorder-hint view-hint">
-                  Drag to reorder. Tap a timer to run it. Edit title or minutes
-                  anytime.
+                  Drag to reorder. Tap play to start or pause. Tap a timer for
+                  the full view.
                 </p>
                 <ul className="task-list">
                   {sortedTimers.map((timer) => {
-                    const elapsed = timerElapsed[timer.id] ?? 0
+                    const elapsed = timer.elapsedSeconds ?? 0
                     const running = runningTimerId === timer.id
                     return (
                       <li
@@ -3311,6 +3501,16 @@ export default function App() {
                           </div>
                         </button>
                         <div className="task-actions">
+                          <button
+                            type="button"
+                            className={`edit-btn timer-toggle-btn${
+                              running ? ' running' : ''
+                            }`}
+                            aria-label={running ? 'Pause timer' : 'Start timer'}
+                            onClick={() => toggleTimerRunning(timer.id)}
+                          >
+                            {running ? <PauseIcon /> : <PlayIcon />}
+                          </button>
                           <button
                             type="button"
                             className="edit-btn"
@@ -3847,44 +4047,30 @@ export default function App() {
               </fieldset>
             ) : null}
 
-            <fieldset className="category-multi mode-visibility-compact">
-              <legend>Show in</legend>
-              <div className="mode-visibility-options">
-                <label
-                  className={`mode-chip${visibleInWorkMode ? ' selected' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={visibleInWorkMode}
-                    onChange={(e) => setVisibleInWorkMode(e.target.checked)}
-                  />
-                  <BriefcaseIcon />
-                  <span>Work</span>
-                </label>
-                <label
-                  className={`mode-chip${visibleInHomeMode ? ' selected' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={visibleInHomeMode}
-                    onChange={(e) => setVisibleInHomeMode(e.target.checked)}
-                  />
-                  <HomeIcon />
-                  <span>Home</span>
-                </label>
-                <label
-                  className={`mode-chip${visibleInOutMode ? ' selected' : ''}`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={visibleInOutMode}
-                    onChange={(e) => setVisibleInOutMode(e.target.checked)}
-                  />
-                  <CarIcon />
-                  <span>Out</span>
-                </label>
-              </div>
-            </fieldset>
+            {filterModes.length > 0 ? (
+              <fieldset className="category-multi mode-visibility-compact">
+                <legend>Show in</legend>
+                <div className="mode-visibility-options">
+                  {filterModes.map((mode) => {
+                    const visible = visibleInModes[mode.id] !== false
+                    return (
+                      <label
+                        key={mode.id}
+                        className={`mode-chip${visible ? ' selected' : ''}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={visible}
+                          onChange={() => toggleComposerModeVisibility(mode.id)}
+                        />
+                        <ModeIcon icon={mode.icon} />
+                        <span>{mode.name}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </fieldset>
+            ) : null}
 
             {addError ? <p className="error-text">{addError}</p> : null}
 
