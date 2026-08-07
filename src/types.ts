@@ -156,6 +156,41 @@ export interface ConnectedCalendar {
   icsUrl: string
 }
 
+/** Bottom-nav views that can be hidden from Settings (plus + settings stay). */
+export type OptionalNavView =
+  | 'tasks'
+  | 'projects'
+  | 'goals'
+  | 'timer'
+  | 'rewards'
+
+/** Which optional bottom-nav icons are shown. Hidden views keep their data. */
+export type NavVisibility = Record<OptionalNavView, boolean>
+
+export const OPTIONAL_NAV_VIEWS: OptionalNavView[] = [
+  'tasks',
+  'projects',
+  'goals',
+  'timer',
+  'rewards',
+]
+
+export const OPTIONAL_NAV_LABELS: Record<OptionalNavView, string> = {
+  tasks: 'Tasks',
+  projects: 'Projects',
+  goals: 'Goals',
+  timer: 'Timers',
+  rewards: 'Rewards',
+}
+
+export const DEFAULT_NAV_VISIBILITY: NavVisibility = {
+  tasks: true,
+  projects: true,
+  goals: true,
+  timer: true,
+  rewards: true,
+}
+
 export interface AppState {
   tasks: Task[]
   taskCategories: Category[]
@@ -186,6 +221,11 @@ export interface AppState {
   showPercent: boolean
   /** Recent $ earned / spent / balance edits (newest last). */
   dollarLedger: DollarLedgerEntry[]
+  /**
+   * Which bottom-nav icons appear. Plus and Settings are always shown.
+   * Hiding a view only removes its icon — data is kept.
+   */
+  navVisibility: NavVisibility
 }
 
 export const DEFAULT_CATEGORIES: Category[] = [

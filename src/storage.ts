@@ -1,9 +1,11 @@
 import {
   DEFAULT_MODES,
+  DEFAULT_NAV_VISIBILITY,
   DEFAULT_REWARDS,
   DEFAULT_TASK_CATEGORIES,
   DEFAULT_TIMERS,
   MODE_ICON_IDS,
+  OPTIONAL_NAV_VIEWS,
   VACATION_MODE_ID,
   type AppState,
   type Category,
@@ -12,6 +14,7 @@ import {
   type Goal,
   type Mode,
   type ModeIconId,
+  type NavVisibility,
   type PendingDelivery,
   type Project,
   type ProjectStep,
@@ -445,6 +448,16 @@ function normalizeClearedCalendarEvents(raw: unknown): Record<string, boolean> {
   return next
 }
 
+function normalizeNavVisibility(raw: unknown): NavVisibility {
+  const next: NavVisibility = { ...DEFAULT_NAV_VISIBILITY }
+  if (!raw || typeof raw !== 'object') return next
+  const record = raw as Record<string, unknown>
+  for (const view of OPTIONAL_NAV_VIEWS) {
+    if (view in record) next[view] = record[view] !== false
+  }
+  return next
+}
+
 export function appendLedgerEntry(
   ledger: DollarLedgerEntry[],
   entry: Omit<DollarLedgerEntry, 'id' | 'at'> & { id?: string; at?: number },
@@ -477,6 +490,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     dollarLedger: [],
     connectedCalendars: [],
     clearedCalendarEvents: {},
+    navVisibility: { ...DEFAULT_NAV_VISIBILITY },
   }
   if (!raw || typeof raw !== 'object') return fallback
 
@@ -531,6 +545,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     clearedCalendarEvents: normalizeClearedCalendarEvents(
       raw.clearedCalendarEvents,
     ),
+    navVisibility: normalizeNavVisibility(raw.navVisibility),
   }
 }
 
