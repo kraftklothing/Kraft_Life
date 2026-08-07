@@ -18,6 +18,10 @@
   --attention-ink: #8b1a06;
   --calendar-accent: #b8860b;
   --calendar-wash: rgba(184, 134, 11, 0.18);
+  --calendar-panel: #f0dd9a;
+  --calendar-panel-top: #faf0c8;
+  --calendar-border: rgba(184, 134, 11, 0.45);
+  --calendar-ink: #6b4f08;
   --handle: #b45309;
   --danger: #b23a3a;
   --shadow: 0 18px 40px rgba(58, 36, 24, 0.1);
@@ -1638,6 +1642,37 @@ form.add-panel select {
   padding-bottom: 4px;
 }
 
+.task-group.calendar .task-item {
+  background: linear-gradient(180deg, var(--calendar-panel-top) 0%, var(--calendar-panel) 100%);
+  border: 1.5px solid var(--calendar-border);
+  box-shadow: 0 6px 18px rgba(184, 134, 11, 0.16);
+}
+
+.task-group.calendar .task-item .task-title {
+  color: var(--calendar-ink);
+  font-weight: 700;
+}
+
+.task-group.calendar .task-item .check {
+  border-color: var(--calendar-accent);
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.task-group.calendar .task-item.completed .check {
+  background: var(--calendar-accent);
+  border-color: var(--calendar-accent);
+}
+
+.task-group.calendar .task-item .edit-btn,
+.task-group.calendar .task-item .drag-handle {
+  background: rgba(184, 134, 11, 0.2);
+  color: var(--calendar-accent);
+}
+
+.task-group.calendar .task-item.completed .task-title {
+  color: rgba(107, 79, 8, 0.55);
+}
+
 .vacation-day .category-heading {
   color: #7a8683;
 }
@@ -1990,6 +2025,22 @@ form.add-panel select {
 .task-group.attention .task-item.vacation .drag-handle {
   background: rgba(209, 50, 10, 0.14);
   color: var(--attention);
+}
+
+.task-group.calendar .task-item.vacation {
+  background: linear-gradient(180deg, #f7ecc0 0%, #ebd78a 100%);
+  border-color: rgba(184, 134, 11, 0.38);
+  box-shadow: 0 6px 18px rgba(184, 134, 11, 0.12);
+}
+
+.task-group.calendar .task-item.vacation .task-title {
+  color: #7a5a0a;
+}
+
+.task-group.calendar .task-item.vacation .edit-btn,
+.task-group.calendar .task-item.vacation .drag-handle {
+  background: rgba(184, 134, 11, 0.16);
+  color: var(--calendar-accent);
 }
 
 .rewards-balance {

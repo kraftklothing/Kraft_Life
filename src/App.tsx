@@ -2892,6 +2892,36 @@ export default function App() {
                       : 'Recurring tasks without a goal show up in Unassigned. Tap plus to add a goal.'}
                   </p>
                   <ul className="task-list">
+                    {unassignedRecurring.length > 0 ? (
+                      <li
+                        className={`task-item goal-item goal-unassigned${
+                          unassignedProgressedOnDate(
+                            unassignedRecurring,
+                            todayKey,
+                          )
+                            ? ' goal-progressed'
+                            : ''
+                        }`}
+                      >
+                        <span className="drag-handle-spacer" aria-hidden="true" />
+                        <button
+                          type="button"
+                          className="project-main-btn"
+                          onClick={() => setActiveGoalId(UNASSIGNED_GOAL_ID)}
+                        >
+                          <p className="task-title">Unassigned</p>
+                          <p className="goal-description">
+                            Recurring tasks not linked to a goal
+                          </p>
+                          <ul className="goal-bullets">
+                            {unassignedRecurring.map((task) => (
+                              <li key={task.id}>Task: {task.title}</li>
+                            ))}
+                          </ul>
+                        </button>
+                        <span className="edit-btn-spacer" aria-hidden="true" />
+                      </li>
+                    ) : null}
                     {sortedGoals.map((goal) => {
                       const progressed = goalProgressedOnDate(
                         goal,
@@ -2969,36 +2999,6 @@ export default function App() {
                         </li>
                       )
                     })}
-                    {unassignedRecurring.length > 0 ? (
-                      <li
-                        className={`task-item goal-item goal-unassigned${
-                          unassignedProgressedOnDate(
-                            unassignedRecurring,
-                            todayKey,
-                          )
-                            ? ' goal-progressed'
-                            : ''
-                        }`}
-                      >
-                        <span className="drag-handle-spacer" aria-hidden="true" />
-                        <button
-                          type="button"
-                          className="project-main-btn"
-                          onClick={() => setActiveGoalId(UNASSIGNED_GOAL_ID)}
-                        >
-                          <p className="task-title">Unassigned</p>
-                          <p className="goal-description">
-                            Recurring tasks not linked to a goal
-                          </p>
-                          <ul className="goal-bullets">
-                            {unassignedRecurring.map((task) => (
-                              <li key={task.id}>Task: {task.title}</li>
-                            ))}
-                          </ul>
-                        </button>
-                        <span className="edit-btn-spacer" aria-hidden="true" />
-                      </li>
-                    ) : null}
                   </ul>
                 </section>
               </div>
