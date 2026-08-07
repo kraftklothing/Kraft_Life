@@ -198,6 +198,8 @@ function normalizeModeBehavior(raw: unknown): ModeBehavior {
 }
 
 function normalizeModes(raw: unknown): Mode[] | null {
+  // Explicit empty array means the user deleted every mode — keep it.
+  if (Array.isArray(raw) && raw.length === 0) return []
   if (!Array.isArray(raw)) return null
   const modes: Mode[] = []
   raw.forEach((item, index) => {
@@ -218,6 +220,7 @@ function normalizeModes(raw: unknown): Mode[] | null {
       order: typeof m.order === 'number' ? m.order : index,
     })
   })
+  // Corrupt non-empty payload with zero valid entries → fall back to defaults.
   return modes.length > 0 ? modes.sort((a, b) => a.order - b.order) : null
 }
 
