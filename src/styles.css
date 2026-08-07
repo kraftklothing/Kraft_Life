@@ -768,16 +768,6 @@ button {
   color: var(--ink-soft);
 }
 
-.mode-behavior-tag {
-  margin-left: 8px;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  vertical-align: middle;
-}
-
 .mode-edit-extras {
   grid-column: 1 / -1;
   display: grid;
@@ -809,29 +799,6 @@ button {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff8f1;
-}
-
-.mode-behavior-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.mode-behavior-option {
-  border: 1px solid var(--line);
-  background: var(--panel-solid);
-  color: var(--ink-soft);
-  border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.mode-behavior-option.selected {
-  background: var(--accent-wash);
-  border-color: var(--accent);
-  color: var(--accent);
 }
 
 .mode-add-panel {

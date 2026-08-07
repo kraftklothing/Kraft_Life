@@ -36,17 +36,10 @@ export type ModeIconId =
   | 'dumbbell'
   | 'backpack'
 
-/**
- * day — active for one calendar day; keeps High / Events categories (vacation-style).
- * filter — global toggle; hides tasks marked not visible for that mode.
- */
-export type ModeBehavior = 'day' | 'filter'
-
 export interface Mode {
   id: string
   name: string
   icon: ModeIconId
-  behavior: ModeBehavior
   order: number
 }
 
@@ -164,14 +157,15 @@ export interface AppState {
   connectedCalendars: ConnectedCalendar[]
   /** Spent rewards that are not delivered yet. */
   pendingDeliveries: PendingDelivery[]
-  /** User-configurable filter modes (defaults: Vacation, Work, Home, Out). */
-  modes: Mode[]
-  /** Filter-behavior mode ids that are currently active (global). */
-  activeModeIds: string[]
   /**
-   * Day-behavior mode activations: modeId → dateKey (YYYY-MM-DD) → true.
+   * Built-in vacation mode: date keys (YYYY-MM-DD) when it is on for that day.
+   * Not user-configurable — always available as the plane button.
    */
-  modeDays: Record<string, Record<string, boolean>>
+  vacationDays: Record<string, boolean>
+  /** User-configurable filter modes (defaults: Work, Home, Out). */
+  modes: Mode[]
+  /** Mode ids that are currently active (global filter toggles). */
+  activeModeIds: string[]
   /** When true, header shows percent complete instead of counts. */
   showPercent: boolean
   /** Recent $ earned / spent / balance edits (newest last). */
@@ -186,12 +180,14 @@ export const DEFAULT_CATEGORIES: Category[] = [
 
 export const DEFAULT_TASK_CATEGORIES = DEFAULT_CATEGORIES
 
-/** Recommended starter modes — users can rename, delete, or add more in Settings. */
+/** Built-in vacation mode id — never stored in the customizable modes list. */
+export const VACATION_MODE_ID = 'vacation'
+
+/** Recommended starter filter modes — users can rename, delete, or add more. */
 export const DEFAULT_MODES: Mode[] = [
-  { id: 'vacation', name: 'Vacation', icon: 'plane', behavior: 'day', order: 0 },
-  { id: 'work', name: 'Work', icon: 'briefcase', behavior: 'filter', order: 1 },
-  { id: 'home', name: 'Home', icon: 'home', behavior: 'filter', order: 2 },
-  { id: 'out', name: 'Out', icon: 'car', behavior: 'filter', order: 3 },
+  { id: 'work', name: 'Work', icon: 'briefcase', order: 0 },
+  { id: 'home', name: 'Home', icon: 'home', order: 1 },
+  { id: 'out', name: 'Out', icon: 'car', order: 2 },
 ]
 
 export const MODE_ICON_IDS: ModeIconId[] = [
