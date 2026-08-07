@@ -81,9 +81,9 @@ button {
 
 .top-bar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   animation: rise-in 0.45s ease both;
 }
 
@@ -127,20 +127,17 @@ button {
   cursor: pointer;
 }
 
-.brand-block {
-  text-align: center;
-  padding: 4px 8px 0;
-  animation: rise-in 0.45s ease both;
-}
-
 .brand {
   margin: 0;
+  flex: 1;
+  min-width: 0;
+  text-align: center;
   font-family: var(--font-brand);
-  font-size: clamp(2rem, 7vw, 2.55rem);
+  font-size: clamp(0.95rem, 3.5vw, 1.1rem);
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--accent);
-  line-height: 1.05;
+  line-height: 1.1;
 }
 
 .day-pane {
