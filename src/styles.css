@@ -443,6 +443,27 @@ button {
   color: var(--accent);
 }
 
+.goal-item.goal-unassigned {
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.goal-item .drag-handle-spacer,
+.goal-item .edit-btn-spacer {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.assign-btn.static {
+  cursor: default;
+  pointer-events: none;
+}
+
+.assign-btn .badge {
+  margin-left: auto;
+}
+
 .goal-bullets {
   margin: 4px 0 0;
   padding-left: 1.1rem;

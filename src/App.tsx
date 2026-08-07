@@ -27,7 +27,12 @@ import {
   taskVisibleInHomeMode,
   taskVisibleInOutMode,
 } from './taskLogic'
-import { goalProgressedOnDate } from './goalLogic'
+import {
+  goalProgressedOnDate,
+  UNASSIGNED_GOAL_ID,
+  unassignedProgressedOnDate,
+  unassignedRecurringTasks,
+} from './goalLogic'
 import CategorySettingsPanel from './CategorySettingsPanel'
 import TaskNotesPanel, {
   TaskDescriptionPreview,
@@ -556,6 +561,13 @@ export default function App() {
     [state.goals],
   )
 
+  const unassignedRecurring = useMemo(
+    () => unassignedRecurringTasks(state),
+    [state.tasks, state.goals],
+  )
+
+  const showingUnassigned = activeGoalId === UNASSIGNED_GOAL_ID
+
   const sortedTimers = useMemo(
     () => [...state.timers].sort((a, b) => a.order - b.order),
     [state.timers],
@@ -567,8 +579,11 @@ export default function App() {
   )
 
   const activeGoal = useMemo(
-    () => sortedGoals.find((g) => g.id === activeGoalId) ?? null,
-    [sortedGoals, activeGoalId],
+    () =>
+      showingUnassigned
+        ? null
+        : (sortedGoals.find((g) => g.id === activeGoalId) ?? null),
+    [sortedGoals, activeGoalId, showingUnassigned],
   )
 
   const groupedDayTasks = useMemo(() => {
@@ -2596,7 +2611,7 @@ export default function App() {
         <section className="day-pane" aria-label="Goals">
           <div className="day-header">
             <div className="day-label-row projects-title-row">
-              {activeGoal ? (
+              {activeGoal || showingUnassigned ? (
                 <button
                   type="button"
                   className="day-nav-btn"
@@ -2609,15 +2624,19 @@ export default function App() {
                 <span className="day-nav-spacer" aria-hidden="true" />
               )}
               <p className="day-label">
-                {activeGoal ? activeGoal.name : 'Goals'}
+                {showingUnassigned
+                  ? 'Unassigned'
+                  : activeGoal
+                    ? activeGoal.name
+                    : 'Goals'}
               </p>
               <span className="day-nav-spacer" aria-hidden="true" />
             </div>
             <div className="day-divider" aria-hidden="true" />
           </div>
 
-          {!activeGoal ? (
-            sortedGoals.length === 0 ? (
+          {!activeGoal && !showingUnassigned ? (
+            sortedGoals.length === 0 && unassignedRecurring.length === 0 ? (
               <div className="panel empty">
                 <h2>No goals yet</h2>
                 <p>Tap the plus to add a goal, then link tasks and projects.</p>
@@ -2627,8 +2646,9 @@ export default function App() {
                 <section className="task-group" aria-label="Your goals">
                   <h2 className="category-heading">Your goals</h2>
                   <p className="muted reorder-hint view-hint">
-                    Drag the bars to reorder. Highlights today when you complete
-                    a linked task or project step.
+                    {sortedGoals.length > 0
+                      ? 'Drag the bars to reorder. Highlights today when you complete a linked task or project step.'
+                      : 'Recurring tasks without a goal show up in Unassigned. Tap plus to add a goal.'}
                   </p>
                   <ul className="task-list">
                     {sortedGoals.map((goal) => {
@@ -2708,11 +2728,78 @@ export default function App() {
                         </li>
                       )
                     })}
+                    {unassignedRecurring.length > 0 ? (
+                      <li
+                        className={`task-item goal-item goal-unassigned${
+                          unassignedProgressedOnDate(
+                            unassignedRecurring,
+                            todayKey,
+                          )
+                            ? ' goal-progressed'
+                            : ''
+                        }`}
+                      >
+                        <span className="drag-handle-spacer" aria-hidden="true" />
+                        <button
+                          type="button"
+                          className="project-main-btn"
+                          onClick={() => setActiveGoalId(UNASSIGNED_GOAL_ID)}
+                        >
+                          <p className="task-title">Unassigned</p>
+                          <p className="goal-description">
+                            Recurring tasks not linked to a goal
+                          </p>
+                          <ul className="goal-bullets">
+                            {unassignedRecurring.map((task) => (
+                              <li key={task.id}>Task: {task.title}</li>
+                            ))}
+                          </ul>
+                        </button>
+                        <span className="edit-btn-spacer" aria-hidden="true" />
+                      </li>
+                    ) : null}
                   </ul>
                 </section>
               </div>
             )
-          ) : (
+          ) : showingUnassigned ? (
+            <div className="task-groups">
+              <section className="task-group" aria-label="Unassigned recurring tasks">
+                <h2 className="category-heading">Unassigned</h2>
+                <p className="muted reorder-hint view-hint">
+                  Recurring tasks not linked to any goal yet. Open a goal to
+                  assign them.
+                </p>
+                {unassignedProgressedOnDate(unassignedRecurring, todayKey) ? (
+                  <p className="goal-today-note">Progressed today ✓</p>
+                ) : (
+                  <p className="muted view-hint">
+                    No progress on these tasks today yet.
+                  </p>
+                )}
+
+                {unassignedRecurring.length === 0 ? (
+                  <p className="muted view-hint">
+                    All recurring tasks are linked to a goal.
+                  </p>
+                ) : (
+                  <ul className="task-list">
+                    {unassignedRecurring.map((task) => (
+                      <li key={task.id} className="task-item assign-item">
+                        <div className="assign-btn linked static">
+                          <span className="assign-mark">○</span>
+                          <span className="task-title">{task.title}</span>
+                          <span className="badge rep">
+                            {REPETITION_LABELS[task.repetition]}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </div>
+          ) : activeGoal ? (
             <div className="task-groups">
               <section className="task-group" aria-label="Linked work">
                 {activeGoal.description.trim() ? (
@@ -2780,7 +2867,7 @@ export default function App() {
                 )}
               </section>
             </div>
-          )}
+          ) : null}
         </section>
       )}
 
