@@ -4,13 +4,13 @@ import {
   DEFAULT_TASK_CATEGORIES,
   DEFAULT_TIMERS,
   MODE_ICON_IDS,
+  VACATION_MODE_ID,
   type AppState,
   type Category,
   type DollarLedgerEntry,
   type FocusTimer,
   type Goal,
   type Mode,
-  type ModeBehavior,
   type ModeIconId,
   type PendingDelivery,
   type Project,
@@ -199,12 +199,8 @@ function normalizeModeIcon(raw: unknown): ModeIconId {
   return 'star'
 }
 
-function normalizeModeBehavior(raw: unknown): ModeBehavior {
-  return raw === 'day' ? 'day' : 'filter'
-}
-
 function normalizeModes(raw: unknown): Mode[] | null {
-  // Explicit empty array means the user deleted every mode — keep it.
+  // Explicit empty array means the user deleted every custom mode — keep it.
   if (Array.isArray(raw) && raw.length === 0) return []
   if (!Array.isArray(raw)) return null
   const modes: Mode[] = []
@@ -218,47 +214,48 @@ function normalizeModes(raw: unknown): Mode[] | null {
       order?: unknown
     }
     if (typeof m.id !== 'string' || typeof m.name !== 'string') return
+    // Vacation is built-in — never part of the customizable list.
+    if (m.id === VACATION_MODE_ID) return
+    // Drop legacy day-behavior custom modes (only vacation is day-scoped).
+    if (m.behavior === 'day') return
     modes.push({
       id: m.id,
       name: m.name,
       icon: normalizeModeIcon(m.icon),
-      behavior: normalizeModeBehavior(m.behavior),
       order: typeof m.order === 'number' ? m.order : index,
     })
   })
-  // Corrupt non-empty payload with zero valid entries → fall back to defaults.
-  return modes.length > 0 ? modes.sort((a, b) => a.order - b.order) : null
+  // Corrupt / vacation-only payloads → fall back to defaults.
+  return modes.length > 0
+    ? modes.sort((a, b) => a.order - b.order)
+    : null
 }
 
-function normalizeModeDays(
-  raw: unknown,
+function normalizeVacationDays(
   legacyVacationDays: unknown,
-): Record<string, Record<string, boolean>> {
-  const result: Record<string, Record<string, boolean>> = {}
-  if (raw && typeof raw === 'object') {
-    for (const [modeId, days] of Object.entries(raw as Record<string, unknown>)) {
-      if (!days || typeof days !== 'object') continue
-      const cleaned: Record<string, boolean> = {}
-      for (const [dateKey, on] of Object.entries(days as Record<string, unknown>)) {
-        if (on) cleaned[dateKey] = true
-      }
-      if (Object.keys(cleaned).length > 0) result[modeId] = cleaned
-    }
-  }
-  if (
-    !result.vacation &&
-    legacyVacationDays &&
-    typeof legacyVacationDays === 'object'
-  ) {
-    const cleaned: Record<string, boolean> = {}
+  modeDays: unknown,
+): Record<string, boolean> {
+  const cleaned: Record<string, boolean> = {}
+  if (legacyVacationDays && typeof legacyVacationDays === 'object') {
     for (const [dateKey, on] of Object.entries(
       legacyVacationDays as Record<string, unknown>,
     )) {
       if (on) cleaned[dateKey] = true
     }
-    if (Object.keys(cleaned).length > 0) result.vacation = cleaned
   }
-  return result
+  if (modeDays && typeof modeDays === 'object') {
+    const vacationFromModes = (modeDays as Record<string, unknown>)[
+      VACATION_MODE_ID
+    ]
+    if (vacationFromModes && typeof vacationFromModes === 'object') {
+      for (const [dateKey, on] of Object.entries(
+        vacationFromModes as Record<string, unknown>,
+      )) {
+        if (on) cleaned[dateKey] = true
+      }
+    }
+  }
+  return cleaned
 }
 
 function normalizeActiveModeIds(
@@ -266,7 +263,14 @@ function normalizeActiveModeIds(
   legacy: { workMode?: unknown; homeMode?: unknown; outMode?: unknown },
 ): string[] {
   if (Array.isArray(raw)) {
-    return [...new Set(raw.filter((id): id is string => typeof id === 'string'))]
+    return [
+      ...new Set(
+        raw.filter(
+          (id): id is string =>
+            typeof id === 'string' && id !== VACATION_MODE_ID,
+        ),
+      ),
+    ]
   }
   const ids: string[] = []
   if (legacy.workMode) ids.push('work')
@@ -456,9 +460,9 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     goals: [],
     timers: DEFAULT_TIMERS,
     pendingDeliveries: [],
+    vacationDays: {},
     modes: DEFAULT_MODES,
     activeModeIds: [],
-    modeDays: {},
     showPercent: false,
     dollarLedger: [],
     connectedCalendars: [],
@@ -468,6 +472,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
   const legacy = raw as Partial<AppState> & {
     categories?: unknown
     vacationDays?: unknown
+    modeDays?: unknown
     workMode?: unknown
     homeMode?: unknown
     outMode?: unknown
@@ -490,16 +495,12 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
   const modes = normalizeModes(raw.modes) ?? DEFAULT_MODES
   const modeIds = new Set(modes.map((m) => m.id))
   const activeModeIds = normalizeActiveModeIds(raw.activeModeIds, legacy).filter(
-    (id) => modeIds.has(id) && modes.some((m) => m.id === id && m.behavior === 'filter'),
+    (id) => modeIds.has(id),
   )
-  const modeDays = normalizeModeDays(raw.modeDays, legacy.vacationDays)
-  // Drop day entries for modes that no longer exist or are not day-behavior.
-  const cleanedModeDays: Record<string, Record<string, boolean>> = {}
-  for (const [modeId, days] of Object.entries(modeDays)) {
-    const mode = modes.find((m) => m.id === modeId)
-    if (!mode || mode.behavior !== 'day') continue
-    cleanedModeDays[modeId] = days
-  }
+  const vacationDays = normalizeVacationDays(
+    legacy.vacationDays,
+    legacy.modeDays,
+  )
 
   return {
     tasks: normalizeTasks(raw.tasks),
@@ -510,9 +511,9 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     goals: normalizeGoals(raw.goals),
     timers: timers !== null ? timers : DEFAULT_TIMERS,
     pendingDeliveries: normalizePendingDeliveries(raw.pendingDeliveries),
+    vacationDays,
     modes,
     activeModeIds,
-    modeDays: cleanedModeDays,
     showPercent: Boolean(raw.showPercent),
     dollarLedger: normalizeDollarLedger(raw.dollarLedger),
     connectedCalendars,
