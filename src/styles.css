@@ -840,6 +840,11 @@ button {
   box-shadow: 0 8px 20px rgba(154, 74, 36, 0.12);
 }
 
+.timer-toggle-btn.running {
+  background: var(--accent);
+  color: #fff;
+}
+
 .timer-main-btn {
   border: none;
   background: transparent;
