@@ -402,7 +402,6 @@ export default function App() {
   >([COMPLETED_GROUP_ID])
   const [activeTimerId, setActiveTimerId] = useState<string | null>(null)
   const [runningTimerId, setRunningTimerId] = useState<string | null>(null)
-  const [timerElapsed, setTimerElapsed] = useState<Record<string, number>>({})
   const [editingTimerId, setEditingTimerId] = useState<string | null>(null)
   const [newTimerTitle, setNewTimerTitle] = useState('')
   const [newTimerMinutes, setNewTimerMinutes] = useState('20')
@@ -507,9 +506,16 @@ export default function App() {
   useEffect(() => {
     if (!runningTimerId) return
     const id = window.setInterval(() => {
-      setTimerElapsed((prev) => ({
+      setState((prev) => ({
         ...prev,
-        [runningTimerId]: (prev[runningTimerId] ?? 0) + 1,
+        timers: prev.timers.map((timer) =>
+          timer.id === runningTimerId
+            ? {
+                ...timer,
+                elapsedSeconds: Math.max(0, timer.elapsedSeconds ?? 0) + 1,
+              }
+            : timer,
+        ),
       }))
     }, 1000)
     return () => window.clearInterval(id)
@@ -734,31 +740,47 @@ export default function App() {
     const timer = state.timers.find((t) => t.id === runningTimerId)
     if (!timer) return
     const goalSeconds = Math.max(1, timer.minutesForDollar) * 60
-    const elapsed = timerElapsed[runningTimerId] ?? 0
+    const elapsed = Math.max(0, timer.elapsedSeconds ?? 0)
     if (elapsed < goalSeconds) return
     const cycles = Math.floor(elapsed / goalSeconds)
     if (cycles < 1) return
     const today = toDateKey(startToday())
     updateState((prev) => {
+      const current = prev.timers.find((t) => t.id === runningTimerId)
+      if (!current) return prev
+      const currentElapsed = Math.max(0, current.elapsedSeconds ?? 0)
+      const currentGoal = Math.max(1, current.minutesForDollar) * 60
+      if (currentElapsed < currentGoal) return prev
+      const earnedCycles = Math.floor(currentElapsed / currentGoal)
+      if (earnedCycles < 1) return prev
       let dollars = prev.dollars
       let dollarLedger = prev.dollarLedger
-      for (let i = 0; i < cycles; i += 1) {
+      for (let i = 0; i < earnedCycles; i += 1) {
         dollars += 1
         dollarLedger = appendLedgerEntry(dollarLedger, {
           dateKey: today,
           amount: 1,
           kind: 'earned',
-          label: timer.title,
+          label: current.title,
         })
       }
-      return { ...prev, dollars, dollarLedger }
+      return {
+        ...prev,
+        dollars,
+        dollarLedger,
+        timers: prev.timers.map((t) =>
+          t.id === runningTimerId
+            ? { ...t, elapsedSeconds: currentElapsed % currentGoal }
+            : t,
+        ),
+      }
     })
-    setTimerElapsed((prev) => ({
-      ...prev,
-      [runningTimerId]: elapsed % goalSeconds,
-    }))
-    setToast(cycles === 1 ? `+$1 · ${timer.title}` : `+$${cycles} · ${timer.title}`)
-  }, [timerElapsed, runningTimerId, state.timers])
+    setToast(
+      cycles === 1
+        ? `+$1 · ${timer.title}`
+        : `+$${cycles} · ${timer.title}`,
+    )
+  }, [runningTimerId, state.timers])
 
   function startCategoryEdit(id: string) {
     setEditingCategoryId(id)
@@ -1596,6 +1618,7 @@ export default function App() {
         title,
         minutesForDollar: minutes,
         order: maxOrder + 1,
+        elapsedSeconds: 0,
       }
       updateState((prev) => ({ ...prev, timers: [...prev.timers, timer] }))
       setToast('Timer added')
@@ -1618,11 +1641,6 @@ export default function App() {
       ...prev,
       timers: prev.timers.filter((t) => t.id !== id),
     }))
-    setTimerElapsed((prev) => {
-      const next = { ...prev }
-      delete next[id]
-      return next
-    })
     if (runningTimerId === id) setRunningTimerId(null)
     if (activeTimerId === id) setActiveTimerId(null)
     if (editingTimerId === id) {
@@ -1639,7 +1657,12 @@ export default function App() {
 
   function resetActiveTimer(timerId: string) {
     setRunningTimerId((current) => (current === timerId ? null : current))
-    setTimerElapsed((prev) => ({ ...prev, [timerId]: 0 }))
+    updateState((prev) => ({
+      ...prev,
+      timers: prev.timers.map((timer) =>
+        timer.id === timerId ? { ...timer, elapsedSeconds: 0 } : timer,
+      ),
+    }))
   }
 
   function addCategory() {
@@ -3103,16 +3126,17 @@ export default function App() {
           {activeTimer ? (
             <div className="panel timer-panel">
               <p className="timer-display" aria-live="polite">
-                {formatTimerSeconds(timerElapsed[activeTimer.id] ?? 0)}
+                {formatTimerSeconds(activeTimer.elapsedSeconds ?? 0)}
               </p>
               <p className="timer-seconds-label">
-                {timerElapsed[activeTimer.id] ?? 0} second
-                {(timerElapsed[activeTimer.id] ?? 0) === 1 ? '' : 's'}
+                {activeTimer.elapsedSeconds ?? 0} second
+                {(activeTimer.elapsedSeconds ?? 0) === 1 ? '' : 's'}
               </p>
               <p className="muted timer-hint">
                 Earn $1 every {activeTimer.minutesForDollar} minute
-                {activeTimer.minutesForDollar === 1 ? '' : 's'}. Pause keeps
-                your place.
+                {activeTimer.minutesForDollar === 1 ? '' : 's'}. Progress is
+                saved when you pause — even across days — until you earn $1.
+                Leftover time carries to the next dollar.
               </p>
               <p className="timer-next">
                 Next $ in{' '}
@@ -3120,7 +3144,7 @@ export default function App() {
                   Math.max(
                     0,
                     activeTimer.minutesForDollar * 60 -
-                      (timerElapsed[activeTimer.id] ?? 0),
+                      (activeTimer.elapsedSeconds ?? 0),
                   ),
                 )}
               </p>
@@ -3156,7 +3180,7 @@ export default function App() {
                 </p>
                 <ul className="task-list">
                   {sortedTimers.map((timer) => {
-                    const elapsed = timerElapsed[timer.id] ?? 0
+                    const elapsed = timer.elapsedSeconds ?? 0
                     const running = runningTimerId === timer.id
                     return (
                       <li

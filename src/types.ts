@@ -115,6 +115,12 @@ export interface FocusTimer {
   /** Minutes of running time needed to earn $1. */
   minutesForDollar: number
   order: number
+  /**
+   * Seconds accrued toward the next $1.
+   * Survives pause, reload, and days until a full cycle is earned
+   * (then leftover seconds carry forward).
+   */
+  elapsedSeconds: number
 }
 
 export interface ConnectedCalendar {
@@ -169,12 +175,14 @@ export const DEFAULT_TIMERS: FocusTimer[] = [
     title: 'Room cleaning',
     minutesForDollar: 20,
     order: 0,
+    elapsedSeconds: 0,
   },
   {
     id: 'kitchen-cleaning',
     title: 'Kitchen cleaning',
     minutesForDollar: 10,
     order: 1,
+    elapsedSeconds: 0,
   },
 ]
 

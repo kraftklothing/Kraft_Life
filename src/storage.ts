@@ -215,6 +215,7 @@ function normalizeTimers(raw: unknown): FocusTimer[] | null {
       title?: unknown
       minutesForDollar?: unknown
       order?: unknown
+      elapsedSeconds?: unknown
     }
     if (typeof t.id !== 'string' || typeof t.title !== 'string') return
     const minutes =
@@ -222,11 +223,20 @@ function normalizeTimers(raw: unknown): FocusTimer[] | null {
         ? t.minutesForDollar
         : Number(t.minutesForDollar)
     if (!Number.isFinite(minutes) || minutes < 1) return
+    const elapsedRaw =
+      typeof t.elapsedSeconds === 'number'
+        ? t.elapsedSeconds
+        : Number(t.elapsedSeconds)
+    const elapsedSeconds =
+      Number.isFinite(elapsedRaw) && elapsedRaw > 0
+        ? Math.floor(elapsedRaw)
+        : 0
     timers.push({
       id: t.id,
       title: t.title,
       minutesForDollar: Math.floor(minutes),
       order: typeof t.order === 'number' ? t.order : index,
+      elapsedSeconds,
     })
   })
   return timers.sort((a, b) => a.order - b.order)
