@@ -749,10 +749,98 @@ button {
   font-size: 0.95rem;
   font-weight: 600;
   line-height: 1.2;
+  color: var(--ink);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.mode-settings-row {
+  grid-template-columns: auto auto 1fr auto;
+}
+
+.mode-settings-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--ink-soft);
+}
+
+.mode-behavior-tag {
+  margin-left: 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  vertical-align: middle;
+}
+
+.mode-edit-extras {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  padding: 4px 0 8px;
+}
+
+.mode-icon-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mode-icon-option {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink-soft);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.mode-icon-option.selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff8f1;
+}
+
+.mode-behavior-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mode-behavior-option {
+  border: 1px solid var(--line);
+  background: var(--panel-solid);
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mode-behavior-option.selected {
+  background: var(--accent-wash);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mode-add-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.mode-icon-picker-add {
+  margin-top: 2px;
 }
 
 .category-settings-name.attention {
