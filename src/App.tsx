@@ -2133,6 +2133,7 @@ export default function App() {
         ) : (
           <span className="stat-chip-spacer" aria-hidden="true" />
         )}
+        <h1 className="brand">Kraft Life</h1>
         <button
           type="button"
           className="dollar-chip"
@@ -2142,10 +2143,6 @@ export default function App() {
           ${state.dollars}
         </button>
       </header>
-
-      <div className="brand-block">
-        <h1 className="brand">Kraft Life</h1>
-      </div>
 
       {mainView === 'tasks' && (
         <section
