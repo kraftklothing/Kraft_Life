@@ -42,7 +42,6 @@ import {
   type FocusTimer,
   type Goal,
   type Mode,
-  type ModeBehavior,
   type ModeIconId,
   type PendingDelivery,
   type Project,
@@ -334,7 +333,6 @@ export default function App() {
   const [newCategory, setNewCategory] = useState('')
   const [newModeName, setNewModeName] = useState('')
   const [newModeIcon, setNewModeIcon] = useState<ModeIconId>('star')
-  const [newModeBehavior, setNewModeBehavior] = useState<ModeBehavior>('filter')
   const [editingModeId, setEditingModeId] = useState<string | null>(null)
   const [newRewardName, setNewRewardName] = useState('')
   const [newRewardCost, setNewRewardCost] = useState('5')
@@ -434,27 +432,11 @@ export default function App() {
     () => [...state.modes].sort((a, b) => a.order - b.order),
     [state.modes],
   )
-  const filterModes = useMemo(
-    () => sortedModes.filter((mode) => mode.behavior === 'filter'),
-    [sortedModes],
-  )
-  const activeDayModes = useMemo(
-    () =>
-      sortedModes.filter(
-        (mode) =>
-          mode.behavior === 'day' && Boolean(state.modeDays[mode.id]?.[viewKey]),
-      ),
-    [sortedModes, state.modeDays, viewKey],
-  )
+  const vacationOn = Boolean(state.vacationDays[viewKey])
   const activeFilterModes = useMemo(
-    () =>
-      sortedModes.filter(
-        (mode) =>
-          mode.behavior === 'filter' && state.activeModeIds.includes(mode.id),
-      ),
+    () => sortedModes.filter((mode) => state.activeModeIds.includes(mode.id)),
     [sortedModes, state.activeModeIds],
   )
-  const dayModeOn = activeDayModes.length > 0
   const notesTask = notesTaskId
     ? state.tasks.find((task) => task.id === notesTaskId) ?? null
     : null
@@ -508,7 +490,7 @@ export default function App() {
     const applicable = state.tasks.filter((task) => {
       if (!taskVisibleOnDate(task, viewKey)) return false
       if (
-        dayModeOn &&
+        vacationOn &&
         !taskVisibleInDayMode(task, state.taskCategories)
       ) {
         return false
@@ -523,7 +505,7 @@ export default function App() {
     state.tasks,
     state.taskCategories,
     viewKey,
-    dayModeOn,
+    vacationOn,
     activeFilterModes,
   ])
 
@@ -1398,19 +1380,16 @@ export default function App() {
     setToast('Step deleted')
   }
 
+  function toggleVacationMode() {
+    updateState((prev) => {
+      const next = { ...prev.vacationDays }
+      if (next[viewKey]) delete next[viewKey]
+      else next[viewKey] = true
+      return { ...prev, vacationDays: next }
+    })
+  }
+
   function toggleMode(mode: Mode) {
-    if (mode.behavior === 'day') {
-      updateState((prev) => {
-        const forMode = { ...(prev.modeDays[mode.id] ?? {}) }
-        if (forMode[viewKey]) delete forMode[viewKey]
-        else forMode[viewKey] = true
-        const modeDays = { ...prev.modeDays }
-        if (Object.keys(forMode).length === 0) delete modeDays[mode.id]
-        else modeDays[mode.id] = forMode
-        return { ...prev, modeDays }
-      })
-      return
-    }
     updateState((prev) => {
       const on = prev.activeModeIds.includes(mode.id)
       return {
@@ -1423,9 +1402,6 @@ export default function App() {
   }
 
   function isModeActive(mode: Mode): boolean {
-    if (mode.behavior === 'day') {
-      return Boolean(state.modeDays[mode.id]?.[viewKey])
-    }
     return state.activeModeIds.includes(mode.id)
   }
 
@@ -1465,7 +1441,6 @@ export default function App() {
       id: uid('mode'),
       name,
       icon: newModeIcon,
-      behavior: newModeBehavior,
       order: maxOrder + 1,
     }
     updateState((prev) => ({
@@ -1474,26 +1449,21 @@ export default function App() {
     }))
     setNewModeName('')
     setNewModeIcon('star')
-    setNewModeBehavior('filter')
     setToast('Mode added')
   }
 
   function deleteMode(id: string) {
-    updateState((prev) => {
-      const { [id]: _removedDays, ...restModeDays } = prev.modeDays
-      return {
-        ...prev,
-        modes: prev.modes.filter((mode) => mode.id !== id),
-        activeModeIds: prev.activeModeIds.filter((modeId) => modeId !== id),
-        modeDays: restModeDays,
-        tasks: prev.tasks.map((task) => {
-          if (!(id in (task.visibleInModes ?? {}))) return task
-          const nextVisibility = { ...task.visibleInModes }
-          delete nextVisibility[id]
-          return { ...task, visibleInModes: nextVisibility }
-        }),
-      }
-    })
+    updateState((prev) => ({
+      ...prev,
+      modes: prev.modes.filter((mode) => mode.id !== id),
+      activeModeIds: prev.activeModeIds.filter((modeId) => modeId !== id),
+      tasks: prev.tasks.map((task) => {
+        if (!(id in (task.visibleInModes ?? {}))) return task
+        const nextVisibility = { ...task.visibleInModes }
+        delete nextVisibility[id]
+        return { ...task, visibleInModes: nextVisibility }
+      }),
+    }))
     setEditingModeId((current) => (current === id ? null : current))
     setVisibleInModes((prev) => {
       if (!(id in prev)) return prev
@@ -1530,23 +1500,6 @@ export default function App() {
         mode.id === id ? { ...mode, icon } : mode,
       ),
     }))
-  }
-
-  function changeModeBehavior(id: string, behavior: ModeBehavior) {
-    updateState((prev) => {
-      const modes = prev.modes.map((mode) =>
-        mode.id === id ? { ...mode, behavior } : mode,
-      )
-      let activeModeIds = prev.activeModeIds
-      let modeDays = prev.modeDays
-      if (behavior === 'day') {
-        activeModeIds = activeModeIds.filter((modeId) => modeId !== id)
-      } else {
-        const { [id]: _removed, ...rest } = modeDays
-        modeDays = rest
-      }
-      return { ...prev, modes, activeModeIds, modeDays }
-    })
   }
 
   function beginModeDrag(modeId: string, clientY: number) {
@@ -2277,7 +2230,7 @@ export default function App() {
   }, [])
 
   return (
-    <div className={`app${dayModeOn ? ' vacation-day' : ''}`}>
+    <div className={`app${vacationOn ? ' vacation-day' : ''}`}>
       <header className="top-bar">
         {mainView === 'tasks' ? (
           <button
@@ -2379,37 +2332,44 @@ export default function App() {
                 ›
               </button>
             </div>
-            {sortedModes.length > 0 ? (
-              <div className="mode-btns mode-btns-row">
-                {sortedModes.map((mode) => {
-                  const active = isModeActive(mode)
-                  return (
-                    <button
-                      key={mode.id}
-                      type="button"
-                      className={`plane-btn${active ? ' active' : ''}`}
-                      aria-label={
-                        active
-                          ? `Turn off ${mode.name} mode`
-                          : `Turn on ${mode.name} mode`
-                      }
-                      aria-pressed={active}
-                      onClick={() => toggleMode(mode)}
-                    >
-                      <ModeIcon icon={mode.icon} />
-                    </button>
-                  )
-                })}
-              </div>
-            ) : null}
+            <div className="mode-btns mode-btns-row">
+              <button
+                type="button"
+                className={`plane-btn${vacationOn ? ' active' : ''}`}
+                aria-label={
+                  vacationOn
+                    ? 'Turn off vacation mode'
+                    : 'Turn on vacation mode'
+                }
+                aria-pressed={vacationOn}
+                onClick={toggleVacationMode}
+              >
+                <ModeIcon icon="plane" />
+              </button>
+              {sortedModes.map((mode) => {
+                const active = isModeActive(mode)
+                return (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    className={`plane-btn${active ? ' active' : ''}`}
+                    aria-label={
+                      active
+                        ? `Turn off ${mode.name} mode`
+                        : `Turn on ${mode.name} mode`
+                    }
+                    aria-pressed={active}
+                    onClick={() => toggleMode(mode)}
+                  >
+                    <ModeIcon icon={mode.icon} />
+                  </button>
+                )
+              })}
+            </div>
             <div className="day-divider" aria-hidden="true" />
           </div>
 
-          {activeDayModes.map((mode) => (
-            <p key={mode.id} className="vacation-banner">
-              {mode.name} mode
-            </p>
-          ))}
+          {vacationOn ? <p className="vacation-banner">Vacation mode</p> : null}
           {activeFilterModes.map((mode) => (
             <p key={mode.id} className="work-banner">
               {mode.name} mode
@@ -2478,7 +2438,7 @@ export default function App() {
                                 done ? ' completed' : ''
                               }${calendarTask ? ' calendar-task' : ''}${
                                 draggingId === task.id ? ' dragging' : ''
-                              }${dayModeOn ? ' vacation' : ''}`}
+                              }${vacationOn ? ' vacation' : ''}`}
                             >
                               {calendarTask ? (
                                 <span className="calendar-task-marker" aria-hidden="true">
@@ -3259,10 +3219,8 @@ export default function App() {
                 modes={sortedModes}
                 newName={newModeName}
                 newIcon={newModeIcon}
-                newBehavior={newModeBehavior}
                 onNewNameChange={setNewModeName}
                 onNewIconChange={setNewModeIcon}
-                onNewBehaviorChange={setNewModeBehavior}
                 editingId={editingModeId}
                 draggingId={draggingModeId}
                 onStartEdit={startModeEdit}
@@ -3270,7 +3228,6 @@ export default function App() {
                 onCancelEdit={cancelModeEdit}
                 onLiveRename={liveRenameMode}
                 onChangeIcon={changeModeIcon}
-                onChangeBehavior={changeModeBehavior}
                 onDelete={deleteMode}
                 onAdd={addMode}
                 onBeginDrag={beginModeDrag}
@@ -3960,11 +3917,11 @@ export default function App() {
               </fieldset>
             ) : null}
 
-            {filterModes.length > 0 ? (
+            {sortedModes.length > 0 ? (
               <fieldset className="category-multi mode-visibility-compact">
                 <legend>Show in</legend>
                 <div className="mode-visibility-options">
-                  {filterModes.map((mode) => {
+                  {sortedModes.map((mode) => {
                     const visible = visibleInModes[mode.id] !== false
                     return (
                       <label
