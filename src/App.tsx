@@ -594,6 +594,7 @@ export default function App() {
       id: string
       name: string
       attention?: boolean
+      reminders?: boolean
       tasks: Task[]
     }[] = []
     for (const cat of state.taskCategories) {
@@ -603,6 +604,7 @@ export default function App() {
         id: cat.id,
         name: cat.name,
         attention: cat.attention === true,
+        reminders: cat.reminders === true,
         tasks: sortTasksForDay(tasks),
       })
     }
@@ -648,7 +650,19 @@ export default function App() {
   }, [viewKey, state.connectedCalendars])
 
   const groupedDayView = useMemo(() => {
-    if (calendarEvents.length === 0) return groupedDayTasks
+    const withoutCompleted = groupedDayTasks.filter(
+      (group) => group.id !== COMPLETED_GROUP_ID,
+    )
+    const completedGroup = groupedDayTasks.find(
+      (group) => group.id === COMPLETED_GROUP_ID,
+    )
+    const attentionGroups = withoutCompleted.filter((group) => group.attention === true)
+    const reminderGroups = withoutCompleted.filter(
+      (group) => group.attention !== true && group.reminders === true,
+    )
+    const otherGroups = withoutCompleted.filter(
+      (group) => group.attention !== true && group.reminders !== true,
+    )
 
     const calendarTasks: Task[] = calendarEvents.map((event, index) => ({
       id: `calendar:${event.id}`,
@@ -663,22 +677,18 @@ export default function App() {
       createdAt: 0,
     }))
 
-    const withoutCompleted = groupedDayTasks.filter(
-      (group) => group.id !== COMPLETED_GROUP_ID,
-    )
-    const completedGroup = groupedDayTasks.find(
-      (group) => group.id === COMPLETED_GROUP_ID,
-    )
-    const attentionGroups = withoutCompleted.filter((group) => group.attention === true)
-    const otherGroups = withoutCompleted.filter((group) => group.attention !== true)
-
     return [
       ...attentionGroups,
-      {
-        id: CALENDAR_GROUP_ID,
-        name: 'Calendar',
-        tasks: calendarTasks,
-      },
+      ...(calendarTasks.length > 0
+        ? [
+            {
+              id: CALENDAR_GROUP_ID,
+              name: 'Calendar',
+              tasks: calendarTasks,
+            },
+          ]
+        : []),
+      ...reminderGroups,
       ...otherGroups,
       ...(completedGroup ? [completedGroup] : []),
     ]
@@ -1073,13 +1083,21 @@ export default function App() {
           }
         } else {
           nextCompletions[viewKey] = true
-          dollars += 1
-          dollarLedger = appendLedgerEntry(dollarLedger, {
-            dateKey: viewKey,
-            amount: 1,
-            kind: 'earned',
-            label: task.title,
-          })
+          const isReminderTask = task.categoryIds.some((categoryId) =>
+            prev.taskCategories.some(
+              (category) =>
+                category.id === categoryId && category.reminders === true,
+            ),
+          )
+          if (!isReminderTask) {
+            dollars += 1
+            dollarLedger = appendLedgerEntry(dollarLedger, {
+              dateKey: viewKey,
+              amount: 1,
+              kind: 'earned',
+              label: task.title,
+            })
+          }
         }
         return { ...task, completions: nextCompletions }
       })
@@ -1855,7 +1873,23 @@ export default function App() {
           const { attention: _removed, ...rest } = c
           return rest
         }
-        return { ...c, attention: true }
+        const { reminders: _reminders, ...rest } = c
+        return { ...rest, attention: true }
+      }),
+    }))
+  }
+
+  function toggleCategoryReminders(id: string) {
+    updateState((prev) => ({
+      ...prev,
+      taskCategories: prev.taskCategories.map((c) => {
+        if (c.id !== id) return c
+        if (c.reminders) {
+          const { reminders: _removed, ...rest } = c
+          return rest
+        }
+        const { attention: _attention, ...rest } = c
+        return { ...rest, reminders: true }
       }),
     }))
   }
@@ -2387,12 +2421,14 @@ export default function App() {
               {groupedDayView.map((group, groupIndex) => {
                 const collapsed = collapsedTaskCategoryIds.includes(group.id)
                 const attention = group.attention === true
+                const reminders = group.reminders === true
                 const isCalendar = group.id === CALENDAR_GROUP_ID
+                const yellowHeading = isCalendar || reminders
                 return (
                   <section
                     className={`task-group${collapsed ? ' collapsed' : ''}${
                       attention ? ' attention' : ''
-                    }${isCalendar ? ' calendar' : ''}`}
+                    }${yellowHeading ? ' calendar' : ''}`}
                     key={group.id}
                     aria-label={group.name}
                   >
@@ -2408,7 +2444,7 @@ export default function App() {
                       <h2
                         className={`category-heading${
                           attention ? ' attention' : ''
-                        }${isCalendar ? ' calendar' : ''}`}
+                        }${yellowHeading ? ' calendar' : ''}`}
                       >
                         {group.name}
                       </h2>
@@ -3211,6 +3247,7 @@ export default function App() {
                 onCancelEdit={cancelCategoryEdit}
                 onLiveRename={liveRenameCategory}
                 onToggleAttention={toggleCategoryAttention}
+                onToggleReminders={toggleCategoryReminders}
                 onDelete={deleteCategory}
                 onAdd={addCategory}
                 onBeginDrag={beginCategoryDrag}

@@ -78,6 +78,11 @@ export interface Category {
   name: string
   /** When true, the day-view heading is larger, bolder, and more colorful. */
   attention?: boolean
+  /**
+   * When true, the day-view heading uses the yellow calendar style,
+   * and completing tasks in this category does not earn money.
+   */
+  reminders?: boolean
 }
 
 export interface Reward {

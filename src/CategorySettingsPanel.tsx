@@ -11,6 +11,7 @@ interface CategorySettingsPanelProps {
   onCancelEdit: () => void
   onLiveRename: (id: string, name: string) => void
   onToggleAttention: (id: string) => void
+  onToggleReminders: (id: string) => void
   onDelete: (id: string) => void
   onAdd: () => void
   onBeginDrag: (id: string, clientY: number) => void
@@ -27,6 +28,7 @@ export default function CategorySettingsPanel({
   onCancelEdit,
   onLiveRename,
   onToggleAttention,
+  onToggleReminders,
   onDelete,
   onAdd,
   onBeginDrag,
@@ -35,18 +37,20 @@ export default function CategorySettingsPanel({
     <>
       <p className="muted reorder-hint view-hint">
         Drag the bars to reorder. Tap the pencil to edit — delete shows while
-        editing. Tap the highlight to make a category stand out on the day view.
+        editing. Tap the highlight star to make a category stand out, or the
+        bell to mark it as reminders (yellow, no money when completed).
       </p>
       <ul className="task-list category-settings-list">
         {categories.map((cat) => {
           const editing = editingId === cat.id
           const attention = cat.attention === true
+          const reminders = cat.reminders === true
           return (
             <li
               key={cat.id}
               className={`category-settings-row${
                 draggingId === cat.id ? ' dragging' : ''
-              }${attention ? ' attention' : ''}`}
+              }${attention ? ' attention' : ''}${reminders ? ' reminders' : ''}`}
             >
               <button
                 type="button"
@@ -84,7 +88,7 @@ export default function CategorySettingsPanel({
                 <span
                   className={`category-settings-name${
                     attention ? ' attention' : ''
-                  }`}
+                  }${reminders ? ' reminders' : ''}`}
                 >
                   {cat.name.trim() || 'Untitled'}
                 </span>
@@ -102,6 +106,19 @@ export default function CategorySettingsPanel({
                   onClick={() => onToggleAttention(cat.id)}
                 >
                   <AttentionIcon filled={attention} />
+                </button>
+                <button
+                  type="button"
+                  className={`reminders-btn${reminders ? ' active' : ''}`}
+                  aria-label={
+                    reminders
+                      ? `Turn off reminders for ${cat.name}`
+                      : `Mark ${cat.name} as reminders`
+                  }
+                  aria-pressed={reminders}
+                  onClick={() => onToggleReminders(cat.id)}
+                >
+                  <RemindersIcon filled={reminders} />
                 </button>
                 {editing ? (
                   <button
@@ -169,6 +186,26 @@ function AttentionIcon({ filled }: { filled: boolean }) {
         stroke="currentColor"
         strokeWidth="2"
         strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function RemindersIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 3a6 6 0 0 0-6 6v2.2c0 .7-.2 1.4-.6 2L4.2 15.5c-.5.7 0 1.7.9 1.7h13.8c.9 0 1.4-1 .9-1.7L18.6 13.2c-.4-.6-.6-1.3-.6-2V9a6 6 0 0 0-6-6Z"
+        fill={filled ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10 19a2 2 0 0 0 4 0"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
       />
     </svg>
   )
