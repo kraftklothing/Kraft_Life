@@ -34,11 +34,13 @@ import {
 import { nextIncompleteStep } from './projectLogic'
 import CategorySettingsPanel from './CategorySettingsPanel'
 import ModeSettingsPanel from './ModeSettingsPanel'
+import NavigationSettingsPanel from './NavigationSettingsPanel'
 import { ModeIcon } from './modeIcons'
 import TaskNotesPanel, {
   TaskDescriptionPreview,
 } from './TaskNotesPanel'
 import {
+  OPTIONAL_NAV_VIEWS,
   REPETITION_LABELS,
   WEEKDAY_OPTIONS,
   type AppState,
@@ -48,6 +50,7 @@ import {
   type Goal,
   type Mode,
   type ModeIconId,
+  type OptionalNavView,
   type PendingDelivery,
   type Project,
   type ProjectStep,
@@ -182,6 +185,28 @@ function TargetIcon() {
 }
 
 type MainView = 'tasks' | 'projects' | 'goals' | 'timer' | 'rewards' | 'settings'
+
+function isOptionalNavView(view: MainView): view is OptionalNavView {
+  return (OPTIONAL_NAV_VIEWS as string[]).includes(view)
+}
+
+function isNavViewVisible(
+  visibility: AppState['navVisibility'],
+  view: MainView,
+): boolean {
+  if (view === 'settings') return true
+  if (!isOptionalNavView(view)) return true
+  return visibility[view] !== false
+}
+
+function firstVisibleMainView(
+  visibility: AppState['navVisibility'],
+): MainView {
+  for (const view of OPTIONAL_NAV_VIEWS) {
+    if (visibility[view] !== false) return view
+  }
+  return 'settings'
+}
 
 const COMPLETED_GROUP_ID = '__completed__'
 const CALENDAR_GROUP_ID = '__calendar__'
@@ -479,6 +504,11 @@ export default function App() {
     const t = window.setTimeout(() => setToast(''), 2200)
     return () => window.clearTimeout(t)
   }, [toast])
+
+  useEffect(() => {
+    if (isNavViewVisible(state.navVisibility, mainView)) return
+    goToView(firstVisibleMainView(state.navVisibility))
+  }, [state.navVisibility, mainView])
 
   useEffect(() => {
     if (!runningTimerId) return
@@ -1017,6 +1047,19 @@ export default function App() {
     if (view !== 'projects') setActiveProjectId(null)
     if (view !== 'goals') setActiveGoalId(null)
     if (view !== 'timer') setActiveTimerId(null)
+  }
+
+  function toggleNavVisibility(view: OptionalNavView) {
+    updateState((prev) => {
+      const currentlyVisible = prev.navVisibility[view] !== false
+      return {
+        ...prev,
+        navVisibility: {
+          ...prev.navVisibility,
+          [view]: !currentlyVisible,
+        },
+      }
+    })
   }
 
   function openAddComposer() {
@@ -2352,14 +2395,20 @@ export default function App() {
           <span className="stat-chip-spacer" aria-hidden="true" />
         )}
         <h1 className="brand">Kraft Life</h1>
-        <button
-          type="button"
-          className="dollar-chip"
-          aria-label={`${state.dollars} dollars — open rewards`}
-          onClick={() => goToView('rewards')}
-        >
-          ${state.dollars}
-        </button>
+        {state.navVisibility.rewards !== false ? (
+          <button
+            type="button"
+            className="dollar-chip"
+            aria-label={`${state.dollars} dollars — open rewards`}
+            onClick={() => goToView('rewards')}
+          >
+            ${state.dollars}
+          </button>
+        ) : (
+          <span className="dollar-chip dollar-chip-static" aria-label={`${state.dollars} dollars`}>
+            ${state.dollars}
+          </span>
+        )}
       </header>
 
       {mainView === 'tasks' && (
@@ -3388,6 +3437,13 @@ export default function App() {
               />
             </SettingsSection>
 
+            <SettingsSection title="Navigation" ariaLabel="Navigation">
+              <NavigationSettingsPanel
+                visibility={state.navVisibility}
+                onToggle={toggleNavVisibility}
+              />
+            </SettingsSection>
+
             <CloudSyncSettings state={state} onCloudStateLoaded={setState} />
 
             <CalendarSettings
@@ -3586,61 +3642,71 @@ export default function App() {
               <span className="nav-plus-spacer" aria-hidden="true" />
             )}
             <span className="nav-gap" aria-hidden="true" />
-            <button
-              type="button"
-              className={`circle-btn tasks-btn${
-                mainView === 'tasks' ? ' active' : ''
-              }`}
-              aria-label="Tasks"
-              aria-pressed={mainView === 'tasks'}
-              onClick={() => goToView('tasks')}
-            >
-              <TasksIcon />
-            </button>
-            <button
-              type="button"
-              className={`circle-btn project-btn${
-                mainView === 'projects' ? ' active' : ''
-              }`}
-              aria-label="Projects"
-              aria-pressed={mainView === 'projects'}
-              onClick={() => goToView('projects')}
-            >
-              <ProjectIcon />
-            </button>
-            <button
-              type="button"
-              className={`circle-btn goals-btn${
-                mainView === 'goals' ? ' active' : ''
-              }`}
-              aria-label="Goals"
-              aria-pressed={mainView === 'goals'}
-              onClick={() => goToView('goals')}
-            >
-              <TargetIcon />
-            </button>
-            <button
-              type="button"
-              className={`circle-btn timer-btn${
-                mainView === 'timer' ? ' active' : ''
-              }`}
-              aria-label="Timer"
-              aria-pressed={mainView === 'timer'}
-              onClick={() => goToView('timer')}
-            >
-              <NavClockIcon />
-            </button>
-            <button
-              type="button"
-              className={`circle-btn gift-btn${
-                mainView === 'rewards' ? ' active' : ''
-              }`}
-              aria-label="Rewards"
-              aria-pressed={mainView === 'rewards'}
-              onClick={() => goToView('rewards')}
-            >
-              <GiftIcon />
-            </button>
+            {state.navVisibility.tasks !== false ? (
+              <button
+                type="button"
+                className={`circle-btn tasks-btn${
+                  mainView === 'tasks' ? ' active' : ''
+                }`}
+                aria-label="Tasks"
+                aria-pressed={mainView === 'tasks'}
+                onClick={() => goToView('tasks')}
+              >
+                <TasksIcon />
+              </button>
+            ) : null}
+            {state.navVisibility.projects !== false ? (
+              <button
+                type="button"
+                className={`circle-btn project-btn${
+                  mainView === 'projects' ? ' active' : ''
+                }`}
+                aria-label="Projects"
+                aria-pressed={mainView === 'projects'}
+                onClick={() => goToView('projects')}
+              >
+                <ProjectIcon />
+              </button>
+            ) : null}
+            {state.navVisibility.goals !== false ? (
+              <button
+                type="button"
+                className={`circle-btn goals-btn${
+                  mainView === 'goals' ? ' active' : ''
+                }`}
+                aria-label="Goals"
+                aria-pressed={mainView === 'goals'}
+                onClick={() => goToView('goals')}
+              >
+                <TargetIcon />
+              </button>
+            ) : null}
+            {state.navVisibility.timer !== false ? (
+              <button
+                type="button"
+                className={`circle-btn timer-btn${
+                  mainView === 'timer' ? ' active' : ''
+                }`}
+                aria-label="Timer"
+                aria-pressed={mainView === 'timer'}
+                onClick={() => goToView('timer')}
+              >
+                <NavClockIcon />
+              </button>
+            ) : null}
+            {state.navVisibility.rewards !== false ? (
+              <button
+                type="button"
+                className={`circle-btn gift-btn${
+                  mainView === 'rewards' ? ' active' : ''
+                }`}
+                aria-label="Rewards"
+                aria-pressed={mainView === 'rewards'}
+                onClick={() => goToView('rewards')}
+              >
+                <GiftIcon />
+              </button>
+            ) : null}
             <button
               type="button"
               className={`circle-btn settings-btn${
