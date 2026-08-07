@@ -1,14 +1,12 @@
 import { ModeIcon, MODE_ICON_OPTIONS } from './modeIcons'
-import type { Mode, ModeBehavior, ModeIconId } from './types'
+import type { Mode, ModeIconId } from './types'
 
 interface ModeSettingsPanelProps {
   modes: Mode[]
   newName: string
   newIcon: ModeIconId
-  newBehavior: ModeBehavior
   onNewNameChange: (value: string) => void
   onNewIconChange: (icon: ModeIconId) => void
-  onNewBehaviorChange: (behavior: ModeBehavior) => void
   editingId: string | null
   draggingId: string | null
   onStartEdit: (id: string) => void
@@ -16,7 +14,6 @@ interface ModeSettingsPanelProps {
   onCancelEdit: () => void
   onLiveRename: (id: string, name: string) => void
   onChangeIcon: (id: string, icon: ModeIconId) => void
-  onChangeBehavior: (id: string, behavior: ModeBehavior) => void
   onDelete: (id: string) => void
   onAdd: () => void
   onBeginDrag: (id: string, clientY: number) => void
@@ -26,10 +23,8 @@ export default function ModeSettingsPanel({
   modes,
   newName,
   newIcon,
-  newBehavior,
   onNewNameChange,
   onNewIconChange,
-  onNewBehaviorChange,
   editingId,
   draggingId,
   onStartEdit,
@@ -37,7 +32,6 @@ export default function ModeSettingsPanel({
   onCancelEdit,
   onLiveRename,
   onChangeIcon,
-  onChangeBehavior,
   onDelete,
   onAdd,
   onBeginDrag,
@@ -45,9 +39,9 @@ export default function ModeSettingsPanel({
   return (
     <>
       <p className="muted reorder-hint view-hint">
-        Drag to reorder. Tap the pencil to rename, pick an icon, or change how
-        the mode filters tasks. Delete shows while editing. Starter modes can be
-        removed or replaced anytime.
+        Drag to reorder. Tap the pencil to rename or pick an icon — delete shows
+        while editing. Vacation stays on the day view and is not listed here.
+        Starter modes can be removed or replaced anytime.
       </p>
       <ul className="task-list category-settings-list mode-settings-list">
         {modes.map((mode) => {
@@ -97,9 +91,6 @@ export default function ModeSettingsPanel({
               ) : (
                 <span className="category-settings-name">
                   {mode.name.trim() || 'Untitled'}
-                  <span className="mode-behavior-tag">
-                    {mode.behavior === 'day' ? 'Day' : 'Filter'}
-                  </span>
                 </span>
               )}
               <div className="category-settings-actions">
@@ -147,34 +138,6 @@ export default function ModeSettingsPanel({
                       </button>
                     ))}
                   </div>
-                  <div
-                    className="mode-behavior-picker"
-                    role="group"
-                    aria-label="Mode type"
-                  >
-                    <button
-                      type="button"
-                      className={`mode-behavior-option${
-                        mode.behavior === 'filter' ? ' selected' : ''
-                      }`}
-                      aria-pressed={mode.behavior === 'filter'}
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => onChangeBehavior(mode.id, 'filter')}
-                    >
-                      Filter tasks
-                    </button>
-                    <button
-                      type="button"
-                      className={`mode-behavior-option${
-                        mode.behavior === 'day' ? ' selected' : ''
-                      }`}
-                      aria-pressed={mode.behavior === 'day'}
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => onChangeBehavior(mode.id, 'day')}
-                    >
-                      Day (High / Events)
-                    </button>
-                  </div>
                 </div>
               ) : null}
             </li>
@@ -201,32 +164,6 @@ export default function ModeSettingsPanel({
               <ModeIcon icon={option.id} size={16} />
             </button>
           ))}
-        </div>
-        <div
-          className="mode-behavior-picker"
-          role="group"
-          aria-label="New mode type"
-        >
-          <button
-            type="button"
-            className={`mode-behavior-option${
-              newBehavior === 'filter' ? ' selected' : ''
-            }`}
-            aria-pressed={newBehavior === 'filter'}
-            onClick={() => onNewBehaviorChange('filter')}
-          >
-            Filter tasks
-          </button>
-          <button
-            type="button"
-            className={`mode-behavior-option${
-              newBehavior === 'day' ? ' selected' : ''
-            }`}
-            aria-pressed={newBehavior === 'day'}
-            onClick={() => onNewBehaviorChange('day')}
-          >
-            Day (High / Events)
-          </button>
         </div>
         <div className="inline-add">
           <input
