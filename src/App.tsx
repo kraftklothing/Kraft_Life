@@ -422,7 +422,6 @@ export default function App() {
 
   const formId = useId()
   const titleInputRef = useRef<HTMLInputElement>(null)
-  const dayPickerRef = useRef<HTMLInputElement>(null)
   const swipeRef = useRef<{
     x: number
     y: number
@@ -1799,21 +1798,6 @@ export default function App() {
     setSwipeOffset(0)
   }
 
-  function openDayPicker() {
-    const input = dayPickerRef.current
-    if (!input) return
-    try {
-      if (typeof input.showPicker === 'function') {
-        input.showPicker()
-        return
-      }
-    } catch {
-      // Some browsers require a direct user gesture for showPicker.
-    }
-    input.focus()
-    input.click()
-  }
-
   function isInteractiveTarget(target: EventTarget | null): boolean {
     if (!(target instanceof Element)) return false
     return Boolean(
@@ -2177,74 +2161,17 @@ export default function App() {
               >
                 ‹
               </button>
-              <div className="day-label-row">
-                <div className="day-picker">
-                  <button
-                    type="button"
-                    className="day-label day-label-btn"
-                    aria-label={`Pick a day, currently ${formatDayHeading(viewDate, todayKey)}`}
-                    onClick={openDayPicker}
-                  >
-                    {formatDayHeading(viewDate, todayKey)}
-                  </button>
-                  <input
-                    ref={dayPickerRef}
-                    type="date"
-                    className="day-picker-input"
-                    value={viewKey}
-                    onChange={(e) => jumpToDay(e.target.value)}
-                    tabIndex={-1}
-                    aria-hidden="true"
-                  />
-                </div>
-                <div className="mode-btns">
-                  <button
-                    type="button"
-                    className={`plane-btn${vacationOn ? ' active' : ''}`}
-                    aria-label={
-                      vacationOn
-                        ? 'Turn off vacation mode'
-                        : 'Turn on vacation mode'
-                    }
-                    aria-pressed={vacationOn}
-                    onClick={toggleVacationMode}
-                  >
-                    <PlaneIcon />
-                  </button>
-                  <button
-                    type="button"
-                    className={`plane-btn${workModeOn ? ' active' : ''}`}
-                    aria-label={
-                      workModeOn ? 'Turn off work mode' : 'Turn on work mode'
-                    }
-                    aria-pressed={workModeOn}
-                    onClick={toggleWorkMode}
-                  >
-                    <BriefcaseIcon />
-                  </button>
-                  <button
-                    type="button"
-                    className={`plane-btn${homeModeOn ? ' active' : ''}`}
-                    aria-label={
-                      homeModeOn ? 'Turn off home mode' : 'Turn on home mode'
-                    }
-                    aria-pressed={homeModeOn}
-                    onClick={toggleHomeMode}
-                  >
-                    <HomeIcon />
-                  </button>
-                  <button
-                    type="button"
-                    className={`plane-btn${outModeOn ? ' active' : ''}`}
-                    aria-label={
-                      outModeOn ? 'Turn off out mode' : 'Turn on out mode'
-                    }
-                    aria-pressed={outModeOn}
-                    onClick={toggleOutMode}
-                  >
-                    <CarIcon />
-                  </button>
-                </div>
+              <div className="day-picker">
+                <span className="day-label day-label-display" aria-hidden="true">
+                  {formatDayHeading(viewDate, todayKey)}
+                </span>
+                <input
+                  type="date"
+                  className="day-picker-input"
+                  value={viewKey}
+                  onChange={(e) => jumpToDay(e.target.value)}
+                  aria-label={`Pick a day, currently ${formatDayHeading(viewDate, todayKey)}`}
+                />
               </div>
               <button
                 type="button"
@@ -2253,6 +2180,54 @@ export default function App() {
                 onClick={() => goToDay(1)}
               >
                 ›
+              </button>
+            </div>
+            <div className="mode-btns mode-btns-row">
+              <button
+                type="button"
+                className={`plane-btn${vacationOn ? ' active' : ''}`}
+                aria-label={
+                  vacationOn
+                    ? 'Turn off vacation mode'
+                    : 'Turn on vacation mode'
+                }
+                aria-pressed={vacationOn}
+                onClick={toggleVacationMode}
+              >
+                <PlaneIcon />
+              </button>
+              <button
+                type="button"
+                className={`plane-btn${workModeOn ? ' active' : ''}`}
+                aria-label={
+                  workModeOn ? 'Turn off work mode' : 'Turn on work mode'
+                }
+                aria-pressed={workModeOn}
+                onClick={toggleWorkMode}
+              >
+                <BriefcaseIcon />
+              </button>
+              <button
+                type="button"
+                className={`plane-btn${homeModeOn ? ' active' : ''}`}
+                aria-label={
+                  homeModeOn ? 'Turn off home mode' : 'Turn on home mode'
+                }
+                aria-pressed={homeModeOn}
+                onClick={toggleHomeMode}
+              >
+                <HomeIcon />
+              </button>
+              <button
+                type="button"
+                className={`plane-btn${outModeOn ? ' active' : ''}`}
+                aria-label={
+                  outModeOn ? 'Turn off out mode' : 'Turn on out mode'
+                }
+                aria-pressed={outModeOn}
+                onClick={toggleOutMode}
+              >
+                <CarIcon />
               </button>
             </div>
             <div className="day-divider" aria-hidden="true" />
