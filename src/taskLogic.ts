@@ -275,7 +275,7 @@ export function isVacationKeepCategoryName(name: string): boolean {
   return false
 }
 
-export function taskVisibleInVacationMode(
+export function taskVisibleInDayMode(
   task: Task,
   categories: { id: string; name: string }[],
 ): boolean {
@@ -287,14 +287,29 @@ export function taskVisibleInVacationMode(
   })
 }
 
+/** @deprecated Use taskVisibleInDayMode */
+export function taskVisibleInVacationMode(
+  task: Task,
+  categories: { id: string; name: string }[],
+): boolean {
+  return taskVisibleInDayMode(task, categories)
+}
+
+export function taskVisibleInMode(task: Task, modeId: string): boolean {
+  return task.visibleInModes?.[modeId] !== false
+}
+
+/** @deprecated Use taskVisibleInMode(task, 'work') */
 export function taskVisibleInWorkMode(task: Task): boolean {
-  return task.visibleInWorkMode !== false
+  return taskVisibleInMode(task, 'work')
 }
 
+/** @deprecated Use taskVisibleInMode(task, 'home') */
 export function taskVisibleInHomeMode(task: Task): boolean {
-  return task.visibleInHomeMode !== false
+  return taskVisibleInMode(task, 'home')
 }
 
+/** @deprecated Use taskVisibleInMode(task, 'out') */
 export function taskVisibleInOutMode(task: Task): boolean {
-  return task.visibleInOutMode !== false
+  return taskVisibleInMode(task, 'out')
 }

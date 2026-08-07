@@ -20,6 +20,36 @@ export interface CustomRepeat {
   weekdays?: number[]
 }
 
+export type ModeIconId =
+  | 'plane'
+  | 'briefcase'
+  | 'home'
+  | 'car'
+  | 'star'
+  | 'heart'
+  | 'book'
+  | 'sun'
+  | 'moon'
+  | 'leaf'
+  | 'music'
+  | 'coffee'
+  | 'dumbbell'
+  | 'backpack'
+
+/**
+ * day — active for one calendar day; keeps High / Events categories (vacation-style).
+ * filter — global toggle; hides tasks marked not visible for that mode.
+ */
+export type ModeBehavior = 'day' | 'filter'
+
+export interface Mode {
+  id: string
+  name: string
+  icon: ModeIconId
+  behavior: ModeBehavior
+  order: number
+}
+
 export interface Task {
   id: string
   title: string
@@ -33,12 +63,11 @@ export interface Task {
   startDate: string
   /** Per-day completion map keyed by YYYY-MM-DD. */
   completions: Record<string, boolean>
-  /** When false, hidden while work mode is on. Defaults to true. */
-  visibleInWorkMode: boolean
-  /** When false, hidden while home mode is on. Defaults to true. */
-  visibleInHomeMode: boolean
-  /** When false, hidden while out mode is on. Defaults to true. */
-  visibleInOutMode: boolean
+  /**
+   * Per filter-mode visibility keyed by mode id.
+   * Missing key defaults to visible (true).
+   */
+  visibleInModes: Record<string, boolean>
   /** Sort order within a day view (lower = higher). */
   order: number
   createdAt: number
@@ -135,14 +164,14 @@ export interface AppState {
   connectedCalendars: ConnectedCalendar[]
   /** Spent rewards that are not delivered yet. */
   pendingDeliveries: PendingDelivery[]
-  /** Date keys (YYYY-MM-DD) with vacation mode on for that day only. */
-  vacationDays: Record<string, boolean>
-  /** When true, tasks marked not visible in work mode are hidden. */
-  workMode: boolean
-  /** When true, tasks marked not visible in home mode are hidden. */
-  homeMode: boolean
-  /** When true, tasks marked not visible in out mode are hidden. */
-  outMode: boolean
+  /** User-configurable filter modes (defaults: Vacation, Work, Home, Out). */
+  modes: Mode[]
+  /** Filter-behavior mode ids that are currently active (global). */
+  activeModeIds: string[]
+  /**
+   * Day-behavior mode activations: modeId → dateKey (YYYY-MM-DD) → true.
+   */
+  modeDays: Record<string, Record<string, boolean>>
   /** When true, header shows percent complete instead of counts. */
   showPercent: boolean
   /** Recent $ earned / spent / balance edits (newest last). */
@@ -156,6 +185,31 @@ export const DEFAULT_CATEGORIES: Category[] = [
 ]
 
 export const DEFAULT_TASK_CATEGORIES = DEFAULT_CATEGORIES
+
+/** Recommended starter modes — users can rename, delete, or add more in Settings. */
+export const DEFAULT_MODES: Mode[] = [
+  { id: 'vacation', name: 'Vacation', icon: 'plane', behavior: 'day', order: 0 },
+  { id: 'work', name: 'Work', icon: 'briefcase', behavior: 'filter', order: 1 },
+  { id: 'home', name: 'Home', icon: 'home', behavior: 'filter', order: 2 },
+  { id: 'out', name: 'Out', icon: 'car', behavior: 'filter', order: 3 },
+]
+
+export const MODE_ICON_IDS: ModeIconId[] = [
+  'plane',
+  'briefcase',
+  'home',
+  'car',
+  'star',
+  'heart',
+  'book',
+  'sun',
+  'moon',
+  'leaf',
+  'music',
+  'coffee',
+  'dumbbell',
+  'backpack',
+]
 
 export const DEFAULT_REWARDS: Reward[] = [
   { id: 'coffee', name: 'Coffee treat', cost: 3 },

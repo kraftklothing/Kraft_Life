@@ -9,7 +9,12 @@ export interface VaultAppState {
   goals: unknown[]
   timers?: unknown[]
   pendingDeliveries?: unknown[]
-  vacationDays: Record<string, boolean>
+  /** Customizable modes (preferred). */
+  modes?: unknown[]
+  activeModeIds?: string[]
+  modeDays?: Record<string, Record<string, boolean>>
+  /** Legacy fields — still accepted when loading older vaults. */
+  vacationDays?: Record<string, boolean>
   workMode?: boolean
   homeMode?: boolean
   outMode?: boolean
