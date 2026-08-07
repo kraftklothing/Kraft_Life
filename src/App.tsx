@@ -735,12 +735,26 @@ export default function App() {
 
   const hasDayContent = dayTasks.length > 0 || calendarEvents.length > 0
 
-  const completedCount = dayTasks.filter((t) =>
+  const progressTasks = useMemo(() => {
+    return dayTasks.filter(
+      (task) =>
+        !task.categoryIds.some((categoryId) =>
+          state.taskCategories.some(
+            (category) =>
+              category.id === categoryId && category.reminders === true,
+          ),
+        ),
+    )
+  }, [dayTasks, state.taskCategories])
+
+  const completedCount = progressTasks.filter((t) =>
     isCompletedForDateView(t, viewKey),
   ).length
-  const remainingCount = dayTasks.length - completedCount
+  const remainingCount = progressTasks.length - completedCount
   const percent =
-    dayTasks.length === 0 ? 0 : Math.round((completedCount / dayTasks.length) * 100)
+    progressTasks.length === 0
+      ? 0
+      : Math.round((completedCount / progressTasks.length) * 100)
 
   const todayLedger = useMemo(() => {
     return state.dollarLedger
