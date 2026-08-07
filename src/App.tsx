@@ -287,6 +287,25 @@ function PencilIcon() {
   )
 }
 
+function PlayIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M8 5.75v12.5L18.5 12 8 5.75Z"
+        fill="currentColor"
+      />
+    </svg>
+  )
+}
+
+function PauseIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M7 5.5h3.25v13H7v-13Zm6.75 0H17v13h-3.25v-13Z" fill="currentColor" />
+    </svg>
+  )
+}
+
 function ClockIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -3151,8 +3170,8 @@ export default function App() {
               <section className="task-group" aria-label="Your timers">
                 <h2 className="category-heading">Your timers</h2>
                 <p className="muted reorder-hint view-hint">
-                  Drag to reorder. Tap a timer to run it. Edit title or minutes
-                  anytime.
+                  Drag to reorder. Tap play to start or pause. Tap a timer for
+                  the full view.
                 </p>
                 <ul className="task-list">
                   {sortedTimers.map((timer) => {
@@ -3199,6 +3218,16 @@ export default function App() {
                           </div>
                         </button>
                         <div className="task-actions">
+                          <button
+                            type="button"
+                            className={`edit-btn timer-toggle-btn${
+                              running ? ' running' : ''
+                            }`}
+                            aria-label={running ? 'Pause timer' : 'Start timer'}
+                            onClick={() => toggleTimerRunning(timer.id)}
+                          >
+                            {running ? <PauseIcon /> : <PlayIcon />}
+                          </button>
                           <button
                             type="button"
                             className="edit-btn"
