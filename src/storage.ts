@@ -297,6 +297,16 @@ function normalizeDollarLedger(raw: unknown): DollarLedgerEntry[] {
   return entries.slice(-MAX_LEDGER_ENTRIES)
 }
 
+function normalizeClearedCalendarEvents(raw: unknown): Record<string, boolean> {
+  if (!raw || typeof raw !== 'object') return {}
+  const next: Record<string, boolean> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof key !== 'string' || !key.includes(':')) continue
+    if (value === true) next[key] = true
+  }
+  return next
+}
+
 export function appendLedgerEntry(
   ledger: DollarLedgerEntry[],
   entry: Omit<DollarLedgerEntry, 'id' | 'at'> & { id?: string; at?: number },
@@ -329,6 +339,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     showPercent: false,
     dollarLedger: [],
     connectedCalendars: [],
+    clearedCalendarEvents: {},
   }
   if (!raw || typeof raw !== 'object') return fallback
 
@@ -368,6 +379,9 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     showPercent: Boolean(raw.showPercent),
     dollarLedger: normalizeDollarLedger(raw.dollarLedger),
     connectedCalendars,
+    clearedCalendarEvents: normalizeClearedCalendarEvents(
+      raw.clearedCalendarEvents,
+    ),
   }
 }
 

@@ -182,6 +182,22 @@ function isCalendarTask(taskId: string): boolean {
   return taskId.startsWith('calendar:')
 }
 
+function calendarEventIdFromTaskId(taskId: string): string {
+  return taskId.slice('calendar:'.length)
+}
+
+function calendarClearKey(dateKey: string, eventId: string): string {
+  return `${dateKey}:${eventId}`
+}
+
+function isCalendarEventCleared(
+  cleared: Record<string, boolean>,
+  dateKey: string,
+  eventId: string,
+): boolean {
+  return cleared[calendarClearKey(dateKey, eventId)] === true
+}
+
 function PlaneIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -313,15 +329,6 @@ function NavClockIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-    </svg>
-  )
-}
-
-function CalendarIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="4" y="5" width="16" height="15" rx="2" stroke="currentColor" strokeWidth="2" />
-      <path d="M8 3v4M16 3v4M4 10h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   )
 }
@@ -678,37 +685,72 @@ export default function App() {
       (group) => group.attention !== true && group.reminders !== true,
     )
 
-    const calendarTasks: Task[] = calendarEvents.map((event, index) => ({
+    const toCalendarTask = (
+      event: (typeof calendarEvents)[number],
+      index: number,
+      cleared: boolean,
+    ): Task => ({
       id: `calendar:${event.id}`,
       title: `${event.timeLabel} · ${event.title}`,
       description: '',
       categoryIds: [CALENDAR_GROUP_ID],
       repetition: 'none',
       startDate: viewKey,
-      completions: {},
+      completions: cleared ? { [viewKey]: true } : {},
       visibleInWorkMode: true,
       visibleInHomeMode: true,
       visibleInOutMode: true,
       order: index,
       createdAt: 0,
-    }))
+    })
+
+    const activeCalendarTasks: Task[] = []
+    const clearedCalendarTasks: Task[] = []
+    calendarEvents.forEach((event, index) => {
+      const cleared = isCalendarEventCleared(
+        state.clearedCalendarEvents,
+        viewKey,
+        event.id,
+      )
+      const task = toCalendarTask(event, index, cleared)
+      if (cleared) clearedCalendarTasks.push(task)
+      else activeCalendarTasks.push(task)
+    })
+
+    const mergedCompletedTasks = [
+      ...(completedGroup?.tasks ?? []),
+      ...clearedCalendarTasks,
+    ]
 
     return [
       ...attentionGroups,
-      ...(calendarTasks.length > 0
+      ...(activeCalendarTasks.length > 0
         ? [
             {
               id: CALENDAR_GROUP_ID,
               name: 'Calendar',
-              tasks: calendarTasks,
+              tasks: activeCalendarTasks,
             },
           ]
         : []),
       ...reminderGroups,
       ...otherGroups,
-      ...(completedGroup ? [completedGroup] : []),
+      ...(mergedCompletedTasks.length > 0
+        ? [
+            {
+              id: COMPLETED_GROUP_ID,
+              name: 'Completed',
+              tasks: mergedCompletedTasks,
+            },
+          ]
+        : []),
     ]
-  }, [calendarEvents, groupedDayTasks, viewKey])
+  }, [
+    calendarEvents,
+    groupedDayTasks,
+    state.clearedCalendarEvents,
+    viewKey,
+  ])
 
   const hasDayContent = dayTasks.length > 0 || calendarEvents.length > 0
 
@@ -1072,7 +1114,20 @@ export default function App() {
   }
 
   function toggleComplete(taskId: string) {
-    if (isCalendarTask(taskId)) return
+    if (isCalendarTask(taskId)) {
+      const eventId = calendarEventIdFromTaskId(taskId)
+      const key = calendarClearKey(viewKey, eventId)
+      updateState((prev) => {
+        const clearedCalendarEvents = { ...prev.clearedCalendarEvents }
+        if (clearedCalendarEvents[key]) {
+          delete clearedCalendarEvents[key]
+        } else {
+          clearedCalendarEvents[key] = true
+        }
+        return { ...prev, clearedCalendarEvents }
+      })
+      return
+    }
     updateState((prev) => {
       let dollars = prev.dollars
       let dollarLedger = prev.dollarLedger
@@ -2345,7 +2400,11 @@ export default function App() {
                         {group.tasks.map((task) => {
                           const calendarTask = isCalendarTask(task.id)
                           const done = calendarTask
-                            ? false
+                            ? isCalendarEventCleared(
+                                state.clearedCalendarEvents,
+                                viewKey,
+                                calendarEventIdFromTaskId(task.id),
+                              )
                             : isCompletedForDateView(task, viewKey)
                           const showAllTimeCount =
                             !calendarTask && task.repetition !== 'none'
@@ -2361,22 +2420,16 @@ export default function App() {
                                 draggingId === task.id ? ' dragging' : ''
                               }${vacationOn ? ' vacation' : ''}`}
                             >
-                              {calendarTask ? (
-                                <span className="calendar-task-marker" aria-hidden="true">
-                                  <CalendarIcon />
-                                </span>
-                              ) : (
-                                <button
-                                  type="button"
-                                  className="check"
-                                  aria-label={
-                                    done ? 'Mark incomplete' : 'Mark complete'
-                                  }
-                                  onClick={() => toggleComplete(task.id)}
-                                >
-                                  <CheckIcon />
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                className="check"
+                                aria-label={
+                                  done ? 'Mark incomplete' : 'Mark complete'
+                                }
+                                onClick={() => toggleComplete(task.id)}
+                              >
+                                <CheckIcon />
+                              </button>
                               {calendarTask ? (
                                 <div className="task-main-btn calendar-task-main">
                                   <p className="task-title">{task.title}</p>
