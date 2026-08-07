@@ -26,6 +26,7 @@ import {
   taskVisibleInMode,
 } from './taskLogic'
 import { goalProgressedOnDate } from './goalLogic'
+import { nextIncompleteStep } from './projectLogic'
 import CategorySettingsPanel from './CategorySettingsPanel'
 import ModeSettingsPanel from './ModeSettingsPanel'
 import { ModeIcon } from './modeIcons'
@@ -2556,6 +2557,7 @@ export default function App() {
                         (s) => s.completed,
                       ).length
                       const total = project.steps.length
+                      const nextStep = nextIncompleteStep(project)
                       return (
                         <li
                           className={`task-item project-item${
@@ -2584,6 +2586,15 @@ export default function App() {
                             onClick={() => setActiveProjectId(project.id)}
                           >
                             <p className="task-title">{project.name}</p>
+                            {nextStep ? (
+                              <p className="project-next-step">
+                                Next: {nextStep.title}
+                              </p>
+                            ) : total > 0 ? (
+                              <p className="project-next-step project-next-step-done">
+                                All steps done
+                              </p>
+                            ) : null}
                             <div className="badges">
                               <span className="badge rep">
                                 {total === 0
