@@ -166,6 +166,11 @@ export interface AppState {
   timers: FocusTimer[]
   /** Google Calendar iCal links synced with cloud save. */
   connectedCalendars: ConnectedCalendar[]
+  /**
+   * Calendar events cleared from the day view (no money earned).
+   * Keys are `${dateKey}:${eventId}`.
+   */
+  clearedCalendarEvents: Record<string, boolean>
   /** Spent rewards that are not delivered yet. */
   pendingDeliveries: PendingDelivery[]
   /**
