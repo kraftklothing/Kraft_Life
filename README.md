@@ -22,7 +22,8 @@ Open [http://localhost:5180](http://localhost:5180) **on the same machine** that
 - Default categories: General, Personal, Work — plus custom add/delete
 - Top right `$X` increases by 1 each completion
 - Top left completed / remaining; tap to toggle percent complete
-- Swipe left/right to change days
+- Swipe left/right on the day to change days
+- Swipe right on a task to move it to tomorrow
 - Drag the blue 3-bar handle to reorder
 - Task badges for repetition + category
 - Bottom-right profile → settings / my account

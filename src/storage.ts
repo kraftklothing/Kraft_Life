@@ -384,6 +384,11 @@ function normalizeTasks(raw: unknown): Task[] {
       repetition: t.repetition as Task['repetition'],
       customRepeat: normalizeCustomRepeat(t.customRepeat),
       startDate: t.startDate,
+      snoozeUntil:
+        typeof t.snoozeUntil === 'string' &&
+        /^\d{4}-\d{2}-\d{2}$/.test(t.snoozeUntil)
+          ? t.snoozeUntil
+          : undefined,
       completions:
         t.completions && typeof t.completions === 'object' ? t.completions : {},
       visibleInModes: normalizeVisibleInModes(t),

@@ -205,10 +205,26 @@ export function isOccurrenceSatisfied(
  * Which occurrence a date view represents (scheduled day or rolled-over
  * incomplete prior occurrence). Null if the task should not appear.
  */
+/**
+ * Push a task off `fromDateKey` so it next appears on the following day.
+ * Does not change the repeat schedule — only hides it until tomorrow.
+ */
+export function snoozeTaskToNextDay(task: Task, fromDateKey: string): Task {
+  return {
+    ...task,
+    snoozeUntil: toDateKey(addDays(parseDateKey(fromDateKey), 1)),
+  }
+}
+
 export function occurrenceForDate(task: Task, dateKey: string): string | null {
   const day = startOfDay(parseDateKey(dateKey))
   const start = startOfDay(parseDateKey(task.startDate))
   if (day < start) return null
+
+  // Snoozed past this day — keep completed days visible in history.
+  if (task.snoozeUntil && dateKey < task.snoozeUntil) {
+    if (!task.completions[dateKey]) return null
+  }
 
   if (task.repetition === 'after_completion') {
     // On the day you complete it, show the cycle that was due that morning.

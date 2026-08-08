@@ -20,6 +20,7 @@ import {
   isOccurrenceSatisfied,
   nextOccurrence,
   occurrenceForDate,
+  snoozeTaskToNextDay,
   sortTasksForDay,
   taskVisibleOnDate,
   taskVisibleInDayMode,
@@ -521,6 +522,10 @@ export default function App() {
   const [dayAnim, setDayAnim] = useState<'none' | 'from-left' | 'from-right'>(
     'none',
   )
+  const [taskSwipe, setTaskSwipe] = useState<{
+    id: string
+    offset: number
+  } | null>(null)
 
   const formId = useId()
   const titleInputRef = useRef<HTMLInputElement>(null)
@@ -531,6 +536,15 @@ export default function App() {
     locked: 'x' | 'y' | null
     pointerId: number | null
   } | null>(null)
+  const taskSwipeRef = useRef<{
+    id: string
+    x: number
+    y: number
+    locked: 'x' | 'y' | null
+    pointerId: number
+    moved: boolean
+  } | null>(null)
+  const suppressTaskClickRef = useRef(false)
   const dayPaneRef = useRef<HTMLElement | null>(null)
   const dragRef = useRef<{
     id: string
@@ -1152,6 +1166,7 @@ export default function App() {
                 repetition,
                 customRepeat: keepsCustomRepeat ? customRepeat : undefined,
                 startDate: dayKey,
+                snoozeUntil: undefined,
                 visibleInModes: { ...visibleInModes },
               }
             : task,
@@ -2586,7 +2601,7 @@ export default function App() {
     if (!(target instanceof Element)) return false
     return Boolean(
       target.closest(
-        'button, a, input, select, textarea, label, .drag-handle, .add-panel, .composer',
+        'button, a, input, select, textarea, label, .drag-handle, .add-panel, .composer, .task-swipe-row.swipeable',
       ),
     )
   }
@@ -2647,6 +2662,98 @@ export default function App() {
     if (dx <= -threshold) goToDay(1)
     else if (dx >= threshold) goToDay(-1)
     else setSwipeOffset(0)
+  }
+
+  function moveTaskToTomorrow(taskId: string) {
+    if (isCalendarTask(taskId)) return
+    const task = state.tasks.find((t) => t.id === taskId)
+    if (!task) return
+    if (isCompletedForDateView(task, viewKey)) return
+    updateState((prev) => ({
+      ...prev,
+      tasks: prev.tasks.map((t) =>
+        t.id === taskId ? snoozeTaskToNextDay(t, viewKey) : t,
+      ),
+    }))
+    setToast('Moved to tomorrow')
+  }
+
+  function isTaskSwipeControlTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof Element)) return false
+    return Boolean(
+      target.closest('.check, .edit-btn, .drag-handle, .task-actions'),
+    )
+  }
+
+  function onTaskPointerDown(
+    event: ReactPointerEvent<HTMLElement>,
+    taskId: string,
+    done: boolean,
+  ) {
+    if (done || isCalendarTask(taskId) || dragRef.current) return
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    if (isTaskSwipeControlTarget(event.target)) return
+    // Own the gesture so the day pane does not change days.
+    event.stopPropagation()
+    swipeRef.current = null
+    setSwipeOffset(0)
+    suppressTaskClickRef.current = false
+    taskSwipeRef.current = {
+      id: taskId,
+      x: event.clientX,
+      y: event.clientY,
+      locked: null,
+      pointerId: event.pointerId,
+      moved: false,
+    }
+    setTaskSwipe({ id: taskId, offset: 0 })
+  }
+
+  function onTaskPointerMove(event: ReactPointerEvent<HTMLElement>) {
+    const start = taskSwipeRef.current
+    if (!start || start.pointerId !== event.pointerId || dragRef.current) return
+
+    const dx = event.clientX - start.x
+    const dy = event.clientY - start.y
+
+    if (!start.locked) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return
+      start.locked = Math.abs(dx) > Math.abs(dy) * 1.1 ? 'x' : 'y'
+      if (start.locked === 'x') {
+        event.currentTarget.setPointerCapture?.(event.pointerId)
+      }
+    }
+
+    if (start.locked !== 'x') return
+    event.preventDefault()
+    event.stopPropagation()
+    start.moved = true
+    // Right swipe only — reveal “tomorrow”; left snaps back toward 0.
+    const offset = Math.max(0, Math.min(96, dx * 0.9))
+    setTaskSwipe({ id: start.id, offset })
+  }
+
+  function finishTaskSwipe(clientX: number, pointerId: number) {
+    const start = taskSwipeRef.current
+    taskSwipeRef.current = null
+    if (!start || start.pointerId !== pointerId) {
+      setTaskSwipe(null)
+      return
+    }
+    if (start.locked !== 'x' || !start.moved) {
+      setTaskSwipe(null)
+      return
+    }
+
+    const dx = clientX - start.x
+    const threshold = 64
+    if (dx >= threshold) {
+      suppressTaskClickRef.current = true
+      setTaskSwipe(null)
+      moveTaskToTomorrow(start.id)
+      return
+    }
+    setTaskSwipe(null)
   }
 
   function beginDrag(taskId: string, clientY: number, groupCategoryId: string) {
@@ -3158,81 +3265,144 @@ export default function App() {
                           const allTimeCount = showAllTimeCount
                             ? allTimeCompletionCount(task)
                             : 0
+                          const swipeable = !calendarTask && !done
+                          const rowSwipeOffset =
+                            taskSwipe?.id === task.id ? taskSwipe.offset : 0
                           return (
                             <li
                               key={task.id}
-                              className={`task-item compact${
-                                done ? ' completed' : ''
-                              }${calendarTask ? ' calendar-task' : ''}${
-                                draggingId === task.id ? ' dragging' : ''
-                              }${vacationOn ? ' vacation' : ''}`}
-                            >
-                              <button
-                                type="button"
-                                className="check"
-                                aria-label={
-                                  done ? 'Mark incomplete' : 'Mark complete'
-                                }
-                                onClick={() => toggleComplete(task.id)}
-                              >
-                                <CheckIcon />
-                              </button>
-                              {calendarTask ? (
-                                <div className="task-main-btn calendar-task-main">
-                                  <p className="task-title">{task.title}</p>
-                                </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  className="task-main-btn"
-                                  aria-label={`Notes for ${task.title}`}
-                                  onClick={() => openTaskNotes(task)}
-                                >
-                                  <p className="task-title">{task.title}</p>
-                                  <TaskDescriptionPreview
-                                    text={task.description ?? ''}
-                                  />
-                                  {showAllTimeCount ? (
-                                    <div className="badges">
-                                      <span
-                                        className="badge"
-                                        aria-label={`Alltime count: ${allTimeCount}`}
-                                      >
-                                        Alltime count: {allTimeCount}
-                                      </span>
-                                    </div>
-                                  ) : null}
-                                </button>
-                              )}
-                              {calendarTask ? null : (
-                                <div className="task-actions">
-                                  <button
-                                    type="button"
-                                    className="edit-btn"
-                                    aria-label="Edit task"
-                                    onClick={() => openEditComposer(task)}
-                                  >
-                                    <PencilIcon />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="drag-handle"
-                                    aria-label="Reorder task"
-                                    onPointerDown={(event) => {
-                                      event.preventDefault()
-                                      event.stopPropagation()
-                                      swipeRef.current = null
-                                      setSwipeOffset(0)
-                                      event.currentTarget.setPointerCapture?.(
+                              className={`task-swipe-row${
+                                swipeable ? ' swipeable' : ''
+                              }${rowSwipeOffset > 0 ? ' swiping' : ''}`}
+                              onPointerDown={
+                                swipeable
+                                  ? (event) =>
+                                      onTaskPointerDown(event, task.id, done)
+                                  : undefined
+                              }
+                              onPointerMove={
+                                swipeable ? onTaskPointerMove : undefined
+                              }
+                              onPointerUp={
+                                swipeable
+                                  ? (event) =>
+                                      finishTaskSwipe(
+                                        event.clientX,
                                         event.pointerId,
                                       )
-                                      beginDrag(task.id, event.clientY, group.id)
+                                  : undefined
+                              }
+                              onPointerCancel={
+                                swipeable
+                                  ? (event) =>
+                                      finishTaskSwipe(
+                                        event.clientX,
+                                        event.pointerId,
+                                      )
+                                  : undefined
+                              }
+                            >
+                              {swipeable ? (
+                                <div
+                                  className="task-swipe-action"
+                                  aria-hidden="true"
+                                >
+                                  <span>Tomorrow</span>
+                                </div>
+                              ) : null}
+                              <div
+                                className={`task-item compact${
+                                  done ? ' completed' : ''
+                                }${calendarTask ? ' calendar-task' : ''}${
+                                  draggingId === task.id ? ' dragging' : ''
+                                }${vacationOn ? ' vacation' : ''}`}
+                                style={
+                                  rowSwipeOffset > 0
+                                    ? {
+                                        transform: `translateX(${rowSwipeOffset}px)`,
+                                      }
+                                    : undefined
+                                }
+                              >
+                                <button
+                                  type="button"
+                                  className="check"
+                                  aria-label={
+                                    done ? 'Mark incomplete' : 'Mark complete'
+                                  }
+                                  onClick={() => toggleComplete(task.id)}
+                                >
+                                  <CheckIcon />
+                                </button>
+                                {calendarTask ? (
+                                  <div className="task-main-btn calendar-task-main">
+                                    <p className="task-title">{task.title}</p>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="task-main-btn"
+                                    aria-label={`Notes for ${task.title}`}
+                                    onClick={() => {
+                                      if (suppressTaskClickRef.current) {
+                                        suppressTaskClickRef.current = false
+                                        return
+                                      }
+                                      openTaskNotes(task)
                                     }}
                                   >
-                                    <BarsIcon />
+                                    <p className="task-title">{task.title}</p>
+                                    <TaskDescriptionPreview
+                                      text={task.description ?? ''}
+                                    />
+                                    {showAllTimeCount ? (
+                                      <div className="badges">
+                                        <span
+                                          className="badge"
+                                          aria-label={`Alltime count: ${allTimeCount}`}
+                                        >
+                                          Alltime count: {allTimeCount}
+                                        </span>
+                                      </div>
+                                    ) : null}
                                   </button>
-                                </div>
-                              )}
+                                )}
+                                {calendarTask ? null : (
+                                  <div className="task-actions">
+                                    <button
+                                      type="button"
+                                      className="edit-btn"
+                                      aria-label="Edit task"
+                                      onClick={() => openEditComposer(task)}
+                                    >
+                                      <PencilIcon />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="drag-handle"
+                                      aria-label="Reorder task"
+                                      onPointerDown={(event) => {
+                                        event.preventDefault()
+                                        event.stopPropagation()
+                                        swipeRef.current = null
+                                        taskSwipeRef.current = null
+                                        setSwipeOffset(0)
+                                        setTaskSwipe(null)
+                                        event.currentTarget.setPointerCapture?.(
+                                          event.pointerId,
+                                        )
+                                        beginDrag(
+                                          task.id,
+                                          event.clientY,
+                                          group.id,
+                                        )
+                                      }}
+                                    >
+                                      <BarsIcon />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </li>
                           )
                         })}
