@@ -4218,7 +4218,6 @@ export default function App() {
             ) : (
               <span className="nav-plus-spacer" aria-hidden="true" />
             )}
-            <span className="nav-gap" aria-hidden="true" />
             {state.navVisibility.tasks !== false ? (
               <button
                 type="button"

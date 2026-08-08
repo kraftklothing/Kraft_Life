@@ -409,13 +409,8 @@ button {
   justify-content: center;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 8px;
+  gap: 6px;
   animation: rise-in 0.35s ease both;
-}
-
-.nav-gap {
-  width: 8px;
-  flex-shrink: 0;
 }
 
 .nav-plus-spacer {
@@ -433,6 +428,29 @@ button {
   place-items: center;
   box-shadow: var(--shadow);
   transition: transform 0.15s ease, filter 0.2s ease;
+  flex-shrink: 0;
+}
+
+@media (max-width: 430px) {
+  .composer {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .composer-collapsed,
+  .bottom-nav {
+    gap: 3px;
+  }
+
+  .circle-btn,
+  .nav-plus-spacer {
+    width: 40px;
+    height: 40px;
+  }
+
+  .circle-btn svg {
+    transform: scale(0.9);
+  }
 }
 
 .circle-btn:active {
