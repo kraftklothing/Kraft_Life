@@ -321,6 +321,12 @@ button {
   font-weight: 600;
 }
 
+.routine-total-time {
+  color: var(--ink-soft);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 .day-picker {
   position: relative;
   display: flex;
