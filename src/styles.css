@@ -448,6 +448,7 @@ button {
 .project-btn,
 .tasks-btn,
 .goals-btn,
+.routines-btn,
 .timer-btn,
 .settings-btn {
   background: var(--panel-solid);
@@ -458,6 +459,7 @@ button {
 .tasks-btn.active,
 .project-btn.active,
 .goals-btn.active,
+.routines-btn.active,
 .timer-btn.active,
 .gift-btn.active,
 .settings-btn.active {
@@ -1023,6 +1025,127 @@ button {
 
 .timer-actions .btn {
   flex: 1;
+}
+
+.routine-run-panel {
+  margin-top: 8px;
+  text-align: center;
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  padding: 28px 20px 32px;
+  animation: rise-in 0.35s ease both;
+}
+
+.routine-run-progress {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.routine-run-title {
+  margin: 0;
+  font-family: var(--font-brand);
+  font-size: clamp(1.8rem, 8vw, 2.6rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  max-width: 18ch;
+}
+
+.routine-run-countdown {
+  margin: 4px 0 0;
+  font-family: var(--font-brand);
+  font-size: clamp(3.6rem, 20vw, 5rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  animation: routine-pulse 1.6s ease-in-out infinite;
+}
+
+.routine-run-countdown-done {
+  color: var(--danger);
+  animation: none;
+}
+
+@keyframes routine-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+.routine-run-estimate {
+  margin: 0;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.routine-run-hint {
+  margin: 0;
+  max-width: 30ch;
+}
+
+.routine-run-actions {
+  display: flex;
+  gap: 10px;
+  width: min(100%, 300px);
+  margin-top: 8px;
+}
+
+.routine-run-actions .btn {
+  flex: 1;
+}
+
+.routine-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.routine-detail-meta {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  margin-top: 16px;
+}
+
+.routine-step-kind {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin: 0 0 4px;
+  display: grid;
+  gap: 8px;
+}
+
+.routine-step-kind legend {
+  padding: 0 6px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.inline-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.routine-duration-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 
 .spend-btn-inline {

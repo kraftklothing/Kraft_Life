@@ -36,6 +36,12 @@ import CategorySettingsPanel from './CategorySettingsPanel'
 import ModeSettingsPanel from './ModeSettingsPanel'
 import NavigationSettingsPanel from './NavigationSettingsPanel'
 import { ModeIcon } from './modeIcons'
+import RoutinesView, { type ActiveRoutineRun } from './RoutinesView'
+import {
+  durationToFields,
+  parseDurationFields,
+  sortedRoutineSteps,
+} from './routineLogic'
 import TaskNotesPanel, {
   TaskDescriptionPreview,
 } from './TaskNotesPanel'
@@ -57,6 +63,8 @@ import {
   type ProjectStep,
   type Repetition,
   type Reward,
+  type Routine,
+  type RoutineStep,
   type Task,
 } from './types'
 
@@ -185,7 +193,48 @@ function TargetIcon() {
   )
 }
 
-type MainView = 'tasks' | 'projects' | 'goals' | 'timer' | 'rewards' | 'settings'
+function ChecklistIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M9 6h11M9 12h11M9 18h11"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="m4 5.8 1.4 1.4L7.6 5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m4 11.8 1.4 1.4L7.6 11"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m4 17.8 1.4 1.4L7.6 17"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+type MainView =
+  | 'tasks'
+  | 'projects'
+  | 'goals'
+  | 'routines'
+  | 'timer'
+  | 'rewards'
+  | 'settings'
 
 function isOptionalNavView(view: MainView): view is OptionalNavView {
   return (OPTIONAL_NAV_VIEWS as string[]).includes(view)
@@ -365,9 +414,26 @@ export default function App() {
   const [mainView, setMainView] = useState<MainView>('tasks')
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
   const [activeGoalId, setActiveGoalId] = useState<string | null>(null)
+  const [activeRoutineId, setActiveRoutineId] = useState<string | null>(null)
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null)
   const [editingStepId, setEditingStepId] = useState<string | null>(null)
   const [editingGoalId, setEditingGoalId] = useState<string | null>(null)
+  const [editingRoutineId, setEditingRoutineId] = useState<string | null>(null)
+  const [editingRoutineStepId, setEditingRoutineStepId] = useState<
+    string | null
+  >(null)
+  const [newRoutineName, setNewRoutineName] = useState('')
+  const [newRoutineReward, setNewRoutineReward] = useState('5')
+  const [routineStepKind, setRoutineStepKind] = useState<'task' | 'custom'>(
+    'task',
+  )
+  const [routineStepTaskId, setRoutineStepTaskId] = useState('')
+  const [routineStepTitle, setRoutineStepTitle] = useState('')
+  const [routineStepMinutes, setRoutineStepMinutes] = useState('5')
+  const [routineStepSeconds, setRoutineStepSeconds] = useState('0')
+  const [activeRoutineRun, setActiveRoutineRun] =
+    useState<ActiveRoutineRun | null>(null)
+  const [routineNowMs, setRoutineNowMs] = useState(() => Date.now())
   const [newCategory, setNewCategory] = useState('')
   const [newModeName, setNewModeName] = useState('')
   const [newModeIcon, setNewModeIcon] = useState<ModeIconId>('star')
@@ -407,6 +473,10 @@ export default function App() {
   const [draggingModeId, setDraggingModeId] = useState<string | null>(null)
   const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null)
   const [draggingGoalId, setDraggingGoalId] = useState<string | null>(null)
+  const [draggingRoutineId, setDraggingRoutineId] = useState<string | null>(null)
+  const [draggingRoutineStepId, setDraggingRoutineStepId] = useState<
+    string | null
+  >(null)
   const [swipeOffset, setSwipeOffset] = useState(0)
   const [dayAnim, setDayAnim] = useState<'none' | 'from-left' | 'from-right'>(
     'none',
@@ -459,6 +529,17 @@ export default function App() {
     orderSnapshot: string[]
   } | null>(null)
   const goalDragRef = useRef<{
+    id: string
+    startY: number
+    orderSnapshot: string[]
+  } | null>(null)
+  const routineDragRef = useRef<{
+    id: string
+    startY: number
+    orderSnapshot: string[]
+  } | null>(null)
+  const routineStepDragRef = useRef<{
+    routineId: string
     id: string
     startY: number
     orderSnapshot: string[]
@@ -529,6 +610,28 @@ export default function App() {
     return () => window.clearInterval(id)
   }, [runningTimerId])
 
+  useEffect(() => {
+    if (!activeRoutineRun) return
+    const routine = state.routines.find(
+      (r) => r.id === activeRoutineRun.routineId,
+    )
+    const steps = routine ? sortedRoutineSteps(routine) : []
+    if (activeRoutineRun.stepIndex >= steps.length) return
+    const id = window.setInterval(() => {
+      setRoutineNowMs(Date.now())
+      setActiveRoutineRun((prev) => {
+        if (!prev) return prev
+        if (prev.remainingSeconds <= 0) return prev
+        return { ...prev, remainingSeconds: prev.remainingSeconds - 1 }
+      })
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [
+    activeRoutineRun?.routineId,
+    activeRoutineRun?.stepIndex,
+    state.routines,
+  ])
+
   const dayTasks = useMemo(() => {
     const applicable = state.tasks.filter((task) => {
       if (!taskVisibleOnDate(task, viewKey)) return false
@@ -565,6 +668,16 @@ export default function App() {
   const sortedGoals = useMemo(
     () => [...state.goals].sort((a, b) => a.order - b.order),
     [state.goals],
+  )
+
+  const sortedRoutines = useMemo(
+    () => [...state.routines].sort((a, b) => a.order - b.order),
+    [state.routines],
+  )
+
+  const activeRoutine = useMemo(
+    () => sortedRoutines.find((r) => r.id === activeRoutineId) ?? null,
+    [sortedRoutines, activeRoutineId],
   )
 
   const unassignedRecurring = useMemo(
@@ -1048,6 +1161,10 @@ export default function App() {
     setMainView(view)
     if (view !== 'projects') setActiveProjectId(null)
     if (view !== 'goals') setActiveGoalId(null)
+    if (view !== 'routines') {
+      setActiveRoutineId(null)
+      setActiveRoutineRun(null)
+    }
     if (view !== 'timer') setActiveTimerId(null)
   }
 
@@ -1066,10 +1183,12 @@ export default function App() {
 
   function openAddComposer() {
     if (mainView === 'settings') return
+    if (activeRoutineRun) return
     if (
       mainView === 'projects' ||
       mainView === 'rewards' ||
       mainView === 'goals' ||
+      mainView === 'routines' ||
       mainView === 'timer'
     ) {
       if (mainView === 'projects') {
@@ -1083,6 +1202,22 @@ export default function App() {
         setEditingGoalId(null)
         setNewGoalName('')
         setNewGoalDescription('')
+      }
+      if (mainView === 'routines') {
+        if (activeRoutine) {
+          setEditingRoutineId(null)
+          setEditingRoutineStepId(null)
+          setRoutineStepKind('task')
+          setRoutineStepTaskId(state.tasks[0]?.id ?? '')
+          setRoutineStepTitle('')
+          setRoutineStepMinutes('5')
+          setRoutineStepSeconds('0')
+        } else {
+          setEditingRoutineId(null)
+          setEditingRoutineStepId(null)
+          setNewRoutineName('')
+          setNewRoutineReward('5')
+        }
       }
       if (mainView === 'timer') {
         setEditingTimerId(null)
@@ -1154,6 +1289,12 @@ export default function App() {
       goals: prev.goals.map((goal) => ({
         ...goal,
         taskIds: goal.taskIds.filter((id) => id !== taskId),
+      })),
+      routines: prev.routines.map((routine) => ({
+        ...routine,
+        steps: routine.steps
+          .filter((step) => step.kind !== 'task' || step.taskId !== taskId)
+          .map((step, index) => ({ ...step, order: index })),
       })),
     }))
     resetComposerFields()
@@ -1440,6 +1581,328 @@ export default function App() {
       resetComposerFields()
     }
     setToast('Goal deleted')
+  }
+
+  function addRoutine(): boolean {
+    const name = newRoutineName.trim()
+    if (!name) {
+      setToast('Name your routine')
+      return false
+    }
+    const reward = Number(newRoutineReward)
+    if (!Number.isFinite(reward) || reward < 0) {
+      setToast('Enter a valid $ reward (0 or more)')
+      return false
+    }
+    const completionReward = Math.floor(reward)
+    if (editingRoutineId) {
+      updateState((prev) => ({
+        ...prev,
+        routines: prev.routines.map((routine) =>
+          routine.id === editingRoutineId
+            ? { ...routine, name, completionReward }
+            : routine,
+        ),
+      }))
+      setEditingRoutineId(null)
+      setNewRoutineName('')
+      setNewRoutineReward('5')
+      setToast('Routine updated')
+      return true
+    }
+    const maxOrder = state.routines.reduce((max, r) => Math.max(max, r.order), -1)
+    const routine: Routine = {
+      id: uid('routine'),
+      name,
+      completionReward,
+      steps: [],
+      order: maxOrder + 1,
+      createdAt: Date.now(),
+    }
+    updateState((prev) => ({
+      ...prev,
+      routines: [...prev.routines, routine],
+    }))
+    setNewRoutineName('')
+    setNewRoutineReward('5')
+    setActiveRoutineId(routine.id)
+    setToast('Routine added')
+    return true
+  }
+
+  function openEditRoutine(routine: Routine) {
+    setEditingRoutineId(routine.id)
+    setEditingRoutineStepId(null)
+    setNewRoutineName(routine.name)
+    setNewRoutineReward(String(routine.completionReward))
+    setAddOpen(true)
+    setAddError('')
+  }
+
+  function deleteRoutine(id: string) {
+    updateState((prev) => ({
+      ...prev,
+      routines: prev.routines.filter((r) => r.id !== id),
+    }))
+    if (activeRoutineId === id) setActiveRoutineId(null)
+    if (activeRoutineRun?.routineId === id) setActiveRoutineRun(null)
+    if (editingRoutineId === id) {
+      setEditingRoutineId(null)
+      setAddOpen(false)
+    }
+    setToast('Routine deleted')
+  }
+
+  function addRoutineStep(routineId: string): boolean {
+    const durationSeconds = parseDurationFields(
+      routineStepMinutes,
+      routineStepSeconds,
+    )
+    if (durationSeconds == null) {
+      setToast('Set a duration of at least 00:01')
+      return false
+    }
+
+    let nextStep: RoutineStep | null = null
+    if (routineStepKind === 'task') {
+      if (!routineStepTaskId) {
+        setToast('Pick a task to link')
+        return false
+      }
+      if (!state.tasks.some((task) => task.id === routineStepTaskId)) {
+        setToast('That task no longer exists')
+        return false
+      }
+      nextStep = {
+        id: editingRoutineStepId ?? uid('rstep'),
+        kind: 'task',
+        taskId: routineStepTaskId,
+        durationSeconds,
+        order: 0,
+      }
+    } else {
+      const title = routineStepTitle.trim()
+      if (!title) {
+        setToast('Name this custom step')
+        return false
+      }
+      nextStep = {
+        id: editingRoutineStepId ?? uid('rstep'),
+        kind: 'custom',
+        title,
+        durationSeconds,
+        order: 0,
+      }
+    }
+
+    const step = nextStep
+    updateState((prev) => ({
+      ...prev,
+      routines: prev.routines.map((routine) => {
+        if (routine.id !== routineId) return routine
+        if (editingRoutineStepId) {
+          return {
+            ...routine,
+            steps: routine.steps.map((existing) =>
+              existing.id === editingRoutineStepId
+                ? { ...step, order: existing.order }
+                : existing,
+            ),
+          }
+        }
+        const maxOrder = routine.steps.reduce(
+          (max, s) => Math.max(max, s.order),
+          -1,
+        )
+        return {
+          ...routine,
+          steps: [...routine.steps, { ...step, order: maxOrder + 1 }],
+        }
+      }),
+    }))
+    setEditingRoutineStepId(null)
+    setRoutineStepTitle('')
+    setRoutineStepMinutes('5')
+    setRoutineStepSeconds('0')
+    setToast(editingRoutineStepId ? 'Step updated' : 'Step added')
+    return true
+  }
+
+  function openEditRoutineStep(step: RoutineStep) {
+    setEditingRoutineId(null)
+    setEditingRoutineStepId(step.id)
+    setRoutineStepKind(step.kind)
+    if (step.kind === 'task') {
+      setRoutineStepTaskId(step.taskId)
+      setRoutineStepTitle('')
+    } else {
+      setRoutineStepTitle(step.title)
+      setRoutineStepTaskId(state.tasks[0]?.id ?? '')
+    }
+    const fields = durationToFields(step.durationSeconds)
+    setRoutineStepMinutes(fields.minutes)
+    setRoutineStepSeconds(fields.seconds)
+    setAddOpen(true)
+    setAddError('')
+  }
+
+  function deleteRoutineStep(routineId: string, stepId: string) {
+    updateState((prev) => ({
+      ...prev,
+      routines: prev.routines.map((routine) => {
+        if (routine.id !== routineId) return routine
+        return {
+          ...routine,
+          steps: routine.steps
+            .filter((step) => step.id !== stepId)
+            .map((step, index) => ({ ...step, order: index })),
+        }
+      }),
+    }))
+    if (editingRoutineStepId === stepId) {
+      setEditingRoutineStepId(null)
+      setAddOpen(false)
+    }
+    setToast('Step deleted')
+  }
+
+  function startRoutine(routineId: string) {
+    const routine = state.routines.find((r) => r.id === routineId)
+    if (!routine) return
+    const steps = sortedRoutineSteps(routine)
+    if (steps.length === 0) {
+      setToast('Add steps before starting')
+      return
+    }
+    setAddOpen(false)
+    setActiveRoutineId(routineId)
+    setRoutineNowMs(Date.now())
+    setActiveRoutineRun({
+      routineId,
+      stepIndex: 0,
+      remainingSeconds: steps[0]!.durationSeconds,
+      completedStepIds: [],
+      skippedStepIds: [],
+    })
+  }
+
+  function completeTaskFromRoutine(taskId: string, dateKey: string) {
+    updateState((prev) => {
+      let dollars = prev.dollars
+      let dollarLedger = prev.dollarLedger
+      let changed = false
+      const tasks = prev.tasks.map((task) => {
+        if (task.id !== taskId) return task
+        const occurrence = occurrenceForDate(task, dateKey)
+        if (!occurrence) return task
+        if (isOccurrenceSatisfied(task, occurrence)) return task
+        changed = true
+        const nextCompletions = { ...task.completions, [dateKey]: true }
+        const isReminderTask = task.categoryIds.some((categoryId) =>
+          prev.taskCategories.some(
+            (category) =>
+              category.id === categoryId && category.reminders === true,
+          ),
+        )
+        if (!isReminderTask) {
+          dollars += 1
+          dollarLedger = appendLedgerEntry(dollarLedger, {
+            dateKey,
+            amount: 1,
+            kind: 'earned',
+            label: task.title,
+          })
+        }
+        return { ...task, completions: nextCompletions }
+      })
+      if (!changed) return prev
+      return { ...prev, tasks, dollars, dollarLedger }
+    })
+  }
+
+  function finishRoutineIfComplete(
+    run: ActiveRoutineRun,
+    routine: Routine,
+    completedStepIds: string[],
+    skippedStepIds: string[],
+  ) {
+    const steps = sortedRoutineSteps(routine)
+    const allHandled =
+      completedStepIds.length + skippedStepIds.length >= steps.length
+    if (!allHandled) return
+    const allCompleted =
+      skippedStepIds.length === 0 && completedStepIds.length === steps.length
+    if (allCompleted && routine.completionReward > 0) {
+      const today = toDateKey(startToday())
+      updateState((prev) => ({
+        ...prev,
+        dollars: prev.dollars + routine.completionReward,
+        dollarLedger: appendLedgerEntry(prev.dollarLedger, {
+          dateKey: today,
+          amount: routine.completionReward,
+          kind: 'earned',
+          label: `${routine.name} · full routine`,
+        }),
+      }))
+      setToast(`Routine complete · +$${routine.completionReward}`)
+    } else if (allCompleted) {
+      setToast('Routine complete')
+    } else {
+      setToast('Routine finished — skipped steps, no bonus')
+    }
+    setActiveRoutineRun({
+      ...run,
+      stepIndex: steps.length,
+      remainingSeconds: 0,
+      completedStepIds,
+      skippedStepIds,
+    })
+  }
+
+  function advanceRoutineStep(completed: boolean) {
+    const run = activeRoutineRun
+    if (!run) return
+    const routine = state.routines.find((r) => r.id === run.routineId)
+    if (!routine) {
+      setActiveRoutineRun(null)
+      return
+    }
+    const steps = sortedRoutineSteps(routine)
+    const current = steps[run.stepIndex]
+    if (!current) {
+      setActiveRoutineRun(null)
+      return
+    }
+
+    const completedStepIds = completed
+      ? [...run.completedStepIds, current.id]
+      : run.completedStepIds
+    const skippedStepIds = completed
+      ? run.skippedStepIds
+      : [...run.skippedStepIds, current.id]
+
+    if (completed && current.kind === 'task') {
+      completeTaskFromRoutine(current.taskId, toDateKey(startToday()))
+    }
+
+    const nextIndex = run.stepIndex + 1
+    if (nextIndex >= steps.length) {
+      finishRoutineIfComplete(run, routine, completedStepIds, skippedStepIds)
+      return
+    }
+
+    setRoutineNowMs(Date.now())
+    setActiveRoutineRun({
+      routineId: run.routineId,
+      stepIndex: nextIndex,
+      remainingSeconds: steps[nextIndex]!.durationSeconds,
+      completedStepIds,
+      skippedStepIds,
+    })
+  }
+
+  function exitRoutineRun() {
+    setActiveRoutineRun(null)
   }
 
   function toggleGoalTask(goalId: string, taskId: string) {
@@ -2030,6 +2493,31 @@ export default function App() {
     setDraggingGoalId(goalId)
   }
 
+  function beginRoutineDrag(routineId: string, clientY: number) {
+    routineDragRef.current = {
+      id: routineId,
+      startY: clientY,
+      orderSnapshot: sortedRoutines.map((r) => r.id),
+    }
+    setDraggingRoutineId(routineId)
+  }
+
+  function beginRoutineStepDrag(
+    routineId: string,
+    stepId: string,
+    clientY: number,
+  ) {
+    const routine = state.routines.find((r) => r.id === routineId)
+    if (!routine) return
+    routineStepDragRef.current = {
+      routineId,
+      id: stepId,
+      startY: clientY,
+      orderSnapshot: sortedRoutineSteps(routine).map((s) => s.id),
+    }
+    setDraggingRoutineStepId(stepId)
+  }
+
   function beginCategoryDrag(categoryIdToDrag: string, clientY: number) {
     categoryDragRef.current = {
       id: categoryIdToDrag,
@@ -2282,6 +2770,50 @@ export default function App() {
         return
       }
 
+      const routineDrag = routineDragRef.current
+      if (routineDrag) {
+        event.preventDefault()
+        const nextOrder = reorderSnapshot(routineDrag, event.clientY, 72)
+        if (!nextOrder) return
+        setState((prev) => {
+          const orderMap = new Map(nextOrder.map((id, index) => [id, index]))
+          return {
+            ...prev,
+            routines: prev.routines.map((routine) =>
+              orderMap.has(routine.id)
+                ? { ...routine, order: orderMap.get(routine.id)! }
+                : routine,
+            ),
+          }
+        })
+        return
+      }
+
+      const routineStepDrag = routineStepDragRef.current
+      if (routineStepDrag) {
+        event.preventDefault()
+        const nextOrder = reorderSnapshot(routineStepDrag, event.clientY, 64)
+        if (!nextOrder) return
+        setState((prev) => ({
+          ...prev,
+          routines: prev.routines.map((routine) => {
+            if (routine.id !== routineStepDrag.routineId) return routine
+            const orderMap = new Map(
+              nextOrder.map((id, index) => [id, index]),
+            )
+            return {
+              ...routine,
+              steps: routine.steps.map((step) =>
+                orderMap.has(step.id)
+                  ? { ...step, order: orderMap.get(step.id)! }
+                  : step,
+              ),
+            }
+          }),
+        }))
+        return
+      }
+
       const categoryDrag = categoryDragRef.current
       if (categoryDrag) {
         event.preventDefault()
@@ -2339,6 +2871,14 @@ export default function App() {
         goalDragRef.current = null
         setDraggingGoalId(null)
       }
+      if (routineDragRef.current) {
+        routineDragRef.current = null
+        setDraggingRoutineId(null)
+      }
+      if (routineStepDragRef.current) {
+        routineStepDragRef.current = null
+        setDraggingRoutineStepId(null)
+      }
       if (categoryDragRef.current) {
         categoryDragRef.current = null
         setDraggingCategoryId(null)
@@ -2392,6 +2932,14 @@ export default function App() {
             {sortedGoals.length === 1
               ? '1 goal on the go'
               : `${sortedGoals.length} goals on the go`}
+          </span>
+        ) : mainView === 'routines' ? (
+          <span className="stat-chip stat-chip-static">
+            {activeRoutineRun
+              ? 'Routine running'
+              : sortedRoutines.length === 1
+                ? '1 routine ready'
+                : `${sortedRoutines.length} routines ready`}
           </span>
         ) : (
           <span className="stat-chip-spacer" aria-hidden="true" />
@@ -2664,6 +3212,27 @@ export default function App() {
             </div>
           )}
         </section>
+      )}
+
+      {mainView === 'routines' && (
+        <RoutinesView
+          routines={sortedRoutines}
+          tasks={state.tasks}
+          activeRoutineId={activeRoutineId}
+          onSelectRoutine={setActiveRoutineId}
+          onEditRoutine={openEditRoutine}
+          onEditStep={openEditRoutineStep}
+          onStartRoutine={startRoutine}
+          onBeginRoutineDrag={beginRoutineDrag}
+          onBeginStepDrag={beginRoutineStepDrag}
+          draggingRoutineId={draggingRoutineId}
+          draggingStepId={draggingRoutineStepId}
+          activeRun={activeRoutineRun}
+          onCompleteStep={() => advanceRoutineStep(true)}
+          onSkipStep={() => advanceRoutineStep(false)}
+          onExitRun={exitRoutineRun}
+          nowMs={routineNowMs}
+        />
       )}
 
       {mainView === 'projects' && (
@@ -3615,7 +4184,7 @@ export default function App() {
       <div className={`composer${addOpen ? ' composer-open' : ''}`}>
         {!addOpen ? (
           <nav className="composer-collapsed bottom-nav" aria-label="Main views">
-            {mainView !== 'settings' ? (
+            {mainView !== 'settings' && !activeRoutineRun ? (
               <button
                 type="button"
                 className="circle-btn plus-btn"
@@ -3626,15 +4195,23 @@ export default function App() {
                       : 'New project'
                     : mainView === 'goals'
                       ? 'New goal'
-                      : mainView === 'timer'
-                        ? editingTimerId
-                          ? 'Edit timer'
-                          : 'New timer'
-                        : mainView === 'rewards'
-                          ? editingRewardId
-                            ? 'Edit reward'
-                            : 'New reward'
-                          : 'New task'
+                      : mainView === 'routines'
+                        ? activeRoutine
+                          ? editingRoutineStepId
+                            ? 'Edit step'
+                            : 'New step'
+                          : editingRoutineId
+                            ? 'Edit routine'
+                            : 'New routine'
+                        : mainView === 'timer'
+                          ? editingTimerId
+                            ? 'Edit timer'
+                            : 'New timer'
+                          : mainView === 'rewards'
+                            ? editingRewardId
+                              ? 'Edit reward'
+                              : 'New reward'
+                            : 'New task'
                 }
                 onClick={openAddComposer}
               >
@@ -3681,6 +4258,19 @@ export default function App() {
                 onClick={() => goToView('goals')}
               >
                 <TargetIcon />
+              </button>
+            ) : null}
+            {state.navVisibility.routines !== false ? (
+              <button
+                type="button"
+                className={`circle-btn routines-btn${
+                  mainView === 'routines' ? ' active' : ''
+                }`}
+                aria-label="Routines"
+                aria-pressed={mainView === 'routines'}
+                onClick={() => goToView('routines')}
+              >
+                <ChecklistIcon />
               </button>
             ) : null}
             {state.navVisibility.timer !== false ? (
@@ -3884,6 +4474,183 @@ export default function App() {
                 </button>
               ) : null}
             </div>
+          </div>
+        ) : mainView === 'routines' ? (
+          <div className="panel add-panel">
+            <div className="composer-header">
+              <h2>
+                {activeRoutine && !editingRoutineId
+                  ? editingRoutineStepId
+                    ? 'Edit step'
+                    : 'New step'
+                  : editingRoutineId
+                    ? 'Edit routine'
+                    : 'New routine'}
+              </h2>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Close"
+                onClick={closeAddComposer}
+              >
+                ✕
+              </button>
+            </div>
+            {activeRoutine && !editingRoutineId ? (
+              <>
+                <fieldset className="routine-step-kind">
+                  <legend>Step type</legend>
+                  <label className="inline-check">
+                    <input
+                      type="radio"
+                      name="routine-step-kind"
+                      checked={routineStepKind === 'task'}
+                      onChange={() => setRoutineStepKind('task')}
+                    />
+                    Linked task
+                  </label>
+                  <label className="inline-check">
+                    <input
+                      type="radio"
+                      name="routine-step-kind"
+                      checked={routineStepKind === 'custom'}
+                      onChange={() => setRoutineStepKind('custom')}
+                    />
+                    Custom (no task $)
+                  </label>
+                </fieldset>
+                {routineStepKind === 'task' ? (
+                  <label>
+                    Task
+                    <select
+                      value={routineStepTaskId}
+                      onChange={(e) => setRoutineStepTaskId(e.target.value)}
+                    >
+                      <option value="" disabled>
+                        Choose a task
+                      </option>
+                      {state.tasks.map((task) => (
+                        <option key={task.id} value={task.id}>
+                          {task.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : (
+                  <label>
+                    Step name
+                    <input
+                      value={routineStepTitle}
+                      onChange={(e) => setRoutineStepTitle(e.target.value)}
+                      placeholder="Something to do in this routine"
+                      autoComplete="off"
+                    />
+                  </label>
+                )}
+                <div className="routine-duration-fields">
+                  <label>
+                    Minutes
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      step={1}
+                      value={routineStepMinutes}
+                      onChange={(e) => setRoutineStepMinutes(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Seconds
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={59}
+                      step={1}
+                      value={routineStepSeconds}
+                      onChange={(e) => setRoutineStepSeconds(e.target.value)}
+                    />
+                  </label>
+                </div>
+                <p className="muted view-hint">
+                  Countdown shows as MM:SS while the routine runs.
+                </p>
+                <div className="add-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      if (addRoutineStep(activeRoutine.id)) setAddOpen(false)
+                    }}
+                  >
+                    {editingRoutineStepId ? 'Save step' : 'Add step'}
+                  </button>
+                  {editingRoutineStepId ? (
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      onClick={() =>
+                        deleteRoutineStep(activeRoutine.id, editingRoutineStepId)
+                      }
+                    >
+                      Delete
+                    </button>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <>
+                <label>
+                  Routine name
+                  <input
+                    value={newRoutineName}
+                    onChange={(e) => setNewRoutineName(e.target.value)}
+                    placeholder="Morning checklist"
+                    autoComplete="off"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        if (addRoutine()) setAddOpen(false)
+                      }
+                    }}
+                  />
+                </label>
+                <label>
+                  $ for completing every step
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={0}
+                    step={1}
+                    value={newRoutineReward}
+                    onChange={(e) => setNewRoutineReward(e.target.value)}
+                  />
+                </label>
+                <p className="muted view-hint">
+                  Bonus only if you complete every step — skips earn nothing.
+                </p>
+                <div className="add-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      if (addRoutine()) setAddOpen(false)
+                    }}
+                  >
+                    {editingRoutineId ? 'Save routine' : 'Add routine'}
+                  </button>
+                  {editingRoutineId ? (
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      onClick={() => deleteRoutine(editingRoutineId)}
+                    >
+                      Delete
+                    </button>
+                  ) : null}
+                </div>
+              </>
+            )}
           </div>
         ) : mainView === 'timer' ? (
           <div className="panel add-panel">

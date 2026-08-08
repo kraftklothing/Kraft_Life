@@ -96,6 +96,7 @@ function defaultState() {
     ],
     projects: [],
     goals: [],
+    routines: [],
     timers: [
       {
         id: 'room-cleaning',
