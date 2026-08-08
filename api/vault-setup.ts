@@ -124,6 +124,7 @@ function defaultState() {
     ],
     activeModeIds: [],
     showPercent: false,
+    timerSoundEnabled: true,
     dollarLedger: [],
     pendingDeliveries: [],
     connectedCalendars: [],

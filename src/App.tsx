@@ -45,6 +45,7 @@ import {
 import TaskNotesPanel, {
   TaskDescriptionPreview,
 } from './TaskNotesPanel'
+import { playTimerDing } from './timerDing'
 import {
   OPTIONAL_NAV_VIEWS,
   REPETITION_LABELS,
@@ -329,6 +330,46 @@ function PauseIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M7 5.5h3.25v13H7v-13Zm6.75 0H17v13h-3.25v-13Z" fill="currentColor" />
+    </svg>
+  )
+}
+
+function SoundOnIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4.5 9.5v5h3.2L12 18.5V5.5L7.7 9.5H4.5Z"
+        fill="currentColor"
+      />
+      <path
+        d="M15.2 9.2a3.6 3.6 0 0 1 0 5.6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M17.4 6.6a6.5 6.5 0 0 1 0 10.8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+
+function SoundOffIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4.5 9.5v5h3.2L12 18.5V5.5L7.7 9.5H4.5Z"
+        fill="currentColor"
+      />
+      <path
+        d="M16 9.5 20.5 14.5M20.5 9.5 16 14.5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
     </svg>
   )
 }
@@ -965,7 +1006,8 @@ export default function App() {
         ? `+$1 · ${timer.title}`
         : `+$${cycles} · ${timer.title}`,
     )
-  }, [runningTimerId, state.timers])
+    if (state.timerSoundEnabled) playTimerDing()
+  }, [runningTimerId, state.timers, state.timerSoundEnabled])
 
   function startCategoryEdit(id: string) {
     setEditingCategoryId(id)
@@ -4045,7 +4087,28 @@ export default function App() {
               <p className="day-label">
                 {activeTimer ? activeTimer.title : 'Timers'}
               </p>
-              <span className="day-nav-spacer" aria-hidden="true" />
+              <button
+                type="button"
+                className={`day-nav-btn timer-sound-btn${
+                  state.timerSoundEnabled ? '' : ' muted'
+                }`}
+                aria-label={
+                  state.timerSoundEnabled
+                    ? 'Turn timer sound off'
+                    : 'Turn timer sound on'
+                }
+                aria-pressed={state.timerSoundEnabled}
+                onClick={() => {
+                  const nextEnabled = !state.timerSoundEnabled
+                  updateState((prev) => ({
+                    ...prev,
+                    timerSoundEnabled: nextEnabled,
+                  }))
+                  if (nextEnabled) playTimerDing()
+                }}
+              >
+                {state.timerSoundEnabled ? <SoundOnIcon /> : <SoundOffIcon />}
+              </button>
             </div>
             <div className="day-divider" aria-hidden="true" />
           </div>

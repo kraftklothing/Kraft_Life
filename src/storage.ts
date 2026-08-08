@@ -568,6 +568,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     modes: DEFAULT_MODES,
     activeModeIds: [],
     showPercent: false,
+    timerSoundEnabled: true,
     dollarLedger: [],
     connectedCalendars: [],
     clearedCalendarEvents: {},
@@ -622,6 +623,8 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     modes,
     activeModeIds,
     showPercent: Boolean(raw.showPercent),
+    // Missing field defaults on so existing saves keep the new ding audible.
+    timerSoundEnabled: raw.timerSoundEnabled !== false,
     dollarLedger: normalizeDollarLedger(raw.dollarLedger),
     connectedCalendars,
     clearedCalendarEvents: normalizeClearedCalendarEvents(

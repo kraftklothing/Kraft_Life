@@ -257,6 +257,11 @@ export interface AppState {
   activeModeIds: string[]
   /** When true, header shows percent complete instead of counts. */
   showPercent: boolean
+  /**
+   * When true, play a ding when a focus timer earns $1 and resets.
+   * Defaults on; toggle from the Timers header sound icon.
+   */
+  timerSoundEnabled: boolean
   /** Recent $ earned / spent / balance edits (newest last). */
   dollarLedger: DollarLedgerEntry[]
   /**
