@@ -19,6 +19,8 @@ import {
   type Project,
   type ProjectStep,
   type Reward,
+  type Routine,
+  type RoutineStep,
   type Task,
 } from './types'
 import {
@@ -92,6 +94,84 @@ function normalizeSteps(raw: unknown): ProjectStep[] {
     })
   })
   return steps.sort((a, b) => a.order - b.order)
+}
+
+function normalizeRoutineSteps(raw: unknown): RoutineStep[] {
+  if (!Array.isArray(raw)) return []
+  const steps: RoutineStep[] = []
+  raw.forEach((item, index) => {
+    if (!item || typeof item !== 'object') return
+    const s = item as {
+      id?: unknown
+      kind?: unknown
+      taskId?: unknown
+      title?: unknown
+      durationSeconds?: unknown
+      order?: unknown
+    }
+    if (typeof s.id !== 'string') return
+    const durationRaw =
+      typeof s.durationSeconds === 'number'
+        ? s.durationSeconds
+        : Number(s.durationSeconds)
+    if (!Number.isFinite(durationRaw) || durationRaw < 1) return
+    const durationSeconds = Math.floor(durationRaw)
+    const order = typeof s.order === 'number' ? s.order : index
+    if (s.kind === 'task') {
+      if (typeof s.taskId !== 'string' || !s.taskId) return
+      steps.push({
+        id: s.id,
+        kind: 'task',
+        taskId: s.taskId,
+        durationSeconds,
+        order,
+      })
+      return
+    }
+    if (s.kind === 'custom') {
+      if (typeof s.title !== 'string' || !s.title.trim()) return
+      steps.push({
+        id: s.id,
+        kind: 'custom',
+        title: s.title.trim(),
+        durationSeconds,
+        order,
+      })
+    }
+  })
+  return steps.sort((a, b) => a.order - b.order)
+}
+
+function normalizeRoutines(raw: unknown): Routine[] {
+  if (!Array.isArray(raw)) return []
+  const routines: Routine[] = []
+  raw.forEach((item, index) => {
+    if (!item || typeof item !== 'object') return
+    const r = item as {
+      id?: unknown
+      name?: unknown
+      completionReward?: unknown
+      steps?: unknown
+      order?: unknown
+      createdAt?: unknown
+    }
+    if (typeof r.id !== 'string' || typeof r.name !== 'string') return
+    const rewardRaw =
+      typeof r.completionReward === 'number'
+        ? r.completionReward
+        : Number(r.completionReward)
+    const completionReward =
+      Number.isFinite(rewardRaw) && rewardRaw >= 0 ? Math.floor(rewardRaw) : 0
+    routines.push({
+      id: r.id,
+      name: r.name,
+      completionReward,
+      steps: normalizeRoutineSteps(r.steps),
+      order: typeof r.order === 'number' ? r.order : index,
+      createdAt: typeof r.createdAt === 'number' ? r.createdAt : Date.now(),
+    })
+  })
+  return routines.sort((a, b) => a.order - b.order)
 }
 
 function normalizeEntityCategoryIds(raw: {
@@ -481,6 +561,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     rewards: DEFAULT_REWARDS,
     projects: [],
     goals: [],
+    routines: [],
     timers: DEFAULT_TIMERS,
     pendingDeliveries: [],
     vacationDays: {},
@@ -534,6 +615,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     rewards: rewards !== null ? rewards : DEFAULT_REWARDS,
     projects: normalizeProjects(raw.projects),
     goals: normalizeGoals(raw.goals),
+    routines: normalizeRoutines(raw.routines),
     timers: timers !== null ? timers : DEFAULT_TIMERS,
     pendingDeliveries: normalizePendingDeliveries(raw.pendingDeliveries),
     vacationDays,

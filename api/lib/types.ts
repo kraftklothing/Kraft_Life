@@ -7,8 +7,10 @@ export interface VaultAppState {
   rewards: unknown[]
   projects: unknown[]
   goals: unknown[]
+  routines?: unknown[]
   timers?: unknown[]
   pendingDeliveries?: unknown[]
+  navVisibility?: Record<string, boolean>
   /** Customizable filter modes (preferred). */
   modes?: unknown[]
   activeModeIds?: string[]

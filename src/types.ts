@@ -156,11 +156,45 @@ export interface ConnectedCalendar {
   icsUrl: string
 }
 
+/** A step inside a routine — either a linked day-task or a custom non-monetary step. */
+export type RoutineStep =
+  | {
+      id: string
+      kind: 'task'
+      taskId: string
+      /** Countdown length for this step. */
+      durationSeconds: number
+      order: number
+    }
+  | {
+      id: string
+      kind: 'custom'
+      title: string
+      /** Countdown length for this step. */
+      durationSeconds: number
+      order: number
+    }
+
+/** Ordered checklist of steps run with a countdown; bonus $ only if every step is completed. */
+export interface Routine {
+  id: string
+  name: string
+  /**
+   * Dollars awarded only when every step (task + custom) is completed — not skipped.
+   * Partial completion earns nothing from this reward.
+   */
+  completionReward: number
+  steps: RoutineStep[]
+  order: number
+  createdAt: number
+}
+
 /** Bottom-nav views that can be hidden from Settings (plus + settings stay). */
 export type OptionalNavView =
   | 'tasks'
   | 'projects'
   | 'goals'
+  | 'routines'
   | 'timer'
   | 'rewards'
 
@@ -171,6 +205,7 @@ export const OPTIONAL_NAV_VIEWS: OptionalNavView[] = [
   'tasks',
   'projects',
   'goals',
+  'routines',
   'timer',
   'rewards',
 ]
@@ -179,6 +214,7 @@ export const OPTIONAL_NAV_LABELS: Record<OptionalNavView, string> = {
   tasks: 'Tasks',
   projects: 'Projects',
   goals: 'Goals',
+  routines: 'Routines',
   timer: 'Timers',
   rewards: 'Rewards',
 }
@@ -187,6 +223,7 @@ export const DEFAULT_NAV_VISIBILITY: NavVisibility = {
   tasks: true,
   projects: true,
   goals: true,
+  routines: true,
   timer: true,
   rewards: true,
 }
@@ -198,6 +235,7 @@ export interface AppState {
   rewards: Reward[]
   projects: Project[]
   goals: Goal[]
+  routines: Routine[]
   timers: FocusTimer[]
   /** Google Calendar iCal links synced with cloud save. */
   connectedCalendars: ConnectedCalendar[]
