@@ -57,6 +57,11 @@ export interface Task {
   /** Per-day completion map keyed by YYYY-MM-DD. */
   completions: Record<string, boolean>
   /**
+   * Days the task was moved/deferred off of (YYYY-MM-DD → true).
+   * Deferred days hide the task and exclude it from that day's % complete.
+   */
+  deferredDates?: Record<string, boolean>
+  /**
    * Per filter-mode visibility keyed by mode id.
    * Missing key defaults to visible (true).
    */

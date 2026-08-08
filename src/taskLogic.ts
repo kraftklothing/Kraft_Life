@@ -205,7 +205,25 @@ export function isOccurrenceSatisfied(
  * Which occurrence a date view represents (scheduled day or rolled-over
  * incomplete prior occurrence). Null if the task should not appear.
  */
+export function isDeferredOn(task: Task, dateKey: string): boolean {
+  return Boolean(task.deferredDates?.[dateKey])
+}
+
+/** Mark a day as deferred so it no longer shows or counts toward that day's %. */
+export function withDeferredDate(task: Task, dateKey: string): Task {
+  if (task.deferredDates?.[dateKey]) return task
+  return {
+    ...task,
+    deferredDates: { ...task.deferredDates, [dateKey]: true },
+  }
+}
+
 export function occurrenceForDate(task: Task, dateKey: string): string | null {
+  // Moved-on days stay out of the list and out of % complete (unless done that day).
+  if (isDeferredOn(task, dateKey) && !task.completions[dateKey]) {
+    return null
+  }
+
   const day = startOfDay(parseDateKey(dateKey))
   const start = startOfDay(parseDateKey(task.startDate))
   if (day < start) return null
