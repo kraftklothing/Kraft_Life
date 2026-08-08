@@ -309,6 +309,11 @@ button {
   background: var(--accent-wash);
 }
 
+.timer-sound-btn.muted {
+  color: var(--ink-soft);
+  opacity: 0.72;
+}
+
 .day-label {
   margin: 0;
   color: var(--ink);

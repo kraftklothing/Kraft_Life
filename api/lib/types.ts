@@ -22,6 +22,7 @@ export interface VaultAppState {
   homeMode?: boolean
   outMode?: boolean
   showPercent: boolean
+  timerSoundEnabled?: boolean
   dollarLedger?: unknown[]
 }
 
