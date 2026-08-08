@@ -359,7 +359,7 @@ export default function RoutinesView({
               {sortedRoutineSteps(activeRoutine).map((step) => (
                 <li
                   key={step.id}
-                  className={`task-item${
+                  className={`task-item routine-step-item${
                     draggingStepId === step.id ? ' dragging' : ''
                   }`}
                 >
