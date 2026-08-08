@@ -4283,6 +4283,7 @@ export default function App() {
                 <NavClockIcon />
               </button>
             ) : null}
+            <span className="nav-right-spacer" aria-hidden="true" />
             {state.navVisibility.rewards !== false ? (
               <button
                 type="button"

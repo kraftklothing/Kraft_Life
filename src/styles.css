@@ -406,10 +406,11 @@ button {
 .composer-collapsed,
 .bottom-nav {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   flex-wrap: nowrap;
   gap: 6px;
+  width: 100%;
   animation: rise-in 0.35s ease both;
 }
 
@@ -417,6 +418,12 @@ button {
   width: 48px;
   height: 48px;
   flex-shrink: 0;
+}
+
+/* Pushes Rewards + Settings to the far right edge. */
+.nav-right-spacer {
+  flex: 1 1 auto;
+  min-width: 6px;
 }
 
 .circle-btn {
@@ -1848,6 +1855,11 @@ form.add-panel select {
   box-shadow: 0 8px 20px rgba(58, 36, 24, 0.06);
   transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   user-select: none;
+}
+
+/* Routine steps only have body + actions (no leading check). */
+.task-item.routine-step-item {
+  grid-template-columns: 1fr auto;
 }
 
 .task-item.compact {
