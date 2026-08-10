@@ -417,11 +417,11 @@ button {
 .composer-collapsed,
 .bottom-nav {
   display: flex;
-  justify-content: flex-start;
+  justify-content: center;
   align-items: center;
   flex-wrap: nowrap;
-  gap: 6px;
-  width: 100%;
+  /* Icons sit tight; the plus gets its own spacer. */
+  gap: 2px;
   animation: rise-in 0.35s ease both;
 }
 
@@ -431,10 +431,10 @@ button {
   flex-shrink: 0;
 }
 
-/* Pushes Rewards + Settings to the far right edge. */
-.nav-right-spacer {
-  flex: 1 1 auto;
-  min-width: 6px;
+/* Accent gap only between + and the rest of the icons. */
+.nav-gap {
+  width: 10px;
+  flex-shrink: 0;
 }
 
 .circle-btn {
@@ -457,7 +457,11 @@ button {
 
   .composer-collapsed,
   .bottom-nav {
-    gap: 3px;
+    gap: 0;
+  }
+
+  .nav-gap {
+    width: 8px;
   }
 
   .circle-btn,

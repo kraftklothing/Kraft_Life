@@ -4464,6 +4464,7 @@ export default function App() {
             ) : (
               <span className="nav-plus-spacer" aria-hidden="true" />
             )}
+            <span className="nav-gap" aria-hidden="true" />
             {state.navVisibility.tasks !== false ? (
               <button
                 type="button"
@@ -4529,7 +4530,6 @@ export default function App() {
                 <NavClockIcon />
               </button>
             ) : null}
-            <span className="nav-right-spacer" aria-hidden="true" />
             {state.navVisibility.rewards !== false ? (
               <button
                 type="button"
