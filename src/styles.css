@@ -1184,6 +1184,22 @@ button {
   gap: 12px;
 }
 
+.routine-task-picker {
+  display: grid;
+  gap: 8px;
+}
+
+.routine-task-picker-list {
+  max-height: min(36vh, 260px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+}
+
+.routine-task-picker-list .assign-item {
+  grid-template-columns: 1fr;
+}
+
 .spend-btn-inline {
   padding: 8px 12px;
   font-size: 0.85rem;
