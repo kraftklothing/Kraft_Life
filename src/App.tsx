@@ -469,6 +469,7 @@ export default function App() {
     'task',
   )
   const [routineStepTaskId, setRoutineStepTaskId] = useState('')
+  const [routineTaskSearch, setRoutineTaskSearch] = useState('')
   const [routineStepTitle, setRoutineStepTitle] = useState('')
   const [routineStepMinutes, setRoutineStepMinutes] = useState('5')
   const [routineStepSeconds, setRoutineStepSeconds] = useState('0')
@@ -720,6 +721,16 @@ export default function App() {
     () => sortedRoutines.find((r) => r.id === activeRoutineId) ?? null,
     [sortedRoutines, activeRoutineId],
   )
+
+  const repeatingTasksForRoutine = useMemo(() => {
+    const query = routineTaskSearch.trim().toLowerCase()
+    return state.tasks
+      .filter((task) => taskRepeats(task))
+      .filter((task) =>
+        query ? task.title.toLowerCase().includes(query) : true,
+      )
+      .sort((a, b) => a.title.localeCompare(b.title))
+  }, [state.tasks, routineTaskSearch])
 
   const unassignedRecurring = useMemo(
     () => unassignedRecurringTasks(state),
@@ -1246,10 +1257,13 @@ export default function App() {
       }
       if (mainView === 'routines') {
         if (activeRoutine) {
+          const firstRepeating =
+            state.tasks.find((task) => taskRepeats(task))?.id ?? ''
           setEditingRoutineId(null)
           setEditingRoutineStepId(null)
           setRoutineStepKind('task')
-          setRoutineStepTaskId(state.tasks[0]?.id ?? '')
+          setRoutineStepTaskId(firstRepeating)
+          setRoutineTaskSearch('')
           setRoutineStepTitle('')
           setRoutineStepMinutes('5')
           setRoutineStepSeconds('0')
@@ -1768,6 +1782,7 @@ export default function App() {
     }))
     setEditingRoutineStepId(null)
     setRoutineStepTitle('')
+    setRoutineTaskSearch('')
     setRoutineStepMinutes('5')
     setRoutineStepSeconds('0')
     setToast(editingRoutineStepId ? 'Step updated' : 'Step added')
@@ -1778,12 +1793,15 @@ export default function App() {
     setEditingRoutineId(null)
     setEditingRoutineStepId(step.id)
     setRoutineStepKind(step.kind)
+    setRoutineTaskSearch('')
     if (step.kind === 'task') {
       setRoutineStepTaskId(step.taskId)
       setRoutineStepTitle('')
     } else {
       setRoutineStepTitle(step.title)
-      setRoutineStepTaskId(state.tasks[0]?.id ?? '')
+      setRoutineStepTaskId(
+        state.tasks.find((task) => taskRepeats(task))?.id ?? '',
+      )
     }
     const fields = durationToFields(step.durationSeconds)
     setRoutineStepMinutes(fields.minutes)
@@ -4587,24 +4605,54 @@ export default function App() {
                   </label>
                 </fieldset>
                 {routineStepKind === 'task' ? (
-                  <label>
-                    Task
-                    <select
-                      value={routineStepTaskId}
-                      onChange={(e) => setRoutineStepTaskId(e.target.value)}
-                    >
-                      <option value="" disabled>
-                        Choose a repeating task
-                      </option>
-                      {state.tasks
-                        .filter((task) => taskRepeats(task))
-                        .map((task) => (
-                          <option key={task.id} value={task.id}>
-                            {task.title}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
+                  <div className="routine-task-picker">
+                    <label>
+                      Search tasks
+                      <input
+                        type="search"
+                        value={routineTaskSearch}
+                        onChange={(e) => setRoutineTaskSearch(e.target.value)}
+                        placeholder="Type to filter repeating tasks"
+                        autoComplete="off"
+                        enterKeyHint="search"
+                      />
+                    </label>
+                    {repeatingTasksForRoutine.length === 0 ? (
+                      <p className="muted view-hint">
+                        {routineTaskSearch.trim()
+                          ? 'No repeating tasks match that search.'
+                          : 'No repeating tasks to link yet.'}
+                      </p>
+                    ) : (
+                      <ul
+                        className="task-list routine-task-picker-list"
+                        role="listbox"
+                        aria-label="Repeating tasks"
+                      >
+                        {repeatingTasksForRoutine.map((task) => {
+                          const selected = routineStepTaskId === task.id
+                          return (
+                            <li key={task.id} className="task-item assign-item">
+                              <button
+                                type="button"
+                                role="option"
+                                aria-selected={selected}
+                                className={`assign-btn${
+                                  selected ? ' linked' : ''
+                                }`}
+                                onClick={() => setRoutineStepTaskId(task.id)}
+                              >
+                                <span className="assign-mark">
+                                  {selected ? '●' : '○'}
+                                </span>
+                                <span className="task-title">{task.title}</span>
+                              </button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </div>
                 ) : (
                   <label>
                     Step name
