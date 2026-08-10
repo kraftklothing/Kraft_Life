@@ -242,6 +242,17 @@ function normalizeCustomRepeat(raw: unknown): Task['customRepeat'] | undefined {
     : undefined
 }
 
+function normalizeDeferredDates(
+  raw: unknown,
+): Record<string, boolean> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const result: Record<string, boolean> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof key === 'string' && value === true) result[key] = true
+  }
+  return Object.keys(result).length > 0 ? result : undefined
+}
+
 function normalizeVisibleInModes(raw: {
   visibleInModes?: unknown
   visibleInWorkMode?: unknown
@@ -386,6 +397,7 @@ function normalizeTasks(raw: unknown): Task[] {
       startDate: t.startDate,
       completions:
         t.completions && typeof t.completions === 'object' ? t.completions : {},
+      deferredDates: normalizeDeferredDates(t.deferredDates),
       visibleInModes: normalizeVisibleInModes(t),
       order: typeof t.order === 'number' ? t.order : 0,
       createdAt: typeof t.createdAt === 'number' ? t.createdAt : Date.now(),

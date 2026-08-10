@@ -1936,6 +1936,43 @@ form.add-panel select {
   gap: 6px;
 }
 
+.task-swipe-wrap {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.task-swipe-wrap.deferrable {
+  touch-action: pan-y;
+}
+
+.task-defer-underlay {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 120px;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  padding-left: 14px;
+  background: var(--accent);
+  color: #fff8f1;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.task-swipe-wrap .task-item {
+  position: relative;
+  z-index: 1;
+  will-change: transform;
+}
+
+.task-swipe-wrap .task-item.swiping {
+  transition: none;
+  box-shadow: 0 6px 16px rgba(58, 36, 24, 0.1);
+}
+
 .task-item {
   display: grid;
   grid-template-columns: auto 1fr auto;
