@@ -4612,7 +4612,7 @@ export default function App() {
                         type="search"
                         value={routineTaskSearch}
                         onChange={(e) => setRoutineTaskSearch(e.target.value)}
-                        placeholder="Type to filter repeating tasks"
+                        placeholder="Type to filter, or scroll the list"
                         autoComplete="off"
                         enterKeyHint="search"
                       />
@@ -4624,33 +4624,50 @@ export default function App() {
                           : 'No repeating tasks to link yet.'}
                       </p>
                     ) : (
-                      <ul
-                        className="task-list routine-task-picker-list"
-                        role="listbox"
-                        aria-label="Repeating tasks"
-                      >
-                        {repeatingTasksForRoutine.map((task) => {
-                          const selected = routineStepTaskId === task.id
-                          return (
-                            <li key={task.id} className="task-item assign-item">
-                              <button
-                                type="button"
-                                role="option"
-                                aria-selected={selected}
-                                className={`assign-btn${
-                                  selected ? ' linked' : ''
-                                }`}
-                                onClick={() => setRoutineStepTaskId(task.id)}
-                              >
-                                <span className="assign-mark">
-                                  {selected ? '●' : '○'}
-                                </span>
-                                <span className="task-title">{task.title}</span>
-                              </button>
-                            </li>
-                          )
-                        })}
-                      </ul>
+                      <>
+                        <p className="muted view-hint routine-task-picker-count">
+                          {repeatingTasksForRoutine.length} task
+                          {repeatingTasksForRoutine.length === 1 ? '' : 's'}
+                          {routineTaskSearch.trim() ? ' match' : ''} · tap one
+                        </p>
+                        <ul
+                          className="routine-task-picker-list"
+                          role="listbox"
+                          aria-label="Repeating tasks"
+                        >
+                          {repeatingTasksForRoutine.map((task) => {
+                            const selected = routineStepTaskId === task.id
+                            return (
+                              <li key={task.id}>
+                                <button
+                                  type="button"
+                                  role="option"
+                                  aria-selected={selected}
+                                  className={`routine-task-option${
+                                    selected ? ' selected' : ''
+                                  }`}
+                                  onClick={() => setRoutineStepTaskId(task.id)}
+                                >
+                                  <span className="routine-task-option-main">
+                                    <span className="routine-task-option-title">
+                                      {task.title}
+                                    </span>
+                                    <span className="routine-task-option-meta">
+                                      {REPETITION_LABELS[task.repetition]}
+                                    </span>
+                                  </span>
+                                  <span
+                                    className="routine-task-option-check"
+                                    aria-hidden="true"
+                                  >
+                                    {selected ? '✓' : ''}
+                                  </span>
+                                </button>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      </>
                     )}
                   </div>
                 ) : (
