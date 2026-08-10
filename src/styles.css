@@ -1870,6 +1870,55 @@ form.add-panel select {
   gap: 6px;
 }
 
+.task-swipe-row {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+
+.task-swipe-row.swipeable {
+  touch-action: pan-y;
+}
+
+.task-swipe-row.swiping {
+  touch-action: none;
+}
+
+.task-swipe-action {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 96px;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  padding-left: 14px;
+  background: linear-gradient(
+    90deg,
+    rgba(31, 77, 69, 0.92),
+    rgba(31, 77, 69, 0.78)
+  );
+  color: #f4fff9;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+.task-swipe-row .task-item {
+  position: relative;
+  z-index: 1;
+  transition:
+    opacity 0.2s ease,
+    transform 0.18s ease,
+    box-shadow 0.2s ease;
+}
+
+.task-swipe-row.swiping .task-item {
+  transition: none;
+}
+
 .task-item {
   display: grid;
   grid-template-columns: auto 1fr auto;

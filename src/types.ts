@@ -54,6 +54,11 @@ export interface Task {
   customRepeat?: CustomRepeat
   /** Local date YYYY-MM-DD when the task starts / was created for. */
   startDate: string
+  /**
+   * Local date YYYY-MM-DD. When set, the task is hidden from day views
+   * strictly before this date (swipe-right “move to tomorrow”).
+   */
+  snoozeUntil?: string
   /** Per-day completion map keyed by YYYY-MM-DD. */
   completions: Record<string, boolean>
   /**
