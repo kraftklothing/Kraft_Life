@@ -260,6 +260,11 @@ export function isCompletedOn(task: Task, dateKey: string): boolean {
   return Boolean(task.completions[dateKey])
 }
 
+/** True when a task has any repeat schedule (excludes one-off "Does not repeat"). */
+export function taskRepeats(task: Task): boolean {
+  return task.repetition !== 'none'
+}
+
 export function sortTasksForDay(tasks: Task[]): Task[] {
   return [...tasks].sort((a, b) => {
     if (a.order !== b.order) return a.order - b.order
