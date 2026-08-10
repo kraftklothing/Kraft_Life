@@ -21,6 +21,7 @@ import {
   nextOccurrence,
   occurrenceForDate,
   sortTasksForDay,
+  taskRepeats,
   taskVisibleOnDate,
   taskVisibleInDayMode,
   taskVisibleInMode,
@@ -1709,8 +1710,13 @@ export default function App() {
         setToast('Pick a task to link')
         return false
       }
-      if (!state.tasks.some((task) => task.id === routineStepTaskId)) {
+      const linkedTask = state.tasks.find((task) => task.id === routineStepTaskId)
+      if (!linkedTask) {
         setToast('That task no longer exists')
+        return false
+      }
+      if (!taskRepeats(linkedTask)) {
+        setToast('Pick a repeating task')
         return false
       }
       nextStep = {
@@ -4588,13 +4594,15 @@ export default function App() {
                       onChange={(e) => setRoutineStepTaskId(e.target.value)}
                     >
                       <option value="" disabled>
-                        Choose a task
+                        Choose a repeating task
                       </option>
-                      {state.tasks.map((task) => (
-                        <option key={task.id} value={task.id}>
-                          {task.title}
-                        </option>
-                      ))}
+                      {state.tasks
+                        .filter((task) => taskRepeats(task))
+                        .map((task) => (
+                          <option key={task.id} value={task.id}>
+                            {task.title}
+                          </option>
+                        ))}
                     </select>
                   </label>
                 ) : (

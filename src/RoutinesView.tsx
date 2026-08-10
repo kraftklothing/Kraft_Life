@@ -212,7 +212,17 @@ export default function RoutinesView({
             <span className="day-nav-spacer" aria-hidden="true" />
           )}
           <p className="day-label">
-            {activeRoutine ? activeRoutine.name : 'Routines'}
+            {activeRoutine ? (
+              <>
+                {activeRoutine.name}
+                <span className="routine-total-time">
+                  {' '}
+                  · {formatCountdown(routineTotalSeconds(activeRoutine))}
+                </span>
+              </>
+            ) : (
+              'Routines'
+            )}
           </p>
           <span className="day-nav-spacer" aria-hidden="true" />
         </div>
