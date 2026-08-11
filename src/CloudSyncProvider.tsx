@@ -61,6 +61,7 @@ export function CloudSyncProvider({ children }: CloudSyncProviderProps) {
   const activePinRef = useRef('')
   const saveTimerRef = useRef<number | null>(null)
   const loadedStateRef = useRef<AppState | null>(null)
+  const pendingStateRef = useRef<AppState | null>(null)
 
   const applyUnlock = useCallback((pin: string, state: AppState, persist: boolean) => {
     if (persist) rememberPin(pin)
@@ -103,7 +104,17 @@ export function CloudSyncProvider({ children }: CloudSyncProviderProps) {
         if (status.storageReady && status.configured) {
           const savedPin = getRememberedPin()
           if (savedPin) {
-            await tryUnlock(savedPin, true)
+            setBusy(true)
+            try {
+              const state = await loadCloudState(savedPin)
+              if (cancelled) return
+              applyUnlock(savedPin, state, true)
+            } catch {
+              // Wrong/stale remembered PIN — stay locked; user can unlock in Settings.
+              if (!cancelled) forgetPin()
+            } finally {
+              if (!cancelled) setBusy(false)
+            }
           }
         }
       } catch {
@@ -120,22 +131,54 @@ export function CloudSyncProvider({ children }: CloudSyncProviderProps) {
     return () => {
       cancelled = true
     }
-  }, [tryUnlock])
+  }, [applyUnlock])
 
   const scheduleSave = useCallback((state: AppState) => {
     const pin = activePinRef.current
     if (!pin) return
+    pendingStateRef.current = state
     if (saveTimerRef.current !== null) {
       window.clearTimeout(saveTimerRef.current)
     }
     saveTimerRef.current = window.setTimeout(() => {
-      void saveCloudState(pin, state).catch(() => {
+      saveTimerRef.current = null
+      const toSave = pendingStateRef.current
+      pendingStateRef.current = null
+      if (!toSave) return
+      void saveCloudState(pin, toSave).catch(() => {
         // Local cache still holds data; next edit retries.
       })
     }, 700)
   }, [])
 
+  const flushSave = useCallback(() => {
+    const pin = activePinRef.current
+    const toSave = pendingStateRef.current
+    if (!pin || !toSave) return
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = null
+    }
+    pendingStateRef.current = null
+    void saveCloudState(pin, toSave).catch(() => {
+      // Local cache still holds data; next edit retries.
+    })
+  }, [])
+
+  useEffect(() => {
+    function onHide() {
+      if (document.visibilityState === 'hidden') flushSave()
+    }
+    window.addEventListener('pagehide', flushSave)
+    document.addEventListener('visibilitychange', onHide)
+    return () => {
+      window.removeEventListener('pagehide', flushSave)
+      document.removeEventListener('visibilitychange', onHide)
+    }
+  }, [flushSave])
+
   const lock = useCallback(() => {
+    flushSave()
     if (saveTimerRef.current !== null) {
       window.clearTimeout(saveTimerRef.current)
     }
@@ -143,7 +186,7 @@ export function CloudSyncProvider({ children }: CloudSyncProviderProps) {
     activePinRef.current = ''
     setUnlocked(false)
     setError('')
-  }, [])
+  }, [flushSave])
 
   const setupPin = useCallback(
     async (pin: string, confirmPin: string, state: AppState) => {

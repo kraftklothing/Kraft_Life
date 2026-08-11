@@ -8,7 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { addDays, formatDayHeading, parseDateKey, toDateKey } from './dates'
-import { appendLedgerEntry, loadState, normalizeState, saveState } from './storage'
+import { appendLedgerEntry, loadState, normalizeState, pickNewerState, saveState } from './storage'
 import { useCloudSync } from './CloudSyncProvider'
 import CloudSyncSettings from './CloudSyncSettings'
 import CalendarSettings from './CalendarSettings'
@@ -624,17 +624,23 @@ export default function App() {
     const loaded = takeLoadedState()
     if (loaded) {
       setState((prev) => {
-        const next = normalizeState(loaded)
+        const remote = normalizeState(loaded)
+        const next = pickNewerState(prev, remote)
         if (
           next.connectedCalendars.length === 0 &&
           prev.connectedCalendars.length > 0
         ) {
           return { ...next, connectedCalendars: prev.connectedCalendars }
         }
+        // If local edits are newer, React may bail out on the same reference —
+        // still push them so cloud catches up.
+        if (next === prev && (prev.updatedAt ?? 0) > (remote.updatedAt ?? 0)) {
+          queueMicrotask(() => scheduleSave(prev))
+        }
         return next
       })
     }
-  }, [cloudLoadCount, takeLoadedState])
+  }, [cloudLoadCount, takeLoadedState, scheduleSave])
 
   useEffect(() => {
     if (!toast) return
@@ -985,7 +991,28 @@ export default function App() {
   }, [todayLedger])
 
   function updateState(updater: (prev: AppState) => AppState) {
-    setState((prev) => updater(prev))
+    setState((prev) => {
+      const next = updater(prev)
+      if (next === prev) return prev
+      return { ...next, updatedAt: Date.now() }
+    })
+  }
+
+  function applyCloudState(loaded: AppState) {
+    setState((prev) => {
+      const remote = normalizeState(loaded)
+      const next = pickNewerState(prev, remote)
+      if (
+        next.connectedCalendars.length === 0 &&
+        prev.connectedCalendars.length > 0
+      ) {
+        return { ...next, connectedCalendars: prev.connectedCalendars }
+      }
+      if (next === prev && (prev.updatedAt ?? 0) > (remote.updatedAt ?? 0)) {
+        queueMicrotask(() => scheduleSave(prev))
+      }
+      return next
+    })
   }
 
   useEffect(() => {
@@ -1366,8 +1393,9 @@ export default function App() {
       })),
       routines: prev.routines.map((routine) => ({
         ...routine,
-        steps: routine.steps
+        steps: [...routine.steps]
           .filter((step) => step.kind !== 'task' || step.taskId !== taskId)
+          .sort((a, b) => a.order - b.order)
           .map((step, index) => ({ ...step, order: index })),
       })),
     }))
@@ -1836,8 +1864,9 @@ export default function App() {
         if (routine.id !== routineId) return routine
         return {
           ...routine,
-          steps: routine.steps
+          steps: [...routine.steps]
             .filter((step) => step.id !== stepId)
+            .sort((a, b) => a.order - b.order)
             .map((step, index) => ({ ...step, order: index })),
         }
       }),
@@ -2807,6 +2836,14 @@ export default function App() {
   }
 
   useEffect(() => {
+    function commit(updater: (prev: AppState) => AppState) {
+      setState((prev) => {
+        const next = updater(prev)
+        if (next === prev) return prev
+        return { ...next, updatedAt: Date.now() }
+      })
+    }
+
     function reorderSnapshot(
       drag: { id: string; startY: number; orderSnapshot: string[] },
       clientY: number,
@@ -2832,7 +2869,7 @@ export default function App() {
         event.preventDefault()
         const nextOrder = reorderSnapshot(taskDrag, event.clientY, 52)
         if (!nextOrder) return
-        setState((prev) => {
+        commit((prev) => {
           const orderMap = new Map(nextOrder.map((id, index) => [id, index]))
           return {
             ...prev,
@@ -2851,7 +2888,7 @@ export default function App() {
         event.preventDefault()
         const nextOrder = reorderSnapshot(rewardDrag, event.clientY, 88)
         if (!nextOrder) return
-        setState((prev) => {
+        commit((prev) => {
           const byId = new Map(prev.rewards.map((r) => [r.id, r]))
           const rewards = nextOrder
             .map((id) => byId.get(id))
@@ -2866,7 +2903,7 @@ export default function App() {
         event.preventDefault()
         const nextOrder = reorderSnapshot(timerDrag, event.clientY, 88)
         if (!nextOrder) return
-        setState((prev) => {
+        commit((prev) => {
           const byId = new Map(prev.timers.map((t) => [t.id, t]))
           const timers = nextOrder
             .map((id, index) => {
@@ -2884,21 +2921,18 @@ export default function App() {
         event.preventDefault()
         const nextOrder = reorderSnapshot(stepDrag, event.clientY, 64)
         if (!nextOrder) return
-        setState((prev) => ({
+        commit((prev) => ({
           ...prev,
           projects: prev.projects.map((project) => {
             if (project.id !== stepDrag.projectId) return project
-            const orderMap = new Map(
-              nextOrder.map((id, index) => [id, index]),
-            )
-            return {
-              ...project,
-              steps: project.steps.map((step) =>
-                orderMap.has(step.id)
-                  ? { ...step, order: orderMap.get(step.id)! }
-                  : step,
-              ),
-            }
+            const byId = new Map(project.steps.map((s) => [s.id, s]))
+            const steps = nextOrder
+              .map((id, index) => {
+                const step = byId.get(id)
+                return step ? { ...step, order: index } : null
+              })
+              .filter((s): s is ProjectStep => Boolean(s))
+            return { ...project, steps }
           }),
         }))
         return
@@ -2909,16 +2943,15 @@ export default function App() {
         event.preventDefault()
         const nextOrder = reorderSnapshot(projectDrag, event.clientY, 72)
         if (!nextOrder) return
-        setState((prev) => {
-          const orderMap = new Map(nextOrder.map((id, index) => [id, index]))
-          return {
-            ...prev,
-            projects: prev.projects.map((project) =>
-              orderMap.has(project.id)
-                ? { ...project, order: orderMap.get(project.id)! }
-                : project,
-            ),
-          }
+        commit((prev) => {
+          const byId = new Map(prev.projects.map((p) => [p.id, p]))
+          const projects = nextOrder
+            .map((id, index) => {
+              const project = byId.get(id)
+              return project ? { ...project, order: index } : null
+            })
+            .filter((p): p is Project => Boolean(p))
+          return { ...prev, projects }
         })
         return
       }
@@ -2928,16 +2961,15 @@ export default function App() {
         event.preventDefault()
         const nextOrder = reorderSnapshot(goalDrag, event.clientY, 88)
         if (!nextOrder) return
-        setState((prev) => {
-          const orderMap = new Map(nextOrder.map((id, index) => [id, index]))
-          return {
-            ...prev,
-            goals: prev.goals.map((goal) =>
-              orderMap.has(goal.id)
-                ? { ...goal, order: orderMap.get(goal.id)! }
-                : goal,
-            ),
-          }
+        commit((prev) => {
+          const byId = new Map(prev.goals.map((g) => [g.id, g]))
+          const goals = nextOrder
+            .map((id, index) => {
+              const goal = byId.get(id)
+              return goal ? { ...goal, order: index } : null
+            })
+            .filter((g): g is Goal => Boolean(g))
+          return { ...prev, goals }
         })
         return
       }
@@ -2947,16 +2979,15 @@ export default function App() {
         event.preventDefault()
         const nextOrder = reorderSnapshot(routineDrag, event.clientY, 72)
         if (!nextOrder) return
-        setState((prev) => {
-          const orderMap = new Map(nextOrder.map((id, index) => [id, index]))
-          return {
-            ...prev,
-            routines: prev.routines.map((routine) =>
-              orderMap.has(routine.id)
-                ? { ...routine, order: orderMap.get(routine.id)! }
-                : routine,
-            ),
-          }
+        commit((prev) => {
+          const byId = new Map(prev.routines.map((r) => [r.id, r]))
+          const routines = nextOrder
+            .map((id, index) => {
+              const routine = byId.get(id)
+              return routine ? { ...routine, order: index } : null
+            })
+            .filter((r): r is Routine => Boolean(r))
+          return { ...prev, routines }
         })
         return
       }
@@ -2966,21 +2997,18 @@ export default function App() {
         event.preventDefault()
         const nextOrder = reorderSnapshot(routineStepDrag, event.clientY, 64)
         if (!nextOrder) return
-        setState((prev) => ({
+        commit((prev) => ({
           ...prev,
           routines: prev.routines.map((routine) => {
             if (routine.id !== routineStepDrag.routineId) return routine
-            const orderMap = new Map(
-              nextOrder.map((id, index) => [id, index]),
-            )
-            return {
-              ...routine,
-              steps: routine.steps.map((step) =>
-                orderMap.has(step.id)
-                  ? { ...step, order: orderMap.get(step.id)! }
-                  : step,
-              ),
-            }
+            const byId = new Map(routine.steps.map((s) => [s.id, s]))
+            const steps = nextOrder
+              .map((id, index) => {
+                const step = byId.get(id)
+                return step ? { ...step, order: index } : null
+              })
+              .filter((s): s is RoutineStep => Boolean(s))
+            return { ...routine, steps }
           }),
         }))
         return
@@ -2991,7 +3019,7 @@ export default function App() {
         event.preventDefault()
         const nextOrder = reorderSnapshot(categoryDrag, event.clientY, 64)
         if (!nextOrder) return
-        setState((prev) => {
+        commit((prev) => {
           const byId = new Map(prev.taskCategories.map((c) => [c.id, c]))
           const taskCategories = nextOrder
             .map((id) => byId.get(id))
@@ -3006,16 +3034,15 @@ export default function App() {
       event.preventDefault()
       const nextOrder = reorderSnapshot(modeDrag, event.clientY, 72)
       if (!nextOrder) return
-      setState((prev) => {
-        const orderMap = new Map(nextOrder.map((id, index) => [id, index]))
-        return {
-          ...prev,
-          modes: prev.modes.map((mode) =>
-            orderMap.has(mode.id)
-              ? { ...mode, order: orderMap.get(mode.id)! }
-              : mode,
-          ),
-        }
+      commit((prev) => {
+        const byId = new Map(prev.modes.map((m) => [m.id, m]))
+        const modes = nextOrder
+          .map((id, index) => {
+            const mode = byId.get(id)
+            return mode ? { ...mode, order: index } : null
+          })
+          .filter((m): m is Mode => Boolean(m))
+        return { ...prev, modes }
       })
     }
     function onUp() {
@@ -4238,7 +4265,7 @@ export default function App() {
               />
             </SettingsSection>
 
-            <CloudSyncSettings state={state} onCloudStateLoaded={setState} />
+            <CloudSyncSettings state={state} onCloudStateLoaded={applyCloudState} />
 
             <CalendarSettings
               calendars={state.connectedCalendars}

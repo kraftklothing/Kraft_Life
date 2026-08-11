@@ -274,6 +274,12 @@ export interface AppState {
    * Hiding a view only removes its icon — data is kept.
    */
   navVisibility: NavVisibility
+  /**
+   * Last user-edit timestamp (ms). Used so a slower cloud unlock cannot
+   * overwrite newer local changes (e.g. routine / step order).
+   * Timer ticks and other ephemeral UI updates do not bump this.
+   */
+  updatedAt: number
 }
 
 export const DEFAULT_CATEGORIES: Category[] = [
