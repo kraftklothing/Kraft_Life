@@ -585,6 +585,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     connectedCalendars: [],
     clearedCalendarEvents: {},
     navVisibility: { ...DEFAULT_NAV_VISIBILITY },
+    updatedAt: 0,
   }
   if (!raw || typeof raw !== 'object') return fallback
 
@@ -643,7 +644,16 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
       raw.clearedCalendarEvents,
     ),
     navVisibility: normalizeNavVisibility(raw.navVisibility),
+    updatedAt:
+      typeof raw.updatedAt === 'number' && Number.isFinite(raw.updatedAt)
+        ? raw.updatedAt
+        : 0,
   }
+}
+
+/** Prefer the newer of two normalized states (local vs cloud). */
+export function pickNewerState(local: AppState, remote: AppState): AppState {
+  return (local.updatedAt ?? 0) > (remote.updatedAt ?? 0) ? local : remote
 }
 
 export function loadState(): AppState {
