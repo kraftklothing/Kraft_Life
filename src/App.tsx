@@ -1195,32 +1195,42 @@ export default function App() {
       repetition === 'weekdays'
 
     if (editingTaskId) {
+      let dayChanged = false
       updateState((prev) => ({
         ...prev,
         tasks: prev.tasks.map((task) => {
           if (task.id !== editingTaskId) return task
-          const movedOffView =
-            dayKey !== viewKey && taskVisibleOnDate(task, viewKey)
-          return {
+          dayChanged = dayKey !== task.startDate
+          const updated: Task = {
             ...task,
             title: trimmed,
             categoryIds: selectedCategories,
             repetition,
             customRepeat: keepsCustomRepeat ? customRepeat : undefined,
             startDate: dayKey,
+            visibleInModes: { ...visibleInModes },
+          }
+          // Only mark the viewed day deferred when the edit actually makes the
+          // task leave that day. Rolled-over one-offs keep their original
+          // startDate in the Day field, so dayKey !== viewKey alone used to
+          // hide them from today on a no-op save.
+          const movedOffView =
+            taskVisibleOnDate(task, viewKey) &&
+            !taskVisibleOnDate(updated, viewKey)
+          return {
+            ...updated,
             deferredDates: movedOffView
               ? { ...task.deferredDates, [viewKey]: true }
               : task.deferredDates,
-            visibleInModes: { ...visibleInModes },
           }
         }),
       }))
-      if (dayKey !== viewKey) {
+      if (dayChanged) {
         setViewDate(parsedDay)
       }
       resetComposerFields()
       setAddOpen(false)
-      setToast(dayKey !== viewKey ? 'Task moved' : 'Task updated')
+      setToast(dayChanged ? 'Task moved' : 'Task updated')
       return
     }
 
