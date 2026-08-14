@@ -8,6 +8,26 @@ export function formatCountdown(totalSeconds: number): string {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 }
 
+/**
+ * Remaining countdown seconds from a wall-clock step deadline.
+ * Uses ceil so a just-started N-second step still shows N until the
+ * first full second elapses (matches interval decrement UX).
+ */
+export function remainingSecondsFromDeadline(
+  endsAtMs: number,
+  nowMs: number = Date.now(),
+): number {
+  return Math.max(0, Math.ceil((endsAtMs - nowMs) / 1000))
+}
+
+/** Absolute end time for a step that starts now and lasts durationSeconds. */
+export function stepDeadlineFromNow(
+  durationSeconds: number,
+  nowMs: number = Date.now(),
+): number {
+  return nowMs + Math.max(0, Math.floor(durationSeconds)) * 1000
+}
+
 /** Total planned duration of a routine (sum of step durations). */
 export function routineTotalSeconds(routine: Routine): number {
   return routine.steps.reduce((sum, step) => sum + Math.max(0, step.durationSeconds), 0)

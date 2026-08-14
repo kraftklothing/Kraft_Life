@@ -42,7 +42,9 @@ import RoutinesView, { type ActiveRoutineRun } from './RoutinesView'
 import {
   durationToFields,
   parseDurationFields,
+  remainingSecondsFromDeadline,
   sortedRoutineSteps,
+  stepDeadlineFromNow,
 } from './routineLogic'
 import TaskNotesPanel, {
   TaskDescriptionPreview,
@@ -678,18 +680,40 @@ export default function App() {
     )
     const steps = routine ? sortedRoutineSteps(routine) : []
     if (activeRoutineRun.stepIndex >= steps.length) return
-    const id = window.setInterval(() => {
-      setRoutineNowMs(Date.now())
+    if (activeRoutineRun.stepEndsAtMs == null) return
+
+    const syncFromWallClock = () => {
+      const now = Date.now()
+      setRoutineNowMs(now)
       setActiveRoutineRun((prev) => {
-        if (!prev) return prev
-        if (prev.remainingSeconds <= 0) return prev
-        return { ...prev, remainingSeconds: prev.remainingSeconds - 1 }
+        if (!prev || prev.stepEndsAtMs == null) return prev
+        const remaining = remainingSecondsFromDeadline(prev.stepEndsAtMs, now)
+        if (remaining === prev.remainingSeconds) return prev
+        return { ...prev, remainingSeconds: remaining }
       })
-    }, 1000)
-    return () => window.clearInterval(id)
+    }
+
+    // Catch up immediately (e.g. after returning from background), then
+    // keep the display fresh. Wall-clock math means missed ticks while the
+    // phone sleeps or the app is backgrounded do not stall the countdown.
+    syncFromWallClock()
+    const id = window.setInterval(syncFromWallClock, 1000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') syncFromWallClock()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', syncFromWallClock)
+    window.addEventListener('pageshow', syncFromWallClock)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', syncFromWallClock)
+      window.removeEventListener('pageshow', syncFromWallClock)
+    }
   }, [
     activeRoutineRun?.routineId,
     activeRoutineRun?.stepIndex,
+    activeRoutineRun?.stepEndsAtMs,
     state.routines,
   ])
 
@@ -1898,11 +1922,14 @@ export default function App() {
     }
     setAddOpen(false)
     setActiveRoutineId(routineId)
-    setRoutineNowMs(Date.now())
+    const now = Date.now()
+    const durationSeconds = steps[0]!.durationSeconds
+    setRoutineNowMs(now)
     setActiveRoutineRun({
       routineId,
       stepIndex: 0,
-      remainingSeconds: steps[0]!.durationSeconds,
+      remainingSeconds: durationSeconds,
+      stepEndsAtMs: stepDeadlineFromNow(durationSeconds, now),
       completedStepIds: [],
       skippedStepIds: [],
     })
@@ -1976,6 +2003,7 @@ export default function App() {
       ...run,
       stepIndex: steps.length,
       remainingSeconds: 0,
+      stepEndsAtMs: null,
       completedStepIds,
       skippedStepIds,
     })
@@ -2013,11 +2041,14 @@ export default function App() {
       return
     }
 
-    setRoutineNowMs(Date.now())
+    const now = Date.now()
+    const nextDuration = steps[nextIndex]!.durationSeconds
+    setRoutineNowMs(now)
     setActiveRoutineRun({
       routineId: run.routineId,
       stepIndex: nextIndex,
-      remainingSeconds: steps[nextIndex]!.durationSeconds,
+      remainingSeconds: nextDuration,
+      stepEndsAtMs: stepDeadlineFromNow(nextDuration, now),
       completedStepIds,
       skippedStepIds,
     })

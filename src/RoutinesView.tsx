@@ -44,6 +44,12 @@ export interface ActiveRoutineRun {
   routineId: string
   stepIndex: number
   remainingSeconds: number
+  /**
+   * Wall-clock end time for the current step. Used so the countdown
+   * keeps advancing while the phone sleeps or the tab is backgrounded.
+   * Null when the routine has finished.
+   */
+  stepEndsAtMs: number | null
   /** Step ids completed (not skipped). */
   completedStepIds: string[]
   /** Step ids skipped. */
