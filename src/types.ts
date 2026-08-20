@@ -89,6 +89,19 @@ export interface Reward {
   cost: number
 }
 
+/** Real-world spending log entry (separate from virtual rewards spending). */
+export interface SpendingEntry {
+  id: string
+  at: number
+  /** Local date YYYY-MM-DD when the spend happened. */
+  dateKey: string
+  amount: number
+  categoryId: CategoryId
+  note: string
+  /** When true, this spend also reduces the virtual app balance. */
+  impactsVirtualDollars: boolean
+}
+
 /** A spent reward waiting to arrive (or be returned). */
 export interface PendingDelivery {
   id: string
@@ -201,6 +214,7 @@ export type OptionalNavView =
   | 'goals'
   | 'routines'
   | 'timer'
+  | 'spending'
   | 'rewards'
 
 /** Which optional bottom-nav icons are shown. Hidden views keep their data. */
@@ -221,6 +235,7 @@ export const OPTIONAL_NAV_LABELS: Record<OptionalNavView, string> = {
   goals: 'Goals',
   routines: 'Routines',
   timer: 'Timers',
+  spending: 'Spending',
   rewards: 'Rewards',
 }
 
@@ -230,6 +245,7 @@ export const DEFAULT_NAV_VISIBILITY: NavVisibility = {
   goals: true,
   routines: true,
   timer: true,
+  spending: true,
   rewards: true,
 }
 
@@ -269,6 +285,10 @@ export interface AppState {
   timerSoundEnabled: boolean
   /** Recent $ earned / spent / balance edits (newest last). */
   dollarLedger: DollarLedgerEntry[]
+  /** Real-world spending logs, separated from rewards/virtual earn-spend loop. */
+  realSpending: SpendingEntry[]
+  /** Budgeted income used for monthly net view in the spending tab. */
+  monthlyIncome: number
   /**
    * Which bottom-nav icons appear. Plus and Settings are always shown.
    * Hiding a view only removes its icon — data is kept.

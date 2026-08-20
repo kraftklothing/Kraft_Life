@@ -69,6 +69,7 @@ import {
   type Reward,
   type Routine,
   type RoutineStep,
+  type SpendingEntry,
   type Task,
 } from './types'
 
@@ -121,6 +122,20 @@ function GiftIcon() {
         d="M12 7c1.8-2.8 4.8-2.8 5.5-1.2C18.3 7.2 16.6 9 12 7Z"
         stroke="currentColor"
         strokeWidth="2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function DollarIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 3v18M15.5 7.5c0-1.4-1.6-2.5-3.5-2.5s-3.5 1.1-3.5 2.5 1.1 2.2 3.5 2.7c2.4.5 3.5 1.3 3.5 2.8S13.9 16 12 16s-3.5-1.1-3.5-2.5"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
         strokeLinejoin="round"
       />
     </svg>
@@ -237,6 +252,7 @@ type MainView =
   | 'goals'
   | 'routines'
   | 'timer'
+  | 'spending'
   | 'rewards'
   | 'settings'
 
@@ -408,6 +424,20 @@ function NavClockIcon() {
   )
 }
 
+function NavDollarIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 3.25v17.5M16.2 8c0-1.95-1.9-3.25-4.2-3.25S7.8 6.05 7.8 8s1.1 2.85 4.2 3.45c3.1.6 4.2 1.6 4.2 3.55S14.3 18.25 12 18.25 7.8 16.95 7.8 15"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg
@@ -434,6 +464,20 @@ function formatTimerSeconds(totalSeconds: number): string {
   const mins = Math.floor(safe / 60)
   const secs = safe % 60
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+}
+
+function shiftMonth(monthKey: string, delta: number): string {
+  const [yearRaw, monthRaw] = monthKey.split('-').map(Number)
+  const d = new Date(yearRaw, (monthRaw || 1) - 1 + delta, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function formatMonthLabel(monthKey: string): string {
+  const [yearRaw, monthRaw] = monthKey.split('-').map(Number)
+  return new Date(yearRaw, (monthRaw || 1) - 1, 1).toLocaleDateString(undefined, {
+    month: 'long',
+    year: 'numeric',
+  })
 }
 
 export default function App() {
@@ -486,6 +530,16 @@ export default function App() {
   const [newRewardName, setNewRewardName] = useState('')
   const [newRewardCost, setNewRewardCost] = useState('5')
   const [editingRewardId, setEditingRewardId] = useState<string | null>(null)
+  const [newSpendingAmount, setNewSpendingAmount] = useState('')
+  const [newSpendingCategoryId, setNewSpendingCategoryId] = useState('')
+  const [newSpendingNote, setNewSpendingNote] = useState('')
+  const [newSpendingAffectsVirtual, setNewSpendingAffectsVirtual] = useState(false)
+  const [editingSpendingId, setEditingSpendingId] = useState<string | null>(null)
+  const [spendingMonth, setSpendingMonth] = useState(() => {
+    const today = startToday()
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  })
+  const [monthlyIncomeDraft, setMonthlyIncomeDraft] = useState('0')
   const [spendConfirmReward, setSpendConfirmReward] = useState<Reward | null>(
     null,
   )
@@ -651,9 +705,19 @@ export default function App() {
   }, [toast])
 
   useEffect(() => {
+    setMonthlyIncomeDraft(String(state.monthlyIncome))
+  }, [state.monthlyIncome])
+
+  useEffect(() => {
     if (isNavViewVisible(state.navVisibility, mainView)) return
     goToView(firstVisibleMainView(state.navVisibility))
   }, [state.navVisibility, mainView])
+
+  useEffect(() => {
+    if (newSpendingCategoryId) return
+    if (state.taskCategories.length === 0) return
+    setNewSpendingCategoryId(state.taskCategories[0].id)
+  }, [newSpendingCategoryId, state.taskCategories])
 
   useEffect(() => {
     if (!runningTimerId) return
@@ -1014,6 +1078,33 @@ export default function App() {
     return { received, used }
   }, [todayLedger])
 
+  const spendingEntriesForMonth = useMemo(() => {
+    return state.realSpending
+      .filter((entry) => entry.dateKey.startsWith(`${spendingMonth}-`))
+      .slice()
+      .sort((a, b) => b.at - a.at)
+  }, [state.realSpending, spendingMonth])
+
+  const spendingTotals = useMemo(() => {
+    let totalSpent = 0
+    const byCategory: Record<string, number> = {}
+    for (const entry of spendingEntriesForMonth) {
+      totalSpent += entry.amount
+      byCategory[entry.categoryId] = (byCategory[entry.categoryId] ?? 0) + entry.amount
+    }
+    const categoryBreakdown = Object.entries(byCategory)
+      .map(([categoryId, amount]) => ({
+        categoryId,
+        amount,
+      }))
+      .sort((a, b) => b.amount - a.amount)
+    return {
+      totalSpent,
+      net: state.monthlyIncome - totalSpent,
+      categoryBreakdown,
+    }
+  }, [spendingEntriesForMonth, state.monthlyIncome])
+
   function updateState(updater: (prev: AppState) => AppState) {
     setState((prev) => {
       const next = updater(prev)
@@ -1127,6 +1218,7 @@ export default function App() {
     setEditingTaskId(null)
     setEditingTimerId(null)
     setEditingRewardId(null)
+    setEditingSpendingId(null)
     setEditingProjectId(null)
     setEditingStepId(null)
     setEditingGoalId(null)
@@ -1139,6 +1231,10 @@ export default function App() {
     setNewTimerMinutes('20')
     setNewRewardName('')
     setNewRewardCost('5')
+    setNewSpendingAmount('')
+    setNewSpendingCategoryId(state.taskCategories[0]?.id ?? '')
+    setNewSpendingNote('')
+    setNewSpendingAffectsVirtual(false)
   }
 
   function toggleComposerCategory(id: string) {
@@ -1319,6 +1415,7 @@ export default function App() {
     if (
       mainView === 'projects' ||
       mainView === 'rewards' ||
+      mainView === 'spending' ||
       mainView === 'goals' ||
       mainView === 'routines' ||
       mainView === 'timer'
@@ -1363,6 +1460,13 @@ export default function App() {
         setEditingRewardId(null)
         setNewRewardName('')
         setNewRewardCost('5')
+      }
+      if (mainView === 'spending') {
+        setEditingSpendingId(null)
+        setNewSpendingAmount('')
+        setNewSpendingCategoryId(state.taskCategories[0]?.id ?? '')
+        setNewSpendingNote('')
+        setNewSpendingAffectsVirtual(false)
       }
       setAddOpen(true)
       setAddError('')
@@ -2370,6 +2474,122 @@ export default function App() {
     })
     setBalanceEditOpen(false)
     setToast(`Balance set to $${next}`)
+  }
+
+  function saveMonthlyIncome() {
+    const parsed = Number(monthlyIncomeDraft)
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      setToast('Income must be 0 or more')
+      return
+    }
+    const rounded = Math.round(parsed * 100) / 100
+    updateState((prev) => ({ ...prev, monthlyIncome: rounded }))
+    setToast('Monthly income updated')
+  }
+
+  function addSpendingEntry() {
+    const amount = Number(newSpendingAmount)
+    const categoryId = newSpendingCategoryId || state.taskCategories[0]?.id || ''
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setToast('Enter a valid spending amount')
+      return
+    }
+    if (!categoryId) {
+      setToast('Choose a spending category')
+      return
+    }
+    const today = toDateKey(startToday())
+    const roundedAmount = Math.round(amount * 100) / 100
+    updateState((prev) => {
+      const nextEntry: SpendingEntry = {
+        id: editingSpendingId ?? uid('spending'),
+        at: Date.now(),
+        dateKey: today,
+        amount: roundedAmount,
+        categoryId,
+        note: newSpendingNote.trim(),
+        impactsVirtualDollars: newSpendingAffectsVirtual,
+      }
+      let realSpending: SpendingEntry[]
+      if (editingSpendingId) {
+        realSpending = prev.realSpending.map((entry) =>
+          entry.id === editingSpendingId ? nextEntry : entry,
+        )
+      } else {
+        realSpending = [nextEntry, ...prev.realSpending]
+      }
+      const old = editingSpendingId
+        ? prev.realSpending.find((entry) => entry.id === editingSpendingId)
+        : null
+      const oldImpact = old?.impactsVirtualDollars ? old.amount : 0
+      const newImpact = nextEntry.impactsVirtualDollars ? roundedAmount : 0
+      const virtualDelta = newImpact - oldImpact
+      if (virtualDelta === 0) return { ...prev, realSpending }
+      return {
+        ...prev,
+        realSpending,
+        dollars:
+          virtualDelta > 0
+            ? Math.max(0, prev.dollars - virtualDelta)
+            : prev.dollars + Math.abs(virtualDelta),
+        dollarLedger: appendLedgerEntry(prev.dollarLedger, {
+          dateKey: today,
+          amount: -virtualDelta,
+          kind: virtualDelta > 0 ? 'spent' : 'adjusted',
+          label:
+            virtualDelta > 0
+              ? `Real spend${newSpendingNote.trim() ? ` · ${newSpendingNote.trim()}` : ''}`
+              : 'Real spend adjustment',
+        }),
+      }
+    })
+    setEditingSpendingId(null)
+    setNewSpendingAmount('')
+    setNewSpendingCategoryId(state.taskCategories[0]?.id ?? '')
+    setNewSpendingNote('')
+    setNewSpendingAffectsVirtual(false)
+    setAddOpen(false)
+    setToast(editingSpendingId ? 'Spending updated' : 'Spending added')
+  }
+
+  function openEditSpendingEntry(entry: SpendingEntry) {
+    setEditingSpendingId(entry.id)
+    setNewSpendingAmount(String(entry.amount))
+    setNewSpendingCategoryId(entry.categoryId)
+    setNewSpendingNote(entry.note)
+    setNewSpendingAffectsVirtual(entry.impactsVirtualDollars)
+    setMainView('spending')
+    setAddOpen(true)
+  }
+
+  function deleteSpendingEntry(id: string) {
+    updateState((prev) => {
+      const existing = prev.realSpending.find((entry) => entry.id === id)
+      if (!existing) return prev
+      const realSpending = prev.realSpending.filter((entry) => entry.id !== id)
+      if (!existing.impactsVirtualDollars) return { ...prev, realSpending }
+      const today = toDateKey(startToday())
+      return {
+        ...prev,
+        realSpending,
+        dollars: prev.dollars + existing.amount,
+        dollarLedger: appendLedgerEntry(prev.dollarLedger, {
+          dateKey: today,
+          amount: existing.amount,
+          kind: 'adjusted',
+          label: 'Removed real spend',
+        }),
+      }
+    })
+    if (editingSpendingId === id) {
+      setEditingSpendingId(null)
+      setAddOpen(false)
+      setNewSpendingAmount('')
+      setNewSpendingCategoryId(state.taskCategories[0]?.id ?? '')
+      setNewSpendingNote('')
+      setNewSpendingAffectsVirtual(false)
+    }
+    setToast('Spending deleted')
   }
 
   function addReward() {
@@ -4014,6 +4234,14 @@ export default function App() {
               >
                 <ClockIcon />
               </button>
+              <button
+                type="button"
+                className="edit-btn"
+                aria-label="Open spending tracker"
+                onClick={() => goToView('spending')}
+              >
+                <DollarIcon />
+              </button>
             </div>
           </div>
 
@@ -4191,6 +4419,134 @@ export default function App() {
               </section>
             </div>
           )}
+        </section>
+      )}
+
+      {mainView === 'spending' && (
+        <section className="day-pane" aria-label="Real spending tracker">
+          <div className="day-header">
+            <div className="day-label-row">
+              <button
+                type="button"
+                className="day-nav-btn"
+                aria-label="Previous month"
+                onClick={() => setSpendingMonth((prev) => shiftMonth(prev, -1))}
+              >
+                ←
+              </button>
+              <p className="day-label">{formatMonthLabel(spendingMonth)}</p>
+              <button
+                type="button"
+                className="day-nav-btn"
+                aria-label="Next month"
+                onClick={() => setSpendingMonth((prev) => shiftMonth(prev, 1))}
+              >
+                →
+              </button>
+            </div>
+            <div className="day-divider" aria-hidden="true" />
+          </div>
+
+          <div className="panel spending-summary-panel">
+            <p className="muted spending-summary-line">Monthly income and spend</p>
+            <p className="spending-net">
+              Net: <strong>${spendingTotals.net.toFixed(2)}</strong>
+            </p>
+            <p className="muted spending-summary-line">
+              Income ${state.monthlyIncome.toFixed(2)} − Spent $
+              {spendingTotals.totalSpent.toFixed(2)}
+            </p>
+            <label>
+              Monthly income
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step={0.01}
+                value={monthlyIncomeDraft}
+                onChange={(event) => setMonthlyIncomeDraft(event.target.value)}
+              />
+            </label>
+            <div className="add-actions">
+              <button type="button" className="btn btn-primary" onClick={saveMonthlyIncome}>
+                Save income
+              </button>
+            </div>
+          </div>
+
+          <div className="task-groups">
+            <section className="task-group" aria-label="Category spending">
+              <h2 className="category-heading">Spent by category</h2>
+              {spendingTotals.categoryBreakdown.length === 0 ? (
+                <p className="muted">No spending logged for this month yet.</p>
+              ) : (
+                <ul className="task-list">
+                  {spendingTotals.categoryBreakdown.map((item) => {
+                    const categoryName =
+                      state.taskCategories.find((cat) => cat.id === item.categoryId)?.name ??
+                      'Uncategorized'
+                    return (
+                      <li key={item.categoryId} className="task-item">
+                        <div className="task-body">
+                          <p className="task-title">{categoryName}</p>
+                        </div>
+                        <span className="reward-cost-badge">${item.amount.toFixed(2)}</span>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </section>
+
+            <section className="task-group" aria-label="Spending entries">
+              <h2 className="category-heading">Transactions</h2>
+              {spendingEntriesForMonth.length === 0 ? (
+                <p className="muted">Tap plus to add your first real-world expense.</p>
+              ) : (
+                <ul className="task-list">
+                  {spendingEntriesForMonth.map((entry) => {
+                    const categoryName =
+                      state.taskCategories.find((cat) => cat.id === entry.categoryId)?.name ??
+                      'Uncategorized'
+                    return (
+                      <li key={entry.id} className="task-item">
+                        <div className="task-body">
+                          <p className="task-title">
+                            ${entry.amount.toFixed(2)} · {categoryName}
+                          </p>
+                          <div className="badges">
+                            <span className="badge">{entry.dateKey}</span>
+                            {entry.note ? <span className="badge">{entry.note}</span> : null}
+                            {entry.impactsVirtualDollars ? (
+                              <span className="badge">Affects virtual $</span>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="task-actions">
+                          <button
+                            type="button"
+                            className="edit-btn"
+                            aria-label="Edit spending entry"
+                            onClick={() => openEditSpendingEntry(entry)}
+                          >
+                            <PencilIcon />
+                          </button>
+                          <button
+                            type="button"
+                            className="edit-btn"
+                            aria-label="Delete spending entry"
+                            onClick={() => deleteSpendingEntry(entry.id)}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </section>
+          </div>
         </section>
       )}
 
@@ -4519,6 +4875,10 @@ export default function App() {
                           ? editingTimerId
                             ? 'Edit timer'
                             : 'New timer'
+                          : mainView === 'spending'
+                            ? editingSpendingId
+                              ? 'Edit spending'
+                              : 'New spending'
                           : mainView === 'rewards'
                             ? editingRewardId
                               ? 'Edit reward'
@@ -4595,6 +4955,19 @@ export default function App() {
                 onClick={() => goToView('timer')}
               >
                 <NavClockIcon />
+              </button>
+            ) : null}
+            {state.navVisibility.spending !== false ? (
+              <button
+                type="button"
+                className={`circle-btn spending-btn${
+                  mainView === 'spending' ? ' active' : ''
+                }`}
+                aria-label="Spending"
+                aria-pressed={mainView === 'spending'}
+                onClick={() => goToView('spending')}
+              >
+                <NavDollarIcon />
               </button>
             ) : null}
             <span className="nav-right-spacer" aria-hidden="true" />
@@ -5062,6 +5435,76 @@ export default function App() {
                   type="button"
                   className="btn btn-danger"
                   onClick={() => deleteTimer(editingTimerId)}
+                >
+                  Delete
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : mainView === 'spending' ? (
+          <div className="panel add-panel">
+            <div className="composer-header">
+              <h2>{editingSpendingId ? 'Edit spending' : 'New spending'}</h2>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Close"
+                onClick={closeAddComposer}
+              >
+                ✕
+              </button>
+            </div>
+            <label>
+              Amount spent
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0.01}
+                step={0.01}
+                value={newSpendingAmount}
+                onChange={(event) => setNewSpendingAmount(event.target.value)}
+                placeholder="0.00"
+              />
+            </label>
+            <label>
+              Category
+              <select
+                value={newSpendingCategoryId}
+                onChange={(event) => setNewSpendingCategoryId(event.target.value)}
+              >
+                {state.taskCategories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Note (optional)
+              <input
+                value={newSpendingNote}
+                onChange={(event) => setNewSpendingNote(event.target.value)}
+                placeholder="Groceries, gas, etc."
+                autoComplete="off"
+              />
+            </label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={newSpendingAffectsVirtual}
+                onChange={(event) => setNewSpendingAffectsVirtual(event.target.checked)}
+              />
+              Also subtract this from virtual app money
+            </label>
+            <div className="add-actions">
+              <button type="button" className="btn btn-primary" onClick={addSpendingEntry}>
+                {editingSpendingId ? 'Save spending' : 'Add spending'}
+              </button>
+              {editingSpendingId ? (
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => deleteSpendingEntry(editingSpendingId)}
                 >
                   Delete
                 </button>
