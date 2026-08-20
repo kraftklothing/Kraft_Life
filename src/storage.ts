@@ -21,6 +21,7 @@ import {
   type Reward,
   type Routine,
   type RoutineStep,
+  type SpendingEntry,
   type Task,
 } from './types'
 import {
@@ -530,6 +531,38 @@ function normalizeDollarLedger(raw: unknown): DollarLedgerEntry[] {
   return entries.slice(-MAX_LEDGER_ENTRIES)
 }
 
+function normalizeSpendingEntries(raw: unknown): SpendingEntry[] {
+  if (!Array.isArray(raw)) return []
+  const entries: SpendingEntry[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const e = item as {
+      id?: unknown
+      at?: unknown
+      dateKey?: unknown
+      amount?: unknown
+      categoryId?: unknown
+      note?: unknown
+      impactsVirtualDollars?: unknown
+    }
+    if (typeof e.id !== 'string' || typeof e.dateKey !== 'string') continue
+    if (typeof e.categoryId !== 'string') continue
+    const at = typeof e.at === 'number' ? e.at : Number(e.at)
+    const amount = typeof e.amount === 'number' ? e.amount : Number(e.amount)
+    if (!Number.isFinite(at) || !Number.isFinite(amount) || amount <= 0) continue
+    entries.push({
+      id: e.id,
+      at,
+      dateKey: e.dateKey,
+      amount: Math.round(amount * 100) / 100,
+      categoryId: e.categoryId,
+      note: typeof e.note === 'string' ? e.note : '',
+      impactsVirtualDollars: e.impactsVirtualDollars === true,
+    })
+  }
+  return entries.sort((a, b) => b.at - a.at)
+}
+
 function normalizeClearedCalendarEvents(raw: unknown): Record<string, boolean> {
   if (!raw || typeof raw !== 'object') return {}
   const next: Record<string, boolean> = {}
@@ -582,6 +615,8 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     showPercent: false,
     timerSoundEnabled: true,
     dollarLedger: [],
+    realSpending: [],
+    monthlyIncome: 0,
     connectedCalendars: [],
     clearedCalendarEvents: {},
     navVisibility: { ...DEFAULT_NAV_VISIBILITY },
@@ -639,6 +674,11 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     // Missing field defaults on so existing saves keep the new ding audible.
     timerSoundEnabled: raw.timerSoundEnabled !== false,
     dollarLedger: normalizeDollarLedger(raw.dollarLedger),
+    realSpending: normalizeSpendingEntries(raw.realSpending),
+    monthlyIncome:
+      typeof raw.monthlyIncome === 'number' && Number.isFinite(raw.monthlyIncome)
+        ? Math.max(0, Math.round(raw.monthlyIncome * 100) / 100)
+        : 0,
     connectedCalendars,
     clearedCalendarEvents: normalizeClearedCalendarEvents(
       raw.clearedCalendarEvents,

@@ -486,6 +486,7 @@ button {
 .goals-btn,
 .routines-btn,
 .timer-btn,
+.spending-btn,
 .settings-btn {
   background: var(--panel-solid);
   color: var(--accent);
@@ -497,11 +498,34 @@ button {
 .goals-btn.active,
 .routines-btn.active,
 .timer-btn.active,
+.spending-btn.active,
 .gift-btn.active,
 .settings-btn.active {
   background: var(--accent);
   color: #fff8f1;
   border-color: var(--accent);
+}
+
+.spending-summary-panel {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.spending-summary-line {
+  margin: 0;
+}
+
+.spending-net {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.95rem;
 }
 
 .goal-item {
