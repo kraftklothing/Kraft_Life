@@ -35,6 +35,7 @@ import {
 } from './goalLogic'
 import { nextIncompleteStep } from './projectLogic'
 import CategorySettingsPanel from './CategorySettingsPanel'
+import BudgetingStreamsSettingsPanel from './BudgetingStreamsSettingsPanel'
 import ModeSettingsPanel from './ModeSettingsPanel'
 import NavigationSettingsPanel from './NavigationSettingsPanel'
 import { ModeIcon } from './modeIcons'
@@ -70,6 +71,7 @@ import {
   type Routine,
   type RoutineStep,
   type SpendingEntry,
+  type BudgetingStream,
   type Task,
 } from './types'
 
@@ -252,7 +254,7 @@ type MainView =
   | 'goals'
   | 'routines'
   | 'timer'
-  | 'spending'
+  | 'budgeting'
   | 'rewards'
   | 'settings'
 
@@ -531,7 +533,7 @@ export default function App() {
   const [newRewardCost, setNewRewardCost] = useState('5')
   const [editingRewardId, setEditingRewardId] = useState<string | null>(null)
   const [newSpendingAmount, setNewSpendingAmount] = useState('')
-  const [newSpendingTypeId, setNewSpendingTypeId] = useState('')
+  const [newSpendingStreamId, setNewSpendingStreamId] = useState('')
   const [newSpendingNote, setNewSpendingNote] = useState('')
   const [newSpendingAffectsVirtual, setNewSpendingAffectsVirtual] = useState(false)
   const [editingSpendingId, setEditingSpendingId] = useState<string | null>(null)
@@ -553,6 +555,9 @@ export default function App() {
   const [balanceDraft, setBalanceDraft] = useState('')
   const [ledgerOpen, setLedgerOpen] = useState(false)
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
+  const [newStreamName, setNewStreamName] = useState('')
+  const [editingStreamId, setEditingStreamId] = useState<string | null>(null)
+  const [draggingStreamId, setDraggingStreamId] = useState<string | null>(null)
   const [calendarEvents, setCalendarEvents] = useState<CalendarEventItem[]>([])
   const [collapsedTaskCategoryIds, setCollapsedTaskCategoryIds] = useState<
     string[]
@@ -625,6 +630,11 @@ export default function App() {
     orderSnapshot: string[]
   } | null>(null)
   const categoryDragRef = useRef<{
+    id: string
+    startY: number
+    orderSnapshot: string[]
+  } | null>(null)
+  const streamDragRef = useRef<{
     id: string
     startY: number
     orderSnapshot: string[]
@@ -714,10 +724,10 @@ export default function App() {
   }, [state.navVisibility, mainView])
 
   useEffect(() => {
-    if (newSpendingTypeId) return
-    if (state.spendingTypes.length === 0) return
-    setNewSpendingTypeId(state.spendingTypes[0].id)
-  }, [newSpendingTypeId, state.spendingTypes])
+    if (newSpendingStreamId) return
+    if (state.budgetingStreams.length === 0) return
+    setNewSpendingStreamId(state.budgetingStreams[0].id)
+  }, [newSpendingStreamId, state.budgetingStreams])
 
   useEffect(() => {
     if (!runningTimerId) return
@@ -1090,11 +1100,11 @@ export default function App() {
     const byType: Record<string, number> = {}
     for (const entry of spendingEntriesForMonth) {
       totalSpent += entry.amount
-      byType[entry.spendingTypeId] = (byType[entry.spendingTypeId] ?? 0) + entry.amount
+      byType[entry.streamId] = (byType[entry.streamId] ?? 0) + entry.amount
     }
     const categoryBreakdown = Object.entries(byType)
-      .map(([spendingTypeId, amount]) => ({
-        spendingTypeId,
+      .map(([streamId, amount]) => ({
+        streamId,
         amount,
       }))
       .sort((a, b) => b.amount - a.amount)
@@ -1232,7 +1242,7 @@ export default function App() {
     setNewRewardName('')
     setNewRewardCost('5')
     setNewSpendingAmount('')
-    setNewSpendingTypeId(state.spendingTypes[0]?.id ?? '')
+    setNewSpendingStreamId(state.budgetingStreams[0]?.id ?? '')
     setNewSpendingNote('')
     setNewSpendingAffectsVirtual(false)
   }
@@ -1415,7 +1425,7 @@ export default function App() {
     if (
       mainView === 'projects' ||
       mainView === 'rewards' ||
-      mainView === 'spending' ||
+      mainView === 'budgeting' ||
       mainView === 'goals' ||
       mainView === 'routines' ||
       mainView === 'timer'
@@ -1461,10 +1471,10 @@ export default function App() {
         setNewRewardName('')
         setNewRewardCost('5')
       }
-      if (mainView === 'spending') {
+      if (mainView === 'budgeting') {
         setEditingSpendingId(null)
         setNewSpendingAmount('')
-        setNewSpendingTypeId(state.spendingTypes[0]?.id ?? '')
+        setNewSpendingStreamId(state.budgetingStreams[0]?.id ?? '')
         setNewSpendingNote('')
         setNewSpendingAffectsVirtual(false)
       }
@@ -2489,13 +2499,13 @@ export default function App() {
 
   function addSpendingEntry() {
     const amount = Number(newSpendingAmount)
-    const spendingTypeId = newSpendingTypeId || state.spendingTypes[0]?.id || ''
+    const streamId = newSpendingStreamId || state.budgetingStreams[0]?.id || ''
     if (!Number.isFinite(amount) || amount <= 0) {
       setToast('Enter a valid spending amount')
       return
     }
-    if (!spendingTypeId) {
-      setToast('Choose a spending type')
+    if (!streamId) {
+      setToast('Choose a budgeting stream')
       return
     }
     const today = toDateKey(startToday())
@@ -2506,7 +2516,7 @@ export default function App() {
         at: Date.now(),
         dateKey: today,
         amount: roundedAmount,
-        spendingTypeId,
+        streamId,
         note: newSpendingNote.trim(),
         impactsVirtualDollars: newSpendingAffectsVirtual,
       }
@@ -2545,7 +2555,7 @@ export default function App() {
     })
     setEditingSpendingId(null)
     setNewSpendingAmount('')
-    setNewSpendingTypeId(state.spendingTypes[0]?.id ?? '')
+    setNewSpendingStreamId(state.budgetingStreams[0]?.id ?? '')
     setNewSpendingNote('')
     setNewSpendingAffectsVirtual(false)
     setAddOpen(false)
@@ -2555,10 +2565,10 @@ export default function App() {
   function openEditSpendingEntry(entry: SpendingEntry) {
     setEditingSpendingId(entry.id)
     setNewSpendingAmount(String(entry.amount))
-    setNewSpendingTypeId(entry.spendingTypeId)
+    setNewSpendingStreamId(entry.streamId)
     setNewSpendingNote(entry.note)
     setNewSpendingAffectsVirtual(entry.impactsVirtualDollars)
-    setMainView('spending')
+    setMainView('budgeting')
     setAddOpen(true)
   }
 
@@ -2585,7 +2595,7 @@ export default function App() {
       setEditingSpendingId(null)
       setAddOpen(false)
       setNewSpendingAmount('')
-      setNewSpendingTypeId(state.spendingTypes[0]?.id ?? '')
+      setNewSpendingStreamId(state.budgetingStreams[0]?.id ?? '')
       setNewSpendingNote('')
       setNewSpendingAffectsVirtual(false)
     }
@@ -2898,6 +2908,95 @@ export default function App() {
       orderSnapshot: state.taskCategories.map((c) => c.id),
     }
     setDraggingCategoryId(categoryIdToDrag)
+  }
+
+  function startStreamEdit(id: string) {
+    setEditingStreamId(id)
+  }
+
+  function finishStreamEdit(id: string, name: string) {
+    renameBudgetingStream(id, name)
+    setEditingStreamId((current) => (current === id ? null : current))
+  }
+
+  function cancelStreamEdit() {
+    setEditingStreamId(null)
+  }
+
+  function liveRenameBudgetingStream(id: string, name: string) {
+    updateState((prev) => ({
+      ...prev,
+      budgetingStreams: prev.budgetingStreams.map((stream) =>
+        stream.id === id ? { ...stream, name } : stream,
+      ),
+    }))
+  }
+
+  function addBudgetingStream() {
+    const name = newStreamName.trim()
+    if (!name) return
+    if (
+      state.budgetingStreams.some(
+        (stream) => stream.name.toLowerCase() === name.toLowerCase(),
+      )
+    ) {
+      setToast('Stream already exists')
+      return
+    }
+    const stream: BudgetingStream = { id: uid('stream'), name }
+    updateState((prev) => ({
+      ...prev,
+      budgetingStreams: [...prev.budgetingStreams, stream],
+    }))
+    setNewStreamName('')
+    setToast('Budgeting stream added')
+  }
+
+  function deleteBudgetingStream(id: string) {
+    if (state.budgetingStreams.length <= 1) {
+      setToast('Keep at least one budgeting stream')
+      return
+    }
+    const fallback = state.budgetingStreams.find((stream) => stream.id !== id)?.id
+    if (!fallback) return
+    updateState((prev) => ({
+      ...prev,
+      budgetingStreams: prev.budgetingStreams.filter((stream) => stream.id !== id),
+      realSpending: prev.realSpending.map((entry) =>
+        entry.streamId === id ? { ...entry, streamId: fallback } : entry,
+      ),
+    }))
+    setNewSpendingStreamId((current) => (current === id ? fallback : current))
+    if (editingStreamId === id) setEditingStreamId(null)
+    setToast('Budgeting stream removed')
+  }
+
+  function renameBudgetingStream(id: string, name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const clash = state.budgetingStreams.some(
+      (stream) =>
+        stream.id !== id && stream.name.toLowerCase() === trimmed.toLowerCase(),
+    )
+    if (clash) {
+      setToast('Stream already exists')
+      return
+    }
+    updateState((prev) => ({
+      ...prev,
+      budgetingStreams: prev.budgetingStreams.map((stream) =>
+        stream.id === id ? { ...stream, name: trimmed } : stream,
+      ),
+    }))
+  }
+
+  function beginStreamDrag(streamIdToDrag: string, clientY: number) {
+    streamDragRef.current = {
+      id: streamIdToDrag,
+      startY: clientY,
+      orderSnapshot: state.budgetingStreams.map((stream) => stream.id),
+    }
+    setDraggingStreamId(streamIdToDrag)
   }
 
   function deferTaskToNextDay(taskId: string) {
@@ -3290,6 +3389,21 @@ export default function App() {
         return
       }
 
+      const streamDrag = streamDragRef.current
+      if (streamDrag) {
+        event.preventDefault()
+        const nextOrder = reorderSnapshot(streamDrag, event.clientY, 64)
+        if (!nextOrder) return
+        commit((prev) => {
+          const byId = new Map(prev.budgetingStreams.map((s) => [s.id, s]))
+          const budgetingStreams = nextOrder
+            .map((id) => byId.get(id))
+            .filter((s): s is BudgetingStream => Boolean(s))
+          return { ...prev, budgetingStreams }
+        })
+        return
+      }
+
       const modeDrag = modeDragRef.current
       if (!modeDrag) return
       event.preventDefault()
@@ -3342,6 +3456,10 @@ export default function App() {
       if (categoryDragRef.current) {
         categoryDragRef.current = null
         setDraggingCategoryId(null)
+      }
+      if (streamDragRef.current) {
+        streamDragRef.current = null
+        setDraggingStreamId(null)
       }
       if (modeDragRef.current) {
         modeDragRef.current = null
@@ -4237,8 +4355,8 @@ export default function App() {
               <button
                 type="button"
                 className="edit-btn"
-                aria-label="Open spending tracker"
-                onClick={() => goToView('spending')}
+                aria-label="Open budgeting tracker"
+                onClick={() => goToView('budgeting')}
               >
                 <DollarIcon />
               </button>
@@ -4422,8 +4540,8 @@ export default function App() {
         </section>
       )}
 
-      {mainView === 'spending' && (
-        <section className="day-pane" aria-label="Real spending tracker">
+      {mainView === 'budgeting' && (
+        <section className="day-pane" aria-label="Budgeting tracker">
           <div className="day-header">
             <div className="day-label-row">
               <button
@@ -4475,18 +4593,18 @@ export default function App() {
           </div>
 
           <div className="task-groups">
-            <section className="task-group" aria-label="Spending by type">
-              <h2 className="category-heading">Spent by type</h2>
+            <section className="task-group" aria-label="Spending by stream">
+              <h2 className="category-heading">Spent by stream</h2>
               {spendingTotals.categoryBreakdown.length === 0 ? (
                 <p className="muted">No spending logged for this month yet.</p>
               ) : (
                 <ul className="task-list">
                   {spendingTotals.categoryBreakdown.map((item) => {
                     const typeName =
-                      state.spendingTypes.find((type) => type.id === item.spendingTypeId)
+                      state.budgetingStreams.find((type) => type.id === item.streamId)
                         ?.name ?? 'Other'
                     return (
-                      <li key={item.spendingTypeId} className="task-item">
+                      <li key={item.streamId} className="task-item">
                         <div className="task-body">
                           <p className="task-title">{typeName}</p>
                         </div>
@@ -4506,7 +4624,7 @@ export default function App() {
                 <ul className="task-list">
                   {spendingEntriesForMonth.map((entry) => {
                     const typeName =
-                      state.spendingTypes.find((type) => type.id === entry.spendingTypeId)
+                      state.budgetingStreams.find((type) => type.id === entry.streamId)
                         ?.name ?? 'Other'
                     return (
                       <li key={entry.id} className="task-item">
@@ -4632,6 +4750,23 @@ export default function App() {
                 onDelete={deleteCategory}
                 onAdd={addCategory}
                 onBeginDrag={beginCategoryDrag}
+              />
+            </SettingsSection>
+
+            <SettingsSection title="Budgeting Streams" ariaLabel="Budgeting Streams">
+              <BudgetingStreamsSettingsPanel
+                streams={state.budgetingStreams}
+                newName={newStreamName}
+                onNewNameChange={setNewStreamName}
+                editingId={editingStreamId}
+                draggingId={draggingStreamId}
+                onStartEdit={startStreamEdit}
+                onFinishEdit={finishStreamEdit}
+                onCancelEdit={cancelStreamEdit}
+                onLiveRename={liveRenameBudgetingStream}
+                onDelete={deleteBudgetingStream}
+                onAdd={addBudgetingStream}
+                onBeginDrag={beginStreamDrag}
               />
             </SettingsSection>
 
@@ -4875,10 +5010,10 @@ export default function App() {
                           ? editingTimerId
                             ? 'Edit timer'
                             : 'New timer'
-                          : mainView === 'spending'
+                          : mainView === 'budgeting'
                             ? editingSpendingId
-                              ? 'Edit spending'
-                              : 'New spending'
+                              ? 'Edit cost'
+                              : 'New cost'
                           : mainView === 'rewards'
                             ? editingRewardId
                               ? 'Edit reward'
@@ -4957,15 +5092,15 @@ export default function App() {
                 <NavClockIcon />
               </button>
             ) : null}
-            {state.navVisibility.spending !== false ? (
+            {state.navVisibility.budgeting !== false ? (
               <button
                 type="button"
                 className={`circle-btn spending-btn${
-                  mainView === 'spending' ? ' active' : ''
+                  mainView === 'budgeting' ? ' active' : ''
                 }`}
-                aria-label="Spending"
-                aria-pressed={mainView === 'spending'}
-                onClick={() => goToView('spending')}
+                aria-label="Budgeting"
+                aria-pressed={mainView === 'budgeting'}
+                onClick={() => goToView('budgeting')}
               >
                 <NavDollarIcon />
               </button>
@@ -5441,10 +5576,10 @@ export default function App() {
               ) : null}
             </div>
           </div>
-        ) : mainView === 'spending' ? (
+        ) : mainView === 'budgeting' ? (
           <div className="panel add-panel">
             <div className="composer-header">
-              <h2>{editingSpendingId ? 'Edit spending' : 'New spending'}</h2>
+              <h2>{editingSpendingId ? 'Edit cost' : 'New cost'}</h2>
               <button
                 type="button"
                 className="icon-btn"
@@ -5467,12 +5602,12 @@ export default function App() {
               />
             </label>
             <label>
-              Spending type
+              Budgeting stream
               <select
-                value={newSpendingTypeId}
-                onChange={(event) => setNewSpendingTypeId(event.target.value)}
+                value={newSpendingStreamId}
+                onChange={(event) => setNewSpendingStreamId(event.target.value)}
               >
-                {state.spendingTypes.map((type) => (
+                {state.budgetingStreams.map((type) => (
                   <option key={type.id} value={type.id}>
                     {type.name}
                   </option>
@@ -5498,7 +5633,7 @@ export default function App() {
             </label>
             <div className="add-actions">
               <button type="button" className="btn btn-primary" onClick={addSpendingEntry}>
-                {editingSpendingId ? 'Save spending' : 'Add spending'}
+                {editingSpendingId ? 'Save cost' : 'Add cost'}
               </button>
               {editingSpendingId ? (
                 <button

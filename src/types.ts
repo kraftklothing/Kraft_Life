@@ -96,13 +96,15 @@ export interface SpendingEntry {
   /** Local date YYYY-MM-DD when the spend happened. */
   dateKey: string
   amount: number
-  spendingTypeId: string
+  /** Budgeting stream this cost belongs to. */
+  streamId: string
   note: string
   /** When true, this spend also reduces the virtual app balance. */
   impactsVirtualDollars: boolean
 }
 
-export interface SpendingType {
+/** User-managed budgeting stream used only by the Budgeting tab. */
+export interface BudgetingStream {
   id: string
   name: string
 }
@@ -219,7 +221,7 @@ export type OptionalNavView =
   | 'goals'
   | 'routines'
   | 'timer'
-  | 'spending'
+  | 'budgeting'
   | 'rewards'
 
 /** Which optional bottom-nav icons are shown. Hidden views keep their data. */
@@ -231,7 +233,7 @@ export const OPTIONAL_NAV_VIEWS: OptionalNavView[] = [
   'goals',
   'routines',
   'timer',
-  'spending',
+  'budgeting',
   'rewards',
 ]
 
@@ -241,7 +243,7 @@ export const OPTIONAL_NAV_LABELS: Record<OptionalNavView, string> = {
   goals: 'Goals',
   routines: 'Routines',
   timer: 'Timers',
-  spending: 'Spending',
+  budgeting: 'Budgeting',
   rewards: 'Rewards',
 }
 
@@ -251,7 +253,7 @@ export const DEFAULT_NAV_VISIBILITY: NavVisibility = {
   goals: true,
   routines: true,
   timer: true,
-  spending: true,
+  budgeting: true,
   rewards: true,
 }
 
@@ -293,9 +295,9 @@ export interface AppState {
   dollarLedger: DollarLedgerEntry[]
   /** Real-world spending logs, separated from rewards/virtual earn-spend loop. */
   realSpending: SpendingEntry[]
-  /** Dedicated spending tab groupings (separate from task categories). */
-  spendingTypes: SpendingType[]
-  /** Budgeted income used for monthly net view in the spending tab. */
+  /** Dedicated Budgeting streams (separate from task categories). */
+  budgetingStreams: BudgetingStream[]
+  /** Budgeted income used for monthly net view in the Budgeting tab. */
   monthlyIncome: number
   /**
    * Which bottom-nav icons appear. Plus and Settings are always shown.
@@ -318,7 +320,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
 
 export const DEFAULT_TASK_CATEGORIES = DEFAULT_CATEGORIES
 
-export const DEFAULT_SPENDING_TYPES: SpendingType[] = [
+export const DEFAULT_BUDGETING_STREAMS: BudgetingStream[] = [
   { id: 'groceries', name: 'Groceries' },
   { id: 'transport', name: 'Transport' },
   { id: 'bills', name: 'Bills' },

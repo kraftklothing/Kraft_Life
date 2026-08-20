@@ -2,7 +2,7 @@ import {
   DEFAULT_MODES,
   DEFAULT_NAV_VISIBILITY,
   DEFAULT_REWARDS,
-  DEFAULT_SPENDING_TYPES,
+  DEFAULT_BUDGETING_STREAMS,
   DEFAULT_TASK_CATEGORIES,
   DEFAULT_TIMERS,
   MODE_ICON_IDS,
@@ -23,7 +23,7 @@ import {
   type Routine,
   type RoutineStep,
   type SpendingEntry,
-  type SpendingType,
+  type BudgetingStream,
   type Task,
 } from './types'
 import {
@@ -543,19 +543,22 @@ function normalizeSpendingEntries(raw: unknown): SpendingEntry[] {
       at?: unknown
       dateKey?: unknown
       amount?: unknown
+      streamId?: unknown
       spendingTypeId?: unknown
       categoryId?: unknown
       note?: unknown
       impactsVirtualDollars?: unknown
     }
     if (typeof e.id !== 'string' || typeof e.dateKey !== 'string') continue
-    const spendingTypeId =
-      typeof e.spendingTypeId === 'string'
-        ? e.spendingTypeId
-        : typeof e.categoryId === 'string'
-          ? e.categoryId
-          : null
-    if (!spendingTypeId) continue
+    const streamId =
+      typeof e.streamId === 'string'
+        ? e.streamId
+        : typeof e.spendingTypeId === 'string'
+          ? e.spendingTypeId
+          : typeof e.categoryId === 'string'
+            ? e.categoryId
+            : null
+    if (!streamId) continue
     const at = typeof e.at === 'number' ? e.at : Number(e.at)
     const amount = typeof e.amount === 'number' ? e.amount : Number(e.amount)
     if (!Number.isFinite(at) || !Number.isFinite(amount) || amount <= 0) continue
@@ -564,7 +567,7 @@ function normalizeSpendingEntries(raw: unknown): SpendingEntry[] {
       at,
       dateKey: e.dateKey,
       amount: Math.round(amount * 100) / 100,
-      spendingTypeId,
+      streamId,
       note: typeof e.note === 'string' ? e.note : '',
       impactsVirtualDollars: e.impactsVirtualDollars === true,
     })
@@ -572,37 +575,46 @@ function normalizeSpendingEntries(raw: unknown): SpendingEntry[] {
   return entries.sort((a, b) => b.at - a.at)
 }
 
-function normalizeSpendingTypes(
+function normalizeBudgetingStreams(
   raw: unknown,
-  fallbackTaskCategories: Category[],
+  legacySpendingTypes: unknown,
   spendingEntries: SpendingEntry[],
-): SpendingType[] {
-  if (!Array.isArray(raw) || raw.length === 0) {
-    const byId = new Map<string, SpendingType>()
-    for (const type of DEFAULT_SPENDING_TYPES) byId.set(type.id, type)
-    for (const cat of fallbackTaskCategories) {
-      if (!byId.has(cat.id)) byId.set(cat.id, { id: cat.id, name: cat.name })
-    }
+): BudgetingStream[] {
+  const source =
+    Array.isArray(raw) && raw.length > 0
+      ? raw
+      : Array.isArray(legacySpendingTypes) && legacySpendingTypes.length > 0
+        ? legacySpendingTypes
+        : null
+  if (!source) {
+    const byId = new Map<string, BudgetingStream>()
+    for (const stream of DEFAULT_BUDGETING_STREAMS) byId.set(stream.id, stream)
     for (const entry of spendingEntries) {
-      if (!byId.has(entry.spendingTypeId)) {
-        byId.set(entry.spendingTypeId, {
-          id: entry.spendingTypeId,
-          name: entry.spendingTypeId,
+      if (!byId.has(entry.streamId)) {
+        byId.set(entry.streamId, {
+          id: entry.streamId,
+          name: entry.streamId,
         })
       }
     }
     return [...byId.values()]
   }
-  const types: SpendingType[] = []
-  for (const item of raw) {
+  const streams: BudgetingStream[] = []
+  for (const item of source) {
     if (!item || typeof item !== 'object') continue
     const t = item as { id?: unknown; name?: unknown }
     if (typeof t.id !== 'string' || typeof t.name !== 'string') continue
     const name = t.name.trim()
     if (!name) continue
-    types.push({ id: t.id, name })
+    streams.push({ id: t.id, name })
   }
-  return types.length > 0 ? types : DEFAULT_SPENDING_TYPES
+  if (streams.length === 0) return DEFAULT_BUDGETING_STREAMS
+  for (const entry of spendingEntries) {
+    if (!streams.some((stream) => stream.id === entry.streamId)) {
+      streams.push({ id: entry.streamId, name: entry.streamId })
+    }
+  }
+  return streams
 }
 
 function normalizeClearedCalendarEvents(raw: unknown): Record<string, boolean> {
@@ -621,6 +633,10 @@ function normalizeNavVisibility(raw: unknown): NavVisibility {
   const record = raw as Record<string, unknown>
   for (const view of OPTIONAL_NAV_VIEWS) {
     if (view in record) next[view] = record[view] !== false
+  }
+  // Migrate older spending nav visibility key.
+  if (!('budgeting' in record) && 'spending' in record) {
+    next.budgeting = record.spending !== false
   }
   return next
 }
@@ -658,7 +674,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     timerSoundEnabled: true,
     dollarLedger: [],
     realSpending: [],
-    spendingTypes: DEFAULT_SPENDING_TYPES,
+    budgetingStreams: DEFAULT_BUDGETING_STREAMS,
     monthlyIncome: 0,
     connectedCalendars: [],
     clearedCalendarEvents: {},
@@ -719,9 +735,9 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     timerSoundEnabled: raw.timerSoundEnabled !== false,
     dollarLedger: normalizeDollarLedger(raw.dollarLedger),
     realSpending,
-    spendingTypes: normalizeSpendingTypes(
-      raw.spendingTypes,
-      taskCategories,
+    budgetingStreams: normalizeBudgetingStreams(
+      raw.budgetingStreams,
+      (raw as Partial<AppState> & { spendingTypes?: unknown }).spendingTypes,
       realSpending,
     ),
     monthlyIncome:
