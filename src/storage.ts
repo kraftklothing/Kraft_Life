@@ -2,6 +2,7 @@ import {
   DEFAULT_MODES,
   DEFAULT_NAV_VISIBILITY,
   DEFAULT_REWARDS,
+  DEFAULT_SPENDING_TYPES,
   DEFAULT_TASK_CATEGORIES,
   DEFAULT_TIMERS,
   MODE_ICON_IDS,
@@ -22,6 +23,7 @@ import {
   type Routine,
   type RoutineStep,
   type SpendingEntry,
+  type SpendingType,
   type Task,
 } from './types'
 import {
@@ -541,12 +543,19 @@ function normalizeSpendingEntries(raw: unknown): SpendingEntry[] {
       at?: unknown
       dateKey?: unknown
       amount?: unknown
+      spendingTypeId?: unknown
       categoryId?: unknown
       note?: unknown
       impactsVirtualDollars?: unknown
     }
     if (typeof e.id !== 'string' || typeof e.dateKey !== 'string') continue
-    if (typeof e.categoryId !== 'string') continue
+    const spendingTypeId =
+      typeof e.spendingTypeId === 'string'
+        ? e.spendingTypeId
+        : typeof e.categoryId === 'string'
+          ? e.categoryId
+          : null
+    if (!spendingTypeId) continue
     const at = typeof e.at === 'number' ? e.at : Number(e.at)
     const amount = typeof e.amount === 'number' ? e.amount : Number(e.amount)
     if (!Number.isFinite(at) || !Number.isFinite(amount) || amount <= 0) continue
@@ -555,12 +564,45 @@ function normalizeSpendingEntries(raw: unknown): SpendingEntry[] {
       at,
       dateKey: e.dateKey,
       amount: Math.round(amount * 100) / 100,
-      categoryId: e.categoryId,
+      spendingTypeId,
       note: typeof e.note === 'string' ? e.note : '',
       impactsVirtualDollars: e.impactsVirtualDollars === true,
     })
   }
   return entries.sort((a, b) => b.at - a.at)
+}
+
+function normalizeSpendingTypes(
+  raw: unknown,
+  fallbackTaskCategories: Category[],
+  spendingEntries: SpendingEntry[],
+): SpendingType[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    const byId = new Map<string, SpendingType>()
+    for (const type of DEFAULT_SPENDING_TYPES) byId.set(type.id, type)
+    for (const cat of fallbackTaskCategories) {
+      if (!byId.has(cat.id)) byId.set(cat.id, { id: cat.id, name: cat.name })
+    }
+    for (const entry of spendingEntries) {
+      if (!byId.has(entry.spendingTypeId)) {
+        byId.set(entry.spendingTypeId, {
+          id: entry.spendingTypeId,
+          name: entry.spendingTypeId,
+        })
+      }
+    }
+    return [...byId.values()]
+  }
+  const types: SpendingType[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const t = item as { id?: unknown; name?: unknown }
+    if (typeof t.id !== 'string' || typeof t.name !== 'string') continue
+    const name = t.name.trim()
+    if (!name) continue
+    types.push({ id: t.id, name })
+  }
+  return types.length > 0 ? types : DEFAULT_SPENDING_TYPES
 }
 
 function normalizeClearedCalendarEvents(raw: unknown): Record<string, boolean> {
@@ -616,6 +658,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     timerSoundEnabled: true,
     dollarLedger: [],
     realSpending: [],
+    spendingTypes: DEFAULT_SPENDING_TYPES,
     monthlyIncome: 0,
     connectedCalendars: [],
     clearedCalendarEvents: {},
@@ -639,6 +682,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     DEFAULT_TASK_CATEGORIES
   const rewards = normalizeRewards(raw.rewards)
   const timers = normalizeTimers(raw.timers)
+  const realSpending = normalizeSpendingEntries(raw.realSpending)
   let connectedCalendars = normalizeConnectedCalendars(raw.connectedCalendars)
   if (connectedCalendars.length === 0) {
     const legacyCalendars = readLegacyLocalCalendars()
@@ -674,7 +718,12 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     // Missing field defaults on so existing saves keep the new ding audible.
     timerSoundEnabled: raw.timerSoundEnabled !== false,
     dollarLedger: normalizeDollarLedger(raw.dollarLedger),
-    realSpending: normalizeSpendingEntries(raw.realSpending),
+    realSpending,
+    spendingTypes: normalizeSpendingTypes(
+      raw.spendingTypes,
+      taskCategories,
+      realSpending,
+    ),
     monthlyIncome:
       typeof raw.monthlyIncome === 'number' && Number.isFinite(raw.monthlyIncome)
         ? Math.max(0, Math.round(raw.monthlyIncome * 100) / 100)

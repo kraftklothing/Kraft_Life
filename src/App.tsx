@@ -531,7 +531,7 @@ export default function App() {
   const [newRewardCost, setNewRewardCost] = useState('5')
   const [editingRewardId, setEditingRewardId] = useState<string | null>(null)
   const [newSpendingAmount, setNewSpendingAmount] = useState('')
-  const [newSpendingCategoryId, setNewSpendingCategoryId] = useState('')
+  const [newSpendingTypeId, setNewSpendingTypeId] = useState('')
   const [newSpendingNote, setNewSpendingNote] = useState('')
   const [newSpendingAffectsVirtual, setNewSpendingAffectsVirtual] = useState(false)
   const [editingSpendingId, setEditingSpendingId] = useState<string | null>(null)
@@ -714,10 +714,10 @@ export default function App() {
   }, [state.navVisibility, mainView])
 
   useEffect(() => {
-    if (newSpendingCategoryId) return
-    if (state.taskCategories.length === 0) return
-    setNewSpendingCategoryId(state.taskCategories[0].id)
-  }, [newSpendingCategoryId, state.taskCategories])
+    if (newSpendingTypeId) return
+    if (state.spendingTypes.length === 0) return
+    setNewSpendingTypeId(state.spendingTypes[0].id)
+  }, [newSpendingTypeId, state.spendingTypes])
 
   useEffect(() => {
     if (!runningTimerId) return
@@ -1087,14 +1087,14 @@ export default function App() {
 
   const spendingTotals = useMemo(() => {
     let totalSpent = 0
-    const byCategory: Record<string, number> = {}
+    const byType: Record<string, number> = {}
     for (const entry of spendingEntriesForMonth) {
       totalSpent += entry.amount
-      byCategory[entry.categoryId] = (byCategory[entry.categoryId] ?? 0) + entry.amount
+      byType[entry.spendingTypeId] = (byType[entry.spendingTypeId] ?? 0) + entry.amount
     }
-    const categoryBreakdown = Object.entries(byCategory)
-      .map(([categoryId, amount]) => ({
-        categoryId,
+    const categoryBreakdown = Object.entries(byType)
+      .map(([spendingTypeId, amount]) => ({
+        spendingTypeId,
         amount,
       }))
       .sort((a, b) => b.amount - a.amount)
@@ -1232,7 +1232,7 @@ export default function App() {
     setNewRewardName('')
     setNewRewardCost('5')
     setNewSpendingAmount('')
-    setNewSpendingCategoryId(state.taskCategories[0]?.id ?? '')
+    setNewSpendingTypeId(state.spendingTypes[0]?.id ?? '')
     setNewSpendingNote('')
     setNewSpendingAffectsVirtual(false)
   }
@@ -1464,7 +1464,7 @@ export default function App() {
       if (mainView === 'spending') {
         setEditingSpendingId(null)
         setNewSpendingAmount('')
-        setNewSpendingCategoryId(state.taskCategories[0]?.id ?? '')
+        setNewSpendingTypeId(state.spendingTypes[0]?.id ?? '')
         setNewSpendingNote('')
         setNewSpendingAffectsVirtual(false)
       }
@@ -2489,13 +2489,13 @@ export default function App() {
 
   function addSpendingEntry() {
     const amount = Number(newSpendingAmount)
-    const categoryId = newSpendingCategoryId || state.taskCategories[0]?.id || ''
+    const spendingTypeId = newSpendingTypeId || state.spendingTypes[0]?.id || ''
     if (!Number.isFinite(amount) || amount <= 0) {
       setToast('Enter a valid spending amount')
       return
     }
-    if (!categoryId) {
-      setToast('Choose a spending category')
+    if (!spendingTypeId) {
+      setToast('Choose a spending type')
       return
     }
     const today = toDateKey(startToday())
@@ -2506,7 +2506,7 @@ export default function App() {
         at: Date.now(),
         dateKey: today,
         amount: roundedAmount,
-        categoryId,
+        spendingTypeId,
         note: newSpendingNote.trim(),
         impactsVirtualDollars: newSpendingAffectsVirtual,
       }
@@ -2545,7 +2545,7 @@ export default function App() {
     })
     setEditingSpendingId(null)
     setNewSpendingAmount('')
-    setNewSpendingCategoryId(state.taskCategories[0]?.id ?? '')
+    setNewSpendingTypeId(state.spendingTypes[0]?.id ?? '')
     setNewSpendingNote('')
     setNewSpendingAffectsVirtual(false)
     setAddOpen(false)
@@ -2555,7 +2555,7 @@ export default function App() {
   function openEditSpendingEntry(entry: SpendingEntry) {
     setEditingSpendingId(entry.id)
     setNewSpendingAmount(String(entry.amount))
-    setNewSpendingCategoryId(entry.categoryId)
+    setNewSpendingTypeId(entry.spendingTypeId)
     setNewSpendingNote(entry.note)
     setNewSpendingAffectsVirtual(entry.impactsVirtualDollars)
     setMainView('spending')
@@ -2585,7 +2585,7 @@ export default function App() {
       setEditingSpendingId(null)
       setAddOpen(false)
       setNewSpendingAmount('')
-      setNewSpendingCategoryId(state.taskCategories[0]?.id ?? '')
+      setNewSpendingTypeId(state.spendingTypes[0]?.id ?? '')
       setNewSpendingNote('')
       setNewSpendingAffectsVirtual(false)
     }
@@ -4475,20 +4475,20 @@ export default function App() {
           </div>
 
           <div className="task-groups">
-            <section className="task-group" aria-label="Category spending">
-              <h2 className="category-heading">Spent by category</h2>
+            <section className="task-group" aria-label="Spending by type">
+              <h2 className="category-heading">Spent by type</h2>
               {spendingTotals.categoryBreakdown.length === 0 ? (
                 <p className="muted">No spending logged for this month yet.</p>
               ) : (
                 <ul className="task-list">
                   {spendingTotals.categoryBreakdown.map((item) => {
-                    const categoryName =
-                      state.taskCategories.find((cat) => cat.id === item.categoryId)?.name ??
-                      'Uncategorized'
+                    const typeName =
+                      state.spendingTypes.find((type) => type.id === item.spendingTypeId)
+                        ?.name ?? 'Other'
                     return (
-                      <li key={item.categoryId} className="task-item">
+                      <li key={item.spendingTypeId} className="task-item">
                         <div className="task-body">
-                          <p className="task-title">{categoryName}</p>
+                          <p className="task-title">{typeName}</p>
                         </div>
                         <span className="reward-cost-badge">${item.amount.toFixed(2)}</span>
                       </li>
@@ -4505,14 +4505,14 @@ export default function App() {
               ) : (
                 <ul className="task-list">
                   {spendingEntriesForMonth.map((entry) => {
-                    const categoryName =
-                      state.taskCategories.find((cat) => cat.id === entry.categoryId)?.name ??
-                      'Uncategorized'
+                    const typeName =
+                      state.spendingTypes.find((type) => type.id === entry.spendingTypeId)
+                        ?.name ?? 'Other'
                     return (
                       <li key={entry.id} className="task-item">
                         <div className="task-body">
                           <p className="task-title">
-                            ${entry.amount.toFixed(2)} · {categoryName}
+                            ${entry.amount.toFixed(2)} · {typeName}
                           </p>
                           <div className="badges">
                             <span className="badge">{entry.dateKey}</span>
@@ -5467,14 +5467,14 @@ export default function App() {
               />
             </label>
             <label>
-              Category
+              Spending type
               <select
-                value={newSpendingCategoryId}
-                onChange={(event) => setNewSpendingCategoryId(event.target.value)}
+                value={newSpendingTypeId}
+                onChange={(event) => setNewSpendingTypeId(event.target.value)}
               >
-                {state.taskCategories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
+                {state.spendingTypes.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
                   </option>
                 ))}
               </select>

@@ -96,10 +96,15 @@ export interface SpendingEntry {
   /** Local date YYYY-MM-DD when the spend happened. */
   dateKey: string
   amount: number
-  categoryId: CategoryId
+  spendingTypeId: string
   note: string
   /** When true, this spend also reduces the virtual app balance. */
   impactsVirtualDollars: boolean
+}
+
+export interface SpendingType {
+  id: string
+  name: string
 }
 
 /** A spent reward waiting to arrive (or be returned). */
@@ -287,6 +292,8 @@ export interface AppState {
   dollarLedger: DollarLedgerEntry[]
   /** Real-world spending logs, separated from rewards/virtual earn-spend loop. */
   realSpending: SpendingEntry[]
+  /** Dedicated spending tab groupings (separate from task categories). */
+  spendingTypes: SpendingType[]
   /** Budgeted income used for monthly net view in the spending tab. */
   monthlyIncome: number
   /**
@@ -309,6 +316,15 @@ export const DEFAULT_CATEGORIES: Category[] = [
 ]
 
 export const DEFAULT_TASK_CATEGORIES = DEFAULT_CATEGORIES
+
+export const DEFAULT_SPENDING_TYPES: SpendingType[] = [
+  { id: 'groceries', name: 'Groceries' },
+  { id: 'transport', name: 'Transport' },
+  { id: 'bills', name: 'Bills' },
+  { id: 'health', name: 'Health' },
+  { id: 'fun', name: 'Fun' },
+  { id: 'other', name: 'Other' },
+]
 
 /** Built-in vacation mode id — never stored in the customizable modes list. */
 export const VACATION_MODE_ID = 'vacation'
