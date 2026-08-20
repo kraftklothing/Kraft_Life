@@ -231,6 +231,7 @@ export const OPTIONAL_NAV_VIEWS: OptionalNavView[] = [
   'goals',
   'routines',
   'timer',
+  'spending',
   'rewards',
 ]
 
