@@ -4734,6 +4734,13 @@ export default function App() {
           </div>
 
           <div className="task-groups settings-groups">
+            <SettingsSection title="Navigation" ariaLabel="Navigation">
+              <NavigationSettingsPanel
+                visibility={state.navVisibility}
+                onToggle={toggleNavVisibility}
+              />
+            </SettingsSection>
+
             <SettingsSection title="Categories" ariaLabel="Categories">
               <CategorySettingsPanel
                 categories={state.taskCategories}
@@ -4750,23 +4757,6 @@ export default function App() {
                 onDelete={deleteCategory}
                 onAdd={addCategory}
                 onBeginDrag={beginCategoryDrag}
-              />
-            </SettingsSection>
-
-            <SettingsSection title="Budgeting Streams" ariaLabel="Budgeting Streams">
-              <BudgetingStreamsSettingsPanel
-                streams={state.budgetingStreams}
-                newName={newStreamName}
-                onNewNameChange={setNewStreamName}
-                editingId={editingStreamId}
-                draggingId={draggingStreamId}
-                onStartEdit={startStreamEdit}
-                onFinishEdit={finishStreamEdit}
-                onCancelEdit={cancelStreamEdit}
-                onLiveRename={liveRenameBudgetingStream}
-                onDelete={deleteBudgetingStream}
-                onAdd={addBudgetingStream}
-                onBeginDrag={beginStreamDrag}
               />
             </SettingsSection>
 
@@ -4790,10 +4780,20 @@ export default function App() {
               />
             </SettingsSection>
 
-            <SettingsSection title="Navigation" ariaLabel="Navigation">
-              <NavigationSettingsPanel
-                visibility={state.navVisibility}
-                onToggle={toggleNavVisibility}
+            <SettingsSection title="Budgeting Streams" ariaLabel="Budgeting Streams">
+              <BudgetingStreamsSettingsPanel
+                streams={state.budgetingStreams}
+                newName={newStreamName}
+                onNewNameChange={setNewStreamName}
+                editingId={editingStreamId}
+                draggingId={draggingStreamId}
+                onStartEdit={startStreamEdit}
+                onFinishEdit={finishStreamEdit}
+                onCancelEdit={cancelStreamEdit}
+                onLiveRename={liveRenameBudgetingStream}
+                onDelete={deleteBudgetingStream}
+                onAdd={addBudgetingStream}
+                onBeginDrag={beginStreamDrag}
               />
             </SettingsSection>
 
