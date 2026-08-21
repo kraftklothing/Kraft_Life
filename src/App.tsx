@@ -482,6 +482,14 @@ function formatMonthLabel(monthKey: string): string {
   })
 }
 
+function incomeForMonth(
+  byMonth: Record<string, number>,
+  monthKey: string,
+): number {
+  const value = byMonth[monthKey]
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
 export default function App() {
   const { scheduleSave, takeLoadedState, cloudLoadCount, unlocked } = useCloudSync()
   const [state, setState] = useState<AppState>(() => loadState())
@@ -715,8 +723,10 @@ export default function App() {
   }, [toast])
 
   useEffect(() => {
-    setMonthlyIncomeDraft(String(state.monthlyIncome))
-  }, [state.monthlyIncome])
+    setMonthlyIncomeDraft(
+      String(incomeForMonth(state.monthlyIncomeByMonth, spendingMonth)),
+    )
+  }, [state.monthlyIncomeByMonth, spendingMonth])
 
   useEffect(() => {
     if (isNavViewVisible(state.navVisibility, mainView)) return
@@ -1108,12 +1118,14 @@ export default function App() {
         amount,
       }))
       .sort((a, b) => b.amount - a.amount)
+    const income = incomeForMonth(state.monthlyIncomeByMonth, spendingMonth)
     return {
       totalSpent,
-      net: state.monthlyIncome - totalSpent,
+      income,
+      net: income - totalSpent,
       categoryBreakdown,
     }
-  }, [spendingEntriesForMonth, state.monthlyIncome])
+  }, [spendingEntriesForMonth, state.monthlyIncomeByMonth, spendingMonth])
 
   function updateState(updater: (prev: AppState) => AppState) {
     setState((prev) => {
@@ -2493,7 +2505,13 @@ export default function App() {
       return
     }
     const rounded = Math.round(parsed * 100) / 100
-    updateState((prev) => ({ ...prev, monthlyIncome: rounded }))
+    updateState((prev) => ({
+      ...prev,
+      monthlyIncomeByMonth: {
+        ...prev.monthlyIncomeByMonth,
+        [spendingMonth]: rounded,
+      },
+    }))
     setToast('Monthly income updated')
   }
 
@@ -4571,7 +4589,7 @@ export default function App() {
               Net: <strong>${spendingTotals.net.toFixed(2)}</strong>
             </p>
             <p className="muted spending-summary-line">
-              Income ${state.monthlyIncome.toFixed(2)} − Spent $
+              Income ${spendingTotals.income.toFixed(2)} − Spent $
               {spendingTotals.totalSpent.toFixed(2)}
             </p>
             <label>
