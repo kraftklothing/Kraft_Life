@@ -2,6 +2,7 @@ import {
   DEFAULT_MODES,
   DEFAULT_NAV_VISIBILITY,
   DEFAULT_REWARDS,
+  DEFAULT_BUDGETING_STREAMS,
   DEFAULT_TASK_CATEGORIES,
   DEFAULT_TIMERS,
   MODE_ICON_IDS,
@@ -22,6 +23,7 @@ import {
   type Routine,
   type RoutineStep,
   type SpendingEntry,
+  type BudgetingStream,
   type Task,
 } from './types'
 import {
@@ -541,12 +543,22 @@ function normalizeSpendingEntries(raw: unknown): SpendingEntry[] {
       at?: unknown
       dateKey?: unknown
       amount?: unknown
+      streamId?: unknown
+      spendingTypeId?: unknown
       categoryId?: unknown
       note?: unknown
       impactsVirtualDollars?: unknown
     }
     if (typeof e.id !== 'string' || typeof e.dateKey !== 'string') continue
-    if (typeof e.categoryId !== 'string') continue
+    const streamId =
+      typeof e.streamId === 'string'
+        ? e.streamId
+        : typeof e.spendingTypeId === 'string'
+          ? e.spendingTypeId
+          : typeof e.categoryId === 'string'
+            ? e.categoryId
+            : null
+    if (!streamId) continue
     const at = typeof e.at === 'number' ? e.at : Number(e.at)
     const amount = typeof e.amount === 'number' ? e.amount : Number(e.amount)
     if (!Number.isFinite(at) || !Number.isFinite(amount) || amount <= 0) continue
@@ -555,12 +567,54 @@ function normalizeSpendingEntries(raw: unknown): SpendingEntry[] {
       at,
       dateKey: e.dateKey,
       amount: Math.round(amount * 100) / 100,
-      categoryId: e.categoryId,
+      streamId,
       note: typeof e.note === 'string' ? e.note : '',
       impactsVirtualDollars: e.impactsVirtualDollars === true,
     })
   }
   return entries.sort((a, b) => b.at - a.at)
+}
+
+function normalizeBudgetingStreams(
+  raw: unknown,
+  legacySpendingTypes: unknown,
+  spendingEntries: SpendingEntry[],
+): BudgetingStream[] {
+  const source =
+    Array.isArray(raw) && raw.length > 0
+      ? raw
+      : Array.isArray(legacySpendingTypes) && legacySpendingTypes.length > 0
+        ? legacySpendingTypes
+        : null
+  if (!source) {
+    const byId = new Map<string, BudgetingStream>()
+    for (const stream of DEFAULT_BUDGETING_STREAMS) byId.set(stream.id, stream)
+    for (const entry of spendingEntries) {
+      if (!byId.has(entry.streamId)) {
+        byId.set(entry.streamId, {
+          id: entry.streamId,
+          name: entry.streamId,
+        })
+      }
+    }
+    return [...byId.values()]
+  }
+  const streams: BudgetingStream[] = []
+  for (const item of source) {
+    if (!item || typeof item !== 'object') continue
+    const t = item as { id?: unknown; name?: unknown }
+    if (typeof t.id !== 'string' || typeof t.name !== 'string') continue
+    const name = t.name.trim()
+    if (!name) continue
+    streams.push({ id: t.id, name })
+  }
+  if (streams.length === 0) return DEFAULT_BUDGETING_STREAMS
+  for (const entry of spendingEntries) {
+    if (!streams.some((stream) => stream.id === entry.streamId)) {
+      streams.push({ id: entry.streamId, name: entry.streamId })
+    }
+  }
+  return streams
 }
 
 function normalizeClearedCalendarEvents(raw: unknown): Record<string, boolean> {
@@ -579,6 +633,10 @@ function normalizeNavVisibility(raw: unknown): NavVisibility {
   const record = raw as Record<string, unknown>
   for (const view of OPTIONAL_NAV_VIEWS) {
     if (view in record) next[view] = record[view] !== false
+  }
+  // Migrate older spending nav visibility key.
+  if (!('budgeting' in record) && 'spending' in record) {
+    next.budgeting = record.spending !== false
   }
   return next
 }
@@ -616,6 +674,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     timerSoundEnabled: true,
     dollarLedger: [],
     realSpending: [],
+    budgetingStreams: DEFAULT_BUDGETING_STREAMS,
     monthlyIncome: 0,
     connectedCalendars: [],
     clearedCalendarEvents: {},
@@ -639,6 +698,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     DEFAULT_TASK_CATEGORIES
   const rewards = normalizeRewards(raw.rewards)
   const timers = normalizeTimers(raw.timers)
+  const realSpending = normalizeSpendingEntries(raw.realSpending)
   let connectedCalendars = normalizeConnectedCalendars(raw.connectedCalendars)
   if (connectedCalendars.length === 0) {
     const legacyCalendars = readLegacyLocalCalendars()
@@ -674,7 +734,12 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     // Missing field defaults on so existing saves keep the new ding audible.
     timerSoundEnabled: raw.timerSoundEnabled !== false,
     dollarLedger: normalizeDollarLedger(raw.dollarLedger),
-    realSpending: normalizeSpendingEntries(raw.realSpending),
+    realSpending,
+    budgetingStreams: normalizeBudgetingStreams(
+      raw.budgetingStreams,
+      (raw as Partial<AppState> & { spendingTypes?: unknown }).spendingTypes,
+      realSpending,
+    ),
     monthlyIncome:
       typeof raw.monthlyIncome === 'number' && Number.isFinite(raw.monthlyIncome)
         ? Math.max(0, Math.round(raw.monthlyIncome * 100) / 100)
