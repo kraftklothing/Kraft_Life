@@ -297,8 +297,11 @@ export interface AppState {
   realSpending: SpendingEntry[]
   /** Dedicated Budgeting streams (separate from task categories). */
   budgetingStreams: BudgetingStream[]
-  /** Budgeted income used for monthly net view in the Budgeting tab. */
-  monthlyIncome: number
+  /**
+   * Budgeted income by calendar month (`YYYY-MM`).
+   * Each Budgeting-tab month is edited independently.
+   */
+  monthlyIncomeByMonth: Record<string, number>
   /**
    * Which bottom-nav icons appear. Plus and Settings are always shown.
    * Hiding a view only removes its icon — data is kept.
