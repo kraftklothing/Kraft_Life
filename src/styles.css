@@ -2042,6 +2042,17 @@ form.add-panel select {
   grid-template-columns: 1fr auto;
 }
 
+/* Budgeting rows: body + amount/actions (no checkbox). Keeps $ badge
+   compact on the right and edit icons aligned across short/long titles. */
+.task-item.spending-item {
+  grid-template-columns: 1fr auto;
+}
+
+.task-item.spending-item .reward-cost-badge {
+  justify-self: end;
+  width: max-content;
+}
+
 .task-item.compact {
   gap: 8px;
   padding: 6px 6px 6px 8px;

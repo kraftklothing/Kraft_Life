@@ -4604,7 +4604,7 @@ export default function App() {
                       state.budgetingStreams.find((type) => type.id === item.streamId)
                         ?.name ?? 'Other'
                     return (
-                      <li key={item.streamId} className="task-item">
+                      <li key={item.streamId} className="task-item spending-item">
                         <div className="task-body">
                           <p className="task-title">{typeName}</p>
                         </div>
@@ -4627,7 +4627,7 @@ export default function App() {
                       state.budgetingStreams.find((type) => type.id === entry.streamId)
                         ?.name ?? 'Other'
                     return (
-                      <li key={entry.id} className="task-item">
+                      <li key={entry.id} className="task-item spending-item">
                         <div className="task-body">
                           <p className="task-title">
                             ${entry.amount.toFixed(2)} · {typeName}
