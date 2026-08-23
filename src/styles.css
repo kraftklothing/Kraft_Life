@@ -553,6 +553,12 @@ button {
   color: var(--ink);
 }
 
+.spending-daily-compare {
+  margin: 0;
+  font-size: 0.98rem;
+  color: var(--ink);
+}
+
 .checkbox-row {
   display: flex;
   align-items: center;
