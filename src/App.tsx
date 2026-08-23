@@ -819,6 +819,14 @@ export default function App() {
     state.routines,
   ])
 
+  // Keep “Done by …” estimates current while browsing the routines list.
+  useEffect(() => {
+    if (mainView !== 'routines' || activeRoutineRun) return
+    setRoutineNowMs(Date.now())
+    const id = window.setInterval(() => setRoutineNowMs(Date.now()), 30_000)
+    return () => window.clearInterval(id)
+  }, [mainView, activeRoutineRun])
+
   const dayTasks = useMemo(() => {
     const applicable = state.tasks.filter((task) => {
       if (!taskVisibleOnDate(task, viewKey)) return false
