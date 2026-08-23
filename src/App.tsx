@@ -7,7 +7,7 @@ import {
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
-import { addDays, daysBetween, formatDayHeading, parseDateKey, toDateKey } from './dates'
+import { addDays, formatDayHeading, parseDateKey, toDateKey } from './dates'
 import { appendLedgerEntry, loadState, normalizeState, pickNewerState, saveState } from './storage'
 import { useCloudSync } from './CloudSyncProvider'
 import CloudSyncSettings from './CloudSyncSettings'
@@ -492,42 +492,6 @@ function remainingDaysInMonth(monthKey: string, today: Date): number {
   if (monthKey < currentMonthKey) return 0
   if (monthKey > currentMonthKey) return daysInMonth
   return Math.max(0, daysInMonth - today.getDate() + 1)
-}
-
-/**
- * Average $/day spent over up to the last `monthsBack` months of tracked spend.
- * Uses days from the first tracked spend in that window through today (not only spend days).
- */
-function trailingAverageDailySpend(
-  entries: SpendingEntry[],
-  today: Date,
-  monthsBack = 12,
-): { average: number; days: number; monthsLabel: string } | null {
-  if (entries.length === 0) return null
-  const end = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-  const windowStart = new Date(
-    end.getFullYear(),
-    end.getMonth() - monthsBack,
-    end.getDate(),
-  )
-  const startKey = toDateKey(windowStart)
-  const endKey = toDateKey(end)
-  let total = 0
-  let earliestKey: string | null = null
-  for (const entry of entries) {
-    if (entry.dateKey < startKey || entry.dateKey > endKey) continue
-    total += entry.amount
-    if (earliestKey == null || entry.dateKey < earliestKey) {
-      earliestKey = entry.dateKey
-    }
-  }
-  if (earliestKey == null) return null
-  const days = Math.max(1, daysBetween(parseDateKey(earliestKey), end) + 1)
-  return {
-    average: total / days,
-    days,
-    monthsLabel: days >= 330 ? 'last 12 mo' : `${days} days tracked`,
-  }
 }
 
 function incomeForMonth(
@@ -1199,7 +1163,6 @@ export default function App() {
     const today = startToday()
     const daysLeft = remainingDaysInMonth(spendingMonth, today)
     const dailyBreakEven = daysLeft > 0 ? net / daysLeft : null
-    const trailingDaily = trailingAverageDailySpend(state.realSpending, today, 12)
     return {
       totalSpent,
       income,
@@ -1207,14 +1170,8 @@ export default function App() {
       categoryBreakdown,
       daysLeft,
       dailyBreakEven,
-      trailingDaily,
     }
-  }, [
-    spendingEntriesForMonth,
-    state.monthlyIncomeByMonth,
-    state.realSpending,
-    spendingMonth,
-  ])
+  }, [spendingEntriesForMonth, state.monthlyIncomeByMonth, spendingMonth])
   const activeSpendingStream = useMemo(
     () =>
       activeSpendingStreamId
@@ -4867,21 +4824,6 @@ export default function App() {
                 ) : (
                   <p className="muted spending-summary-line">
                     No days left in this month to pace remaining net.
-                  </p>
-                )}
-                {spendingTotals.trailingDaily ? (
-                  <p className="spending-daily-compare">
-                    <strong>
-                      ${spendingTotals.trailingDaily.average.toFixed(2)}
-                    </strong>
-                    <span className="muted">
-                      {' '}
-                      / day avg · {spendingTotals.trailingDaily.monthsLabel}
-                    </span>
-                  </p>
-                ) : (
-                  <p className="muted spending-summary-line">
-                    No prior spending yet to compare against.
                   </p>
                 )}
                 <label>
