@@ -163,28 +163,28 @@ export default function SummaryView({
     const series: SummaryChartSeries[] = [
       {
         id: 'tasks',
-        title: 'Tasks completed',
+        title: 'Avg tasks completed',
         unit: 'count',
         points: tasksCompleted,
         average: averageOf(tasksCompleted),
       },
       {
         id: 'spend',
-        title: 'Spend',
+        title: 'Avg spend',
         unit: 'dollars',
         points: spend,
         average: averageOf(spend),
       },
       {
         id: 'rewards-earned',
-        title: 'Rewards earned',
+        title: 'Avg rewards earned',
         unit: 'dollars',
         points: earned,
         average: averageOf(earned),
       },
       {
         id: 'rewards-spent',
-        title: 'Rewards spent',
+        title: 'Avg rewards spent',
         unit: 'dollars',
         points: spent,
         average: averageOf(spent),
