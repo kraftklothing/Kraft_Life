@@ -547,6 +547,12 @@ button {
   font-size: 1.1rem;
 }
 
+.spending-daily-allowance {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
 .checkbox-row {
   display: flex;
   align-items: center;

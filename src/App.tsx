@@ -482,6 +482,18 @@ function formatMonthLabel(monthKey: string): string {
   })
 }
 
+/** Days left in monthKey from today (including today). Past months → 0; future → full month. */
+function remainingDaysInMonth(monthKey: string, today: Date): number {
+  const [yearRaw, monthRaw] = monthKey.split('-').map(Number)
+  const year = yearRaw || today.getFullYear()
+  const monthIndex = (monthRaw || 1) - 1
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate()
+  const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  if (monthKey < currentMonthKey) return 0
+  if (monthKey > currentMonthKey) return daysInMonth
+  return Math.max(0, daysInMonth - today.getDate() + 1)
+}
+
 function incomeForMonth(
   byMonth: Record<string, number>,
   monthKey: string,
@@ -1147,14 +1159,18 @@ export default function App() {
       }))
       .sort((a, b) => b.amount - a.amount)
     const income = incomeForMonth(state.monthlyIncomeByMonth, spendingMonth)
+    const net = income - totalSpent
+    const daysLeft = remainingDaysInMonth(spendingMonth, startToday())
+    const dailyBreakEven = daysLeft > 0 ? net / daysLeft : null
     return {
       totalSpent,
       income,
-      net: income - totalSpent,
+      net,
       categoryBreakdown,
+      daysLeft,
+      dailyBreakEven,
     }
   }, [spendingEntriesForMonth, state.monthlyIncomeByMonth, spendingMonth])
-
   const activeSpendingStream = useMemo(
     () =>
       activeSpendingStreamId
@@ -4795,6 +4811,20 @@ export default function App() {
                   Income ${spendingTotals.income.toFixed(2)} − Spent $
                   {spendingTotals.totalSpent.toFixed(2)}
                 </p>
+                {spendingTotals.dailyBreakEven != null ? (
+                  <p className="spending-daily-allowance">
+                    <strong>${spendingTotals.dailyBreakEven.toFixed(2)}</strong>
+                    <span className="muted">
+                      {' '}
+                      / day to break even · {spendingTotals.daysLeft} day
+                      {spendingTotals.daysLeft === 1 ? '' : 's'} left
+                    </span>
+                  </p>
+                ) : (
+                  <p className="muted spending-summary-line">
+                    No days left in this month to pace remaining net.
+                  </p>
+                )}
                 <label>
                   Monthly income
                   <input
