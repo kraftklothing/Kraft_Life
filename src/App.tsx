@@ -494,6 +494,14 @@ function remainingDaysInMonth(monthKey: string, today: Date): number {
   return Math.max(0, daysInMonth - today.getDate() + 1)
 }
 
+function incomeForMonth(
+  byMonth: Record<string, number>,
+  monthKey: string,
+): number {
+  const value = byMonth[monthKey]
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
 function formatSpendDate(dateKey: string): string {
   return parseDateKey(dateKey).toLocaleDateString(undefined, {
     weekday: 'short',
@@ -761,8 +769,10 @@ export default function App() {
   }, [toast])
 
   useEffect(() => {
-    setMonthlyIncomeDraft(String(state.monthlyIncome))
-  }, [state.monthlyIncome])
+    setMonthlyIncomeDraft(
+      String(incomeForMonth(state.monthlyIncomeByMonth, spendingMonth)),
+    )
+  }, [state.monthlyIncomeByMonth, spendingMonth])
 
   useEffect(() => {
     if (isNavViewVisible(state.navVisibility, mainView)) return
@@ -1148,18 +1158,19 @@ export default function App() {
         amount,
       }))
       .sort((a, b) => b.amount - a.amount)
-    const net = state.monthlyIncome - totalSpent
+    const income = incomeForMonth(state.monthlyIncomeByMonth, spendingMonth)
+    const net = income - totalSpent
     const daysLeft = remainingDaysInMonth(spendingMonth, startToday())
     const dailyBreakEven = daysLeft > 0 ? net / daysLeft : null
     return {
       totalSpent,
+      income,
       net,
       categoryBreakdown,
       daysLeft,
       dailyBreakEven,
     }
-  }, [spendingEntriesForMonth, state.monthlyIncome, spendingMonth])
-
+  }, [spendingEntriesForMonth, state.monthlyIncomeByMonth, spendingMonth])
   const activeSpendingStream = useMemo(
     () =>
       activeSpendingStreamId
@@ -2573,7 +2584,13 @@ export default function App() {
       return
     }
     const rounded = Math.round(parsed * 100) / 100
-    updateState((prev) => ({ ...prev, monthlyIncome: rounded }))
+    updateState((prev) => ({
+      ...prev,
+      monthlyIncomeByMonth: {
+        ...prev.monthlyIncomeByMonth,
+        [spendingMonth]: rounded,
+      },
+    }))
     setToast('Monthly income updated')
   }
 
@@ -4705,7 +4722,6 @@ export default function App() {
                   </button>
                 </div>
               </div>
-
               <section className="task-group" aria-label="Monthly comparison">
                 <h2 className="category-heading">Monthly comparison</h2>
                 <ul className="task-list">
@@ -4792,7 +4808,7 @@ export default function App() {
                   Net: <strong>${spendingTotals.net.toFixed(2)}</strong>
                 </p>
                 <p className="muted spending-summary-line">
-                  Income ${state.monthlyIncome.toFixed(2)} − Spent $
+                  Income ${spendingTotals.income.toFixed(2)} − Spent $
                   {spendingTotals.totalSpent.toFixed(2)}
                 </p>
                 {spendingTotals.dailyBreakEven != null ? (

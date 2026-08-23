@@ -627,6 +627,40 @@ function normalizeClearedCalendarEvents(raw: unknown): Record<string, boolean> {
   return next
 }
 
+/** Round income to cents and clamp at zero. */
+function roundIncome(value: number): number {
+  return Math.max(0, Math.round(value * 100) / 100)
+}
+
+/**
+ * Per-month income map keyed by `YYYY-MM`.
+ * Migrates legacy single `monthlyIncome` into the current calendar month
+ * so existing budgets keep a value after the upgrade.
+ */
+function normalizeMonthlyIncomeByMonth(
+  raw: unknown,
+  legacyIncome: unknown,
+): Record<string, number> {
+  const next: Record<string, number> = {}
+  if (raw && typeof raw === 'object') {
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (!/^\d{4}-\d{2}$/.test(key)) continue
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue
+      next[key] = roundIncome(value)
+    }
+  }
+  if (
+    Object.keys(next).length === 0 &&
+    typeof legacyIncome === 'number' &&
+    Number.isFinite(legacyIncome)
+  ) {
+    const today = new Date()
+    const monthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+    next[monthKey] = roundIncome(legacyIncome)
+  }
+  return next
+}
+
 function normalizeNavVisibility(raw: unknown): NavVisibility {
   const next: NavVisibility = { ...DEFAULT_NAV_VISIBILITY }
   if (!raw || typeof raw !== 'object') return next
@@ -675,7 +709,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     dollarLedger: [],
     realSpending: [],
     budgetingStreams: DEFAULT_BUDGETING_STREAMS,
-    monthlyIncome: 0,
+    monthlyIncomeByMonth: {},
     connectedCalendars: [],
     clearedCalendarEvents: {},
     navVisibility: { ...DEFAULT_NAV_VISIBILITY },
@@ -740,10 +774,11 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
       (raw as Partial<AppState> & { spendingTypes?: unknown }).spendingTypes,
       realSpending,
     ),
-    monthlyIncome:
-      typeof raw.monthlyIncome === 'number' && Number.isFinite(raw.monthlyIncome)
-        ? Math.max(0, Math.round(raw.monthlyIncome * 100) / 100)
-        : 0,
+    monthlyIncomeByMonth: normalizeMonthlyIncomeByMonth(
+      (raw as Partial<AppState> & { monthlyIncomeByMonth?: unknown })
+        .monthlyIncomeByMonth,
+      (raw as Partial<AppState> & { monthlyIncome?: unknown }).monthlyIncome,
+    ),
     connectedCalendars,
     clearedCalendarEvents: normalizeClearedCalendarEvents(
       raw.clearedCalendarEvents,
