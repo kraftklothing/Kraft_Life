@@ -513,6 +513,7 @@ button {
 .routines-btn,
 .timer-btn,
 .spending-btn,
+.summary-btn,
 .settings-btn {
   background: var(--panel-solid);
   color: var(--accent);
@@ -525,6 +526,7 @@ button {
 .routines-btn.active,
 .timer-btn.active,
 .spending-btn.active,
+.summary-btn.active,
 .gift-btn.active,
 .settings-btn.active {
   background: var(--accent);
@@ -536,6 +538,89 @@ button {
   display: grid;
   gap: 8px;
   margin-bottom: 10px;
+}
+
+.summary-groups {
+  gap: 14px;
+}
+
+.summary-chart-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 12px 10px;
+  box-shadow: var(--shadow);
+}
+
+.summary-chart-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.summary-chart-header .category-heading {
+  margin: 0;
+}
+
+.summary-chart-average {
+  margin: 0;
+  text-align: right;
+  white-space: nowrap;
+  font-size: 0.95rem;
+}
+
+.summary-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  min-height: 88px;
+  padding: 4px 0 2px;
+}
+
+.summary-bar-col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.summary-bar-track {
+  width: 100%;
+  height: 72px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.summary-bar {
+  width: 70%;
+  max-width: 14px;
+  min-height: 3px;
+  border-radius: 6px 6px 3px 3px;
+  background: linear-gradient(180deg, var(--accent-soft) 0%, var(--accent) 100%);
+  transition: height 0.25s ease;
+}
+
+.summary-bar.empty {
+  height: 3px !important;
+  opacity: 0.28;
+  background: var(--accent-wash);
+}
+
+.summary-bar-label {
+  font-size: 0.65rem;
+  line-height: 1;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+}
+
+.summary-chart-window {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
 }
 
 .spending-summary-line {
