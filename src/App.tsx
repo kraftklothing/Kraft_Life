@@ -1076,8 +1076,8 @@ export default function App() {
 
   const hasDayContent = dayTasks.length > 0 || calendarEvents.length > 0
 
-  // Reminders (and deferred/moved-off tasks, already omitted from dayTasks)
-  // do not affect done/left or % complete.
+  // Reminders do not affect done/left or % complete. Moved-on tasks stay in
+  // dayTasks (via deferredDates) so they still count toward today's %.
   const progressTasks = useMemo(() => {
     return dayTasks.filter(
       (task) =>
@@ -3075,8 +3075,9 @@ export default function App() {
       tasks: prev.tasks.map((task) => {
         if (task.id !== taskId) return task
         if (isCompletedForDateView(task, viewKey)) return task
+        // Keep it on today's list and in today's % until done.
         let next = withDeferredDate(task, viewKey)
-        // One-shot tasks: advance the scheduled day to match the move.
+        // One-shot tasks: also schedule on the next day.
         if (next.repetition === 'none' && next.startDate <= viewKey) {
           next = { ...next, startDate: nextKey }
         }
@@ -3084,7 +3085,7 @@ export default function App() {
       }),
     }))
     setTaskSwipe(null)
-    setToast('Moved to next day')
+    setToast('Next day — still on today')
   }
 
   function onTaskSwipePointerDown(
