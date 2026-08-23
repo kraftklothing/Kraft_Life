@@ -94,9 +94,38 @@ function buildLedgerPoints(
   }))
 }
 
-function SummaryBarChart({ series }: { series: SummaryChartSeries }) {
+const LINE_CHART_WIDTH = 280
+const LINE_CHART_HEIGHT = 88
+const LINE_CHART_PAD_X = 8
+const LINE_CHART_PAD_Y = 10
+
+function SummaryLineChart({ series }: { series: SummaryChartSeries }) {
   const maxValue = Math.max(...series.points.map((point) => point.value), 0)
   const chartMax = Math.max(maxValue, series.average, 0.0001)
+  const count = series.points.length
+  const plotWidth = LINE_CHART_WIDTH - LINE_CHART_PAD_X * 2
+  const plotHeight = LINE_CHART_HEIGHT - LINE_CHART_PAD_Y * 2
+
+  const coords = series.points.map((point, index) => {
+    const x =
+      count <= 1
+        ? LINE_CHART_WIDTH / 2
+        : LINE_CHART_PAD_X + (index / (count - 1)) * plotWidth
+    const y =
+      LINE_CHART_PAD_Y +
+      plotHeight -
+      (point.value / chartMax) * plotHeight
+    return { x, y, point }
+  })
+
+  const linePath = coords
+    .map((coord, index) => `${index === 0 ? 'M' : 'L'}${coord.x.toFixed(2)} ${coord.y.toFixed(2)}`)
+    .join(' ')
+
+  const averageY =
+    LINE_CHART_PAD_Y +
+    plotHeight -
+    (series.average / chartMax) * plotHeight
 
   return (
     <section className="task-group summary-chart-card" aria-label={series.title}>
@@ -112,26 +141,54 @@ function SummaryBarChart({ series }: { series: SummaryChartSeries }) {
         role="img"
         aria-label={`${series.title}: ${formatAverage(series.average, series.unit)} per day over ${series.points.length} days`}
       >
-        {series.points.map((point) => {
-          const heightPct =
-            point.value <= 0 ? 0 : Math.max(6, (point.value / chartMax) * 100)
-          const tip =
-            series.unit === 'dollars'
-              ? `$${point.value.toFixed(2)}`
-              : String(point.value)
-          return (
-            <div key={point.dateKey} className="summary-bar-col">
-              <div className="summary-bar-track" aria-hidden="true">
-                <div
-                  className={`summary-bar${point.value > 0 ? '' : ' empty'}`}
-                  style={{ height: `${heightPct}%` }}
-                  title={`${point.dateKey}: ${tip}`}
-                />
-              </div>
-              <span className="summary-bar-label">{shortDayLabel(point.dateKey)}</span>
-            </div>
-          )
-        })}
+        <svg
+          className="summary-line-svg"
+          viewBox={`0 0 ${LINE_CHART_WIDTH} ${LINE_CHART_HEIGHT}`}
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <line
+            className="summary-line-baseline"
+            x1={LINE_CHART_PAD_X}
+            y1={LINE_CHART_HEIGHT - LINE_CHART_PAD_Y}
+            x2={LINE_CHART_WIDTH - LINE_CHART_PAD_X}
+            y2={LINE_CHART_HEIGHT - LINE_CHART_PAD_Y}
+          />
+          {series.average > 0 ? (
+            <line
+              className="summary-line-average"
+              x1={LINE_CHART_PAD_X}
+              y1={averageY}
+              x2={LINE_CHART_WIDTH - LINE_CHART_PAD_X}
+              y2={averageY}
+            />
+          ) : null}
+          <path className="summary-line-path" d={linePath} />
+          {coords.map(({ x, y, point }) => {
+            const tip =
+              series.unit === 'dollars'
+                ? `$${point.value.toFixed(2)}`
+                : String(point.value)
+            return (
+              <circle
+                key={point.dateKey}
+                className={`summary-line-dot${point.value > 0 ? '' : ' empty'}`}
+                cx={x}
+                cy={y}
+                r={point.value > 0 ? 3.2 : 2.2}
+              >
+                <title>{`${point.dateKey}: ${tip}`}</title>
+              </circle>
+            )
+          })}
+        </svg>
+        <div className="summary-line-labels" aria-hidden="true">
+          {series.points.map((point) => (
+            <span key={point.dateKey} className="summary-line-label">
+              {shortDayLabel(point.dateKey)}
+            </span>
+          ))}
+        </div>
       </div>
       <p className="muted summary-chart-window">
         Last {series.points.length} days
@@ -206,7 +263,7 @@ export default function SummaryView({
 
       <div className="task-groups summary-groups">
         {charts.map((series) => (
-          <SummaryBarChart key={series.id} series={series} />
+          <SummaryLineChart key={series.id} series={series} />
         ))}
       </div>
     </section>
