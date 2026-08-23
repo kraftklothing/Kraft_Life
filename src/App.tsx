@@ -494,6 +494,37 @@ function remainingDaysInMonth(monthKey: string, today: Date): number {
   return Math.max(0, daysInMonth - today.getDate() + 1)
 }
 
+function formatSpendDate(dateKey: string): string {
+  return parseDateKey(dateKey).toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+/** Newest-first month keys ending at `endMonth`, length `count`. */
+function recentMonthKeys(endMonth: string, count: number): string[] {
+  const keys: string[] = []
+  for (let i = 0; i < count; i += 1) {
+    keys.push(shiftMonth(endMonth, -i))
+  }
+  return keys
+}
+
+function totalForStreamInMonth(
+  entries: SpendingEntry[],
+  streamId: string,
+  monthKey: string,
+): number {
+  let total = 0
+  for (const entry of entries) {
+    if (entry.streamId !== streamId) continue
+    if (!entry.dateKey.startsWith(`${monthKey}-`)) continue
+    total += entry.amount
+  }
+  return Math.round(total * 100) / 100
+}
+
 export default function App() {
   const { scheduleSave, takeLoadedState, cloudLoadCount, unlocked } = useCloudSync()
   const [state, setState] = useState<AppState>(() => loadState())
@@ -549,6 +580,9 @@ export default function App() {
   const [newSpendingNote, setNewSpendingNote] = useState('')
   const [newSpendingAffectsVirtual, setNewSpendingAffectsVirtual] = useState(false)
   const [editingSpendingId, setEditingSpendingId] = useState<string | null>(null)
+  const [activeSpendingStreamId, setActiveSpendingStreamId] = useState<
+    string | null
+  >(null)
   const [spendingMonth, setSpendingMonth] = useState(() => {
     const today = startToday()
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
@@ -734,12 +768,6 @@ export default function App() {
     if (isNavViewVisible(state.navVisibility, mainView)) return
     goToView(firstVisibleMainView(state.navVisibility))
   }, [state.navVisibility, mainView])
-
-  useEffect(() => {
-    if (newSpendingStreamId) return
-    if (state.budgetingStreams.length === 0) return
-    setNewSpendingStreamId(state.budgetingStreams[0].id)
-  }, [newSpendingStreamId, state.budgetingStreams])
 
   useEffect(() => {
     if (!runningTimerId) return
@@ -1132,6 +1160,40 @@ export default function App() {
     }
   }, [spendingEntriesForMonth, state.monthlyIncome, spendingMonth])
 
+  const activeSpendingStream = useMemo(
+    () =>
+      activeSpendingStreamId
+        ? (state.budgetingStreams.find((s) => s.id === activeSpendingStreamId) ??
+          null)
+        : null,
+    [activeSpendingStreamId, state.budgetingStreams],
+  )
+
+  const streamMonthComparison = useMemo(() => {
+    if (!activeSpendingStreamId) return null
+    const months = recentMonthKeys(spendingMonth, 6).map((monthKey) => ({
+      monthKey,
+      amount: totalForStreamInMonth(
+        state.realSpending,
+        activeSpendingStreamId,
+        monthKey,
+      ),
+    }))
+    const average =
+      Math.round(
+        (months.reduce((sum, row) => sum + row.amount, 0) / months.length) * 100,
+      ) / 100
+    const currentMonthEntries = spendingEntriesForMonth.filter(
+      (entry) => entry.streamId === activeSpendingStreamId,
+    )
+    return { months, average, currentMonthEntries }
+  }, [
+    activeSpendingStreamId,
+    spendingMonth,
+    state.realSpending,
+    spendingEntriesForMonth,
+  ])
+
   function updateState(updater: (prev: AppState) => AppState) {
     setState((prev) => {
       const next = updater(prev)
@@ -1259,7 +1321,7 @@ export default function App() {
     setNewRewardName('')
     setNewRewardCost('5')
     setNewSpendingAmount('')
-    setNewSpendingStreamId(state.budgetingStreams[0]?.id ?? '')
+    setNewSpendingStreamId('')
     setNewSpendingNote('')
     setNewSpendingAffectsVirtual(false)
   }
@@ -1421,6 +1483,7 @@ export default function App() {
       setActiveRoutineRun(null)
     }
     if (view !== 'timer') setActiveTimerId(null)
+    if (view !== 'budgeting') setActiveSpendingStreamId(null)
   }
 
   function toggleNavVisibility(view: OptionalNavView) {
@@ -1491,7 +1554,7 @@ export default function App() {
       if (mainView === 'budgeting') {
         setEditingSpendingId(null)
         setNewSpendingAmount('')
-        setNewSpendingStreamId(state.budgetingStreams[0]?.id ?? '')
+        setNewSpendingStreamId('')
         setNewSpendingNote('')
         setNewSpendingAffectsVirtual(false)
       }
@@ -2516,12 +2579,16 @@ export default function App() {
 
   function addSpendingEntry() {
     const amount = Number(newSpendingAmount)
-    const streamId = newSpendingStreamId || state.budgetingStreams[0]?.id || ''
+    const streamId = newSpendingStreamId.trim()
     if (!Number.isFinite(amount) || amount <= 0) {
       setToast('Enter a valid spending amount')
       return
     }
     if (!streamId) {
+      setToast('Choose a budgeting stream')
+      return
+    }
+    if (!state.budgetingStreams.some((stream) => stream.id === streamId)) {
       setToast('Choose a budgeting stream')
       return
     }
@@ -2572,7 +2639,7 @@ export default function App() {
     })
     setEditingSpendingId(null)
     setNewSpendingAmount('')
-    setNewSpendingStreamId(state.budgetingStreams[0]?.id ?? '')
+    setNewSpendingStreamId('')
     setNewSpendingNote('')
     setNewSpendingAffectsVirtual(false)
     setAddOpen(false)
@@ -2612,7 +2679,7 @@ export default function App() {
       setEditingSpendingId(null)
       setAddOpen(false)
       setNewSpendingAmount('')
-      setNewSpendingStreamId(state.budgetingStreams[0]?.id ?? '')
+      setNewSpendingStreamId('')
       setNewSpendingNote('')
       setNewSpendingAffectsVirtual(false)
     }
@@ -2983,8 +3050,9 @@ export default function App() {
         entry.streamId === id ? { ...entry, streamId: fallback } : entry,
       ),
     }))
-    setNewSpendingStreamId((current) => (current === id ? fallback : current))
+    setNewSpendingStreamId((current) => (current === id ? '' : current))
     if (editingStreamId === id) setEditingStreamId(null)
+    if (activeSpendingStreamId === id) setActiveSpendingStreamId(null)
     setToast('Budgeting stream removed')
   }
 
@@ -4560,116 +4628,137 @@ export default function App() {
       {mainView === 'budgeting' && (
         <section className="day-pane" aria-label="Budgeting tracker">
           <div className="day-header">
-            <div className="day-label-row">
-              <button
-                type="button"
-                className="day-nav-btn"
-                aria-label="Previous month"
-                onClick={() => setSpendingMonth((prev) => shiftMonth(prev, -1))}
-              >
-                ←
-              </button>
-              <p className="day-label">{formatMonthLabel(spendingMonth)}</p>
-              <button
-                type="button"
-                className="day-nav-btn"
-                aria-label="Next month"
-                onClick={() => setSpendingMonth((prev) => shiftMonth(prev, 1))}
-              >
-                →
-              </button>
+            <div className="day-label-row projects-title-row">
+              {activeSpendingStreamId ? (
+                <button
+                  type="button"
+                  className="day-nav-btn"
+                  aria-label="Back to budgeting overview"
+                  onClick={() => setActiveSpendingStreamId(null)}
+                >
+                  ‹
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="day-nav-btn"
+                  aria-label="Previous month"
+                  onClick={() => setSpendingMonth((prev) => shiftMonth(prev, -1))}
+                >
+                  ←
+                </button>
+              )}
+              <p className="day-label">
+                {activeSpendingStreamId
+                  ? (activeSpendingStream?.name ?? 'Other')
+                  : formatMonthLabel(spendingMonth)}
+              </p>
+              {activeSpendingStreamId ? (
+                <span className="day-nav-spacer" aria-hidden="true" />
+              ) : (
+                <button
+                  type="button"
+                  className="day-nav-btn"
+                  aria-label="Next month"
+                  onClick={() => setSpendingMonth((prev) => shiftMonth(prev, 1))}
+                >
+                  →
+                </button>
+              )}
             </div>
             <div className="day-divider" aria-hidden="true" />
           </div>
 
-          <div className="panel spending-summary-panel">
-            <p className="muted spending-summary-line">Monthly income and spend</p>
-            <p className="spending-net">
-              Net: <strong>${spendingTotals.net.toFixed(2)}</strong>
-            </p>
-            <p className="muted spending-summary-line">
-              Income ${state.monthlyIncome.toFixed(2)} − Spent $
-              {spendingTotals.totalSpent.toFixed(2)}
-            </p>
-            {spendingTotals.dailyBreakEven != null ? (
-              <p className="spending-daily-allowance">
-                <strong>${spendingTotals.dailyBreakEven.toFixed(2)}</strong>
-                <span className="muted">
-                  {' '}
-                  / day to break even · {spendingTotals.daysLeft} day
-                  {spendingTotals.daysLeft === 1 ? '' : 's'} left
-                </span>
-              </p>
-            ) : (
-              <p className="muted spending-summary-line">
-                No days left in this month to pace remaining net.
-              </p>
-            )}
-            <label>
-              Monthly income
-              <input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                step={0.01}
-                value={monthlyIncomeDraft}
-                onChange={(event) => setMonthlyIncomeDraft(event.target.value)}
-              />
-            </label>
-            <div className="add-actions">
-              <button type="button" className="btn btn-primary" onClick={saveMonthlyIncome}>
-                Save income
-              </button>
-            </div>
-          </div>
+          {activeSpendingStreamId && streamMonthComparison ? (
+            <div className="task-groups">
+              <div className="panel spending-summary-panel">
+                <p className="muted spending-summary-line">
+                  {formatMonthLabel(spendingMonth)} and prior months
+                </p>
+                <p className="spending-net">
+                  6-month average:{' '}
+                  <strong>${streamMonthComparison.average.toFixed(2)}</strong>
+                </p>
+                <div className="day-label-row spending-month-nav">
+                  <button
+                    type="button"
+                    className="day-nav-btn"
+                    aria-label="Previous month"
+                    onClick={() =>
+                      setSpendingMonth((prev) => shiftMonth(prev, -1))
+                    }
+                  >
+                    ←
+                  </button>
+                  <p className="day-label spending-month-nav-label">
+                    {formatMonthLabel(spendingMonth)}
+                  </p>
+                  <button
+                    type="button"
+                    className="day-nav-btn"
+                    aria-label="Next month"
+                    onClick={() =>
+                      setSpendingMonth((prev) => shiftMonth(prev, 1))
+                    }
+                  >
+                    →
+                  </button>
+                </div>
+              </div>
 
-          <div className="task-groups">
-            <section className="task-group" aria-label="Spending by stream">
-              <h2 className="category-heading">Spent by stream</h2>
-              {spendingTotals.categoryBreakdown.length === 0 ? (
-                <p className="muted">No spending logged for this month yet.</p>
-              ) : (
+              <section className="task-group" aria-label="Monthly comparison">
+                <h2 className="category-heading">Monthly comparison</h2>
                 <ul className="task-list">
-                  {spendingTotals.categoryBreakdown.map((item) => {
-                    const typeName =
-                      state.budgetingStreams.find((type) => type.id === item.streamId)
-                        ?.name ?? 'Other'
-                    return (
-                      <li key={item.streamId} className="task-item">
-                        <div className="task-body">
-                          <p className="task-title">{typeName}</p>
-                        </div>
-                        <span className="reward-cost-badge">${item.amount.toFixed(2)}</span>
-                      </li>
-                    )
-                  })}
+                  {streamMonthComparison.months.map((row) => (
+                    <li
+                      key={row.monthKey}
+                      className={`task-item spending-item${
+                        row.monthKey === spendingMonth
+                          ? ' spending-month-current'
+                          : ''
+                      }`}
+                    >
+                      <div className="task-body">
+                        <p className="task-title">
+                          {formatMonthLabel(row.monthKey)}
+                        </p>
+                      </div>
+                      <span className="reward-cost-badge">
+                        ${row.amount.toFixed(2)}
+                      </span>
+                    </li>
+                  ))}
                 </ul>
-              )}
-            </section>
+              </section>
 
-            <section className="task-group" aria-label="Spending entries">
-              <h2 className="category-heading">Transactions</h2>
-              {spendingEntriesForMonth.length === 0 ? (
-                <p className="muted">Tap plus to add your first real-world expense.</p>
-              ) : (
-                <ul className="task-list">
-                  {spendingEntriesForMonth.map((entry) => {
-                    const typeName =
-                      state.budgetingStreams.find((type) => type.id === entry.streamId)
-                        ?.name ?? 'Other'
-                    return (
-                      <li key={entry.id} className="task-item">
+              <section
+                className="task-group"
+                aria-label={`${activeSpendingStream?.name ?? 'Other'} transactions`}
+              >
+                <h2 className="category-heading">
+                  {formatMonthLabel(spendingMonth)} transactions
+                </h2>
+                {streamMonthComparison.currentMonthEntries.length === 0 ? (
+                  <p className="muted">No transactions in this stream for this month.</p>
+                ) : (
+                  <ul className="task-list">
+                    {streamMonthComparison.currentMonthEntries.map((entry) => (
+                      <li key={entry.id} className="task-item spending-item">
                         <div className="task-body">
                           <p className="task-title">
-                            ${entry.amount.toFixed(2)} · {typeName}
+                            ${entry.amount.toFixed(2)}
                           </p>
-                          <div className="badges">
-                            <span className="badge">{entry.dateKey}</span>
-                            {entry.note ? <span className="badge">{entry.note}</span> : null}
-                            {entry.impactsVirtualDollars ? (
+                          <p className="spending-date-label">
+                            {formatSpendDate(entry.dateKey)}
+                          </p>
+                          {entry.note ? (
+                            <p className="spending-note-label">{entry.note}</p>
+                          ) : null}
+                          {entry.impactsVirtualDollars ? (
+                            <div className="badges">
                               <span className="badge">Affects virtual $</span>
-                            ) : null}
-                          </div>
+                            </div>
+                          ) : null}
                         </div>
                         <div className="task-actions">
                           <button
@@ -4690,12 +4779,143 @@ export default function App() {
                           </button>
                         </div>
                       </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </section>
-          </div>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </div>
+          ) : (
+            <>
+              <div className="panel spending-summary-panel">
+                <p className="muted spending-summary-line">Monthly income and spend</p>
+                <p className="spending-net">
+                  Net: <strong>${spendingTotals.net.toFixed(2)}</strong>
+                </p>
+                <p className="muted spending-summary-line">
+                  Income ${state.monthlyIncome.toFixed(2)} − Spent $
+                  {spendingTotals.totalSpent.toFixed(2)}
+                </p>
+                {spendingTotals.dailyBreakEven != null ? (
+                  <p className="spending-daily-allowance">
+                    <strong>${spendingTotals.dailyBreakEven.toFixed(2)}</strong>
+                    <span className="muted">
+                      {' '}
+                      / day to break even · {spendingTotals.daysLeft} day
+                      {spendingTotals.daysLeft === 1 ? '' : 's'} left
+                    </span>
+                  </p>
+                ) : (
+                  <p className="muted spending-summary-line">
+                    No days left in this month to pace remaining net.
+                  </p>
+                )}
+                <label>
+                  Monthly income
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step={0.01}
+                    value={monthlyIncomeDraft}
+                    onChange={(event) => setMonthlyIncomeDraft(event.target.value)}
+                  />
+                </label>
+                <div className="add-actions">
+                  <button type="button" className="btn btn-primary" onClick={saveMonthlyIncome}>
+                    Save income
+                  </button>
+                </div>
+              </div>
+
+              <div className="task-groups">
+                <section className="task-group" aria-label="Spending by stream">
+                  <h2 className="category-heading">Spent by stream</h2>
+                  {spendingTotals.categoryBreakdown.length === 0 ? (
+                    <p className="muted">No spending logged for this month yet.</p>
+                  ) : (
+                    <ul className="task-list">
+                      {spendingTotals.categoryBreakdown.map((item) => {
+                        const typeName =
+                          state.budgetingStreams.find((type) => type.id === item.streamId)
+                            ?.name ?? 'Other'
+                        return (
+                          <li key={item.streamId} className="task-item spending-item">
+                            <button
+                              type="button"
+                              className="project-main-btn"
+                              onClick={() => setActiveSpendingStreamId(item.streamId)}
+                            >
+                              <p className="task-title">{typeName}</p>
+                              <p className="muted spending-subtotal-hint">
+                                Tap for month comparison
+                              </p>
+                            </button>
+                            <span className="reward-cost-badge">
+                              ${item.amount.toFixed(2)}
+                            </span>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </section>
+
+                <section className="task-group" aria-label="Spending entries">
+                  <h2 className="category-heading">Transactions</h2>
+                  {spendingEntriesForMonth.length === 0 ? (
+                    <p className="muted">Tap plus to add your first real-world expense.</p>
+                  ) : (
+                    <ul className="task-list">
+                      {spendingEntriesForMonth.map((entry) => {
+                        const typeName =
+                          state.budgetingStreams.find((type) => type.id === entry.streamId)
+                            ?.name ?? 'Other'
+                        return (
+                          <li key={entry.id} className="task-item spending-item">
+                            <div className="task-body">
+                              <p className="task-title">
+                                ${entry.amount.toFixed(2)}
+                              </p>
+                              <p className="spending-stream-label">{typeName}</p>
+                              <p className="spending-date-label">
+                                {formatSpendDate(entry.dateKey)}
+                              </p>
+                              {entry.note ? (
+                                <p className="spending-note-label">{entry.note}</p>
+                              ) : null}
+                              {entry.impactsVirtualDollars ? (
+                                <div className="badges">
+                                  <span className="badge">Affects virtual $</span>
+                                </div>
+                              ) : null}
+                            </div>
+                            <div className="task-actions">
+                              <button
+                                type="button"
+                                className="edit-btn"
+                                aria-label="Edit spending entry"
+                                onClick={() => openEditSpendingEntry(entry)}
+                              >
+                                <PencilIcon />
+                              </button>
+                              <button
+                                type="button"
+                                className="edit-btn"
+                                aria-label="Delete spending entry"
+                                onClick={() => deleteSpendingEntry(entry.id)}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </section>
+              </div>
+            </>
+          )}
         </section>
       )}
 
@@ -5637,7 +5857,9 @@ export default function App() {
               <select
                 value={newSpendingStreamId}
                 onChange={(event) => setNewSpendingStreamId(event.target.value)}
+                required
               >
+                <option value="">Choose a stream…</option>
                 {state.budgetingStreams.map((type) => (
                   <option key={type.id} value={type.id}>
                     {type.name}
@@ -5663,7 +5885,12 @@ export default function App() {
               Also subtract this from virtual app money
             </label>
             <div className="add-actions">
-              <button type="button" className="btn btn-primary" onClick={addSpendingEntry}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={!newSpendingStreamId.trim()}
+                onClick={addSpendingEntry}
+              >
                 {editingSpendingId ? 'Save cost' : 'Add cost'}
               </button>
               {editingSpendingId ? (

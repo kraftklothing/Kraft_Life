@@ -2048,6 +2048,56 @@ form.add-panel select {
   grid-template-columns: 1fr auto;
 }
 
+/* Budgeting rows: body + amount/actions (no checkbox). Keeps $ badge
+   compact on the right and edit icons aligned across short/long titles. */
+.task-item.spending-item {
+  grid-template-columns: 1fr auto;
+}
+
+.task-item.spending-item .reward-cost-badge {
+  justify-self: end;
+  width: max-content;
+}
+
+.task-item.spending-item .project-main-btn {
+  gap: 2px;
+}
+
+.spending-stream-label {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  line-height: 1.25;
+}
+
+.spending-date-label,
+.spending-note-label,
+.spending-subtotal-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  line-height: 1.3;
+}
+
+.spending-note-label {
+  font-style: italic;
+}
+
+.spending-month-nav {
+  margin-top: 10px;
+}
+
+.spending-month-nav-label {
+  font-size: 0.95rem;
+}
+
+.task-item.spending-month-current {
+  border-color: rgba(196, 92, 42, 0.35);
+  background: var(--accent-wash);
+}
+
 .task-item.compact {
   gap: 8px;
   padding: 6px 6px 6px 8px;
