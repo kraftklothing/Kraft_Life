@@ -168,11 +168,19 @@ export interface FocusTimer {
   minutesForDollar: number
   order: number
   /**
-   * Seconds accrued toward the next $1.
-   * Survives pause, reload, and days until a full cycle is earned
-   * (then leftover seconds carry forward).
+   * Seconds accrued toward the next $1 while paused (or at the start of
+   * the current run segment). Survives pause, reload, and days until a
+   * full cycle is earned (then leftover seconds carry forward).
    */
   elapsedSeconds: number
+  /**
+   * Wall-clock ms when the current run segment started.
+   * When set, the timer is running: live elapsed =
+   * elapsedSeconds + floor((now − runningStartedAtMs) / 1000).
+   * Persisted so time keeps accruing while the phone sleeps or the tab
+   * is backgrounded (same approach as routine countdowns).
+   */
+  runningStartedAtMs?: number | null
 }
 
 export interface ConnectedCalendar {
