@@ -52,6 +52,11 @@ import TaskNotesPanel, {
 } from './TaskNotesPanel'
 import { playTimerDing } from './timerDing'
 import {
+  commitTimerRunProgress,
+  liveTimerElapsedSeconds,
+  runningFocusTimerId,
+} from './timerLogic'
+import {
   OPTIONAL_NAV_VIEWS,
   REPETITION_LABELS,
   WEEKDAY_OPTIONS,
@@ -617,7 +622,6 @@ export default function App() {
     string[]
   >([COMPLETED_GROUP_ID])
   const [activeTimerId, setActiveTimerId] = useState<string | null>(null)
-  const [runningTimerId, setRunningTimerId] = useState<string | null>(null)
   const [editingTimerId, setEditingTimerId] = useState<string | null>(null)
   const [newTimerTitle, setNewTimerTitle] = useState('')
   const [newTimerMinutes, setNewTimerMinutes] = useState('20')
@@ -722,6 +726,10 @@ export default function App() {
 
   const todayKey = toDateKey(startToday())
   const viewKey = toDateKey(viewDate)
+  const runningTimerId = useMemo(
+    () => runningFocusTimerId(state.timers),
+    [state.timers],
+  )
   const sortedModes = useMemo(
     () => [...state.modes].sort((a, b) => a.order - b.order),
     [state.modes],
@@ -781,20 +789,42 @@ export default function App() {
 
   useEffect(() => {
     if (!runningTimerId) return
-    const id = window.setInterval(() => {
-      setState((prev) => ({
-        ...prev,
-        timers: prev.timers.map((timer) =>
-          timer.id === runningTimerId
-            ? {
-                ...timer,
-                elapsedSeconds: Math.max(0, timer.elapsedSeconds ?? 0) + 1,
-              }
-            : timer,
-        ),
-      }))
-    }, 1000)
-    return () => window.clearInterval(id)
+
+    const syncFromWallClock = () => {
+      const now = Date.now()
+      setState((prev) => {
+        const currentId = runningFocusTimerId(prev.timers)
+        if (!currentId) return prev
+        let changed = false
+        const timers = prev.timers.map((timer) => {
+          if (timer.id !== currentId || timer.runningStartedAtMs == null) {
+            return timer
+          }
+          const next = commitTimerRunProgress(timer, now)
+          if (next !== timer) changed = true
+          return next
+        })
+        return changed ? { ...prev, timers } : prev
+      })
+    }
+
+    // Catch up immediately (e.g. after returning from background), then
+    // keep the display fresh. Wall-clock math means missed ticks while the
+    // phone sleeps or the app is backgrounded do not stall the timer.
+    syncFromWallClock()
+    const id = window.setInterval(syncFromWallClock, 1000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') syncFromWallClock()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', syncFromWallClock)
+    window.addEventListener('pageshow', syncFromWallClock)
+    return () => {
+      window.clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', syncFromWallClock)
+      window.removeEventListener('pageshow', syncFromWallClock)
+    }
   }, [runningTimerId])
 
   useEffect(() => {
@@ -915,6 +945,9 @@ export default function App() {
     () => sortedTimers.find((t) => t.id === activeTimerId) ?? null,
     [sortedTimers, activeTimerId],
   )
+  const activeTimerElapsed = activeTimer
+    ? liveTimerElapsedSeconds(activeTimer)
+    : 0
 
   const activeGoal = useMemo(
     () =>
@@ -2806,7 +2839,6 @@ export default function App() {
       ...prev,
       timers: prev.timers.filter((t) => t.id !== id),
     }))
-    if (runningTimerId === id) setRunningTimerId(null)
     if (activeTimerId === id) setActiveTimerId(null)
     if (editingTimerId === id) {
       setEditingTimerId(null)
@@ -2817,15 +2849,31 @@ export default function App() {
   }
 
   function toggleTimerRunning(timerId: string) {
-    setRunningTimerId((current) => (current === timerId ? null : timerId))
+    const now = Date.now()
+    updateState((prev) => ({
+      ...prev,
+      timers: prev.timers.map((timer) => {
+        if (timer.id === timerId) {
+          if (timer.runningStartedAtMs != null) {
+            return commitTimerRunProgress(timer, now, { stop: true })
+          }
+          return { ...timer, runningStartedAtMs: now }
+        }
+        if (timer.runningStartedAtMs != null) {
+          return commitTimerRunProgress(timer, now, { stop: true })
+        }
+        return timer
+      }),
+    }))
   }
 
   function resetActiveTimer(timerId: string) {
-    setRunningTimerId((current) => (current === timerId ? null : current))
     updateState((prev) => ({
       ...prev,
       timers: prev.timers.map((timer) =>
-        timer.id === timerId ? { ...timer, elapsedSeconds: 0 } : timer,
+        timer.id === timerId
+          ? { ...timer, elapsedSeconds: 0, runningStartedAtMs: null }
+          : timer,
       ),
     }))
   }
@@ -5126,25 +5174,26 @@ export default function App() {
           {activeTimer ? (
             <div className="panel timer-panel">
               <p className="timer-display" aria-live="polite">
-                {formatTimerSeconds(activeTimer.elapsedSeconds ?? 0)}
+                {formatTimerSeconds(activeTimerElapsed)}
               </p>
               <p className="timer-seconds-label">
-                {activeTimer.elapsedSeconds ?? 0} second
-                {(activeTimer.elapsedSeconds ?? 0) === 1 ? '' : 's'}
+                {activeTimerElapsed} second
+                {activeTimerElapsed === 1 ? '' : 's'}
               </p>
               <p className="muted timer-hint">
                 Earn $1 every {activeTimer.minutesForDollar} minute
-                {activeTimer.minutesForDollar === 1 ? '' : 's'}. Progress is
-                saved when you pause — even across days — until you earn $1.
-                Leftover time carries to the next dollar.
+                {activeTimer.minutesForDollar === 1 ? '' : 's'}. Time keeps
+                accruing while your phone is locked or the app is in the
+                background. Progress is saved when you pause — even across
+                days — until you earn $1. Leftover time carries to the next
+                dollar.
               </p>
               <p className="timer-next">
                 Next $ in{' '}
                 {formatTimerSeconds(
                   Math.max(
                     0,
-                    activeTimer.minutesForDollar * 60 -
-                      (activeTimer.elapsedSeconds ?? 0),
+                    activeTimer.minutesForDollar * 60 - activeTimerElapsed,
                   ),
                 )}
               </p>
@@ -5180,7 +5229,7 @@ export default function App() {
                 </p>
                 <ul className="task-list">
                   {sortedTimers.map((timer) => {
-                    const elapsed = timer.elapsedSeconds ?? 0
+                    const elapsed = liveTimerElapsedSeconds(timer)
                     const running = runningTimerId === timer.id
                     return (
                       <li

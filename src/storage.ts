@@ -448,6 +448,7 @@ function normalizeTimers(raw: unknown): FocusTimer[] | null {
       minutesForDollar?: unknown
       order?: unknown
       elapsedSeconds?: unknown
+      runningStartedAtMs?: unknown
     }
     if (typeof t.id !== 'string' || typeof t.title !== 'string') return
     const minutes =
@@ -463,15 +464,34 @@ function normalizeTimers(raw: unknown): FocusTimer[] | null {
       Number.isFinite(elapsedRaw) && elapsedRaw > 0
         ? Math.floor(elapsedRaw)
         : 0
+    const startedRaw =
+      typeof t.runningStartedAtMs === 'number'
+        ? t.runningStartedAtMs
+        : Number(t.runningStartedAtMs)
+    const runningStartedAtMs =
+      Number.isFinite(startedRaw) && startedRaw > 0
+        ? Math.floor(startedRaw)
+        : null
     timers.push({
       id: t.id,
       title: t.title,
       minutesForDollar: Math.floor(minutes),
       order: typeof t.order === 'number' ? t.order : index,
       elapsedSeconds,
+      runningStartedAtMs,
     })
   })
-  return timers.sort((a, b) => a.order - b.order)
+  const sorted = timers.sort((a, b) => a.order - b.order)
+  // At most one timer may be running; keep the first and fold/clear the rest.
+  let seenRunning = false
+  return sorted.map((timer) => {
+    if (timer.runningStartedAtMs == null) return timer
+    if (!seenRunning) {
+      seenRunning = true
+      return timer
+    }
+    return { ...timer, runningStartedAtMs: null }
+  })
 }
 
 function normalizePendingDeliveries(raw: unknown): PendingDelivery[] {
