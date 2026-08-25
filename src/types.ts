@@ -230,6 +230,7 @@ export type OptionalNavView =
   | 'routines'
   | 'timer'
   | 'budgeting'
+  | 'summary'
   | 'rewards'
 
 /** Which optional bottom-nav icons are shown. Hidden views keep their data. */
@@ -242,6 +243,7 @@ export const OPTIONAL_NAV_VIEWS: OptionalNavView[] = [
   'routines',
   'timer',
   'budgeting',
+  'summary',
   'rewards',
 ]
 
@@ -252,6 +254,7 @@ export const OPTIONAL_NAV_LABELS: Record<OptionalNavView, string> = {
   routines: 'Routines',
   timer: 'Timers',
   budgeting: 'Budgeting',
+  summary: 'Summary',
   rewards: 'Rewards',
 }
 
@@ -262,6 +265,7 @@ export const DEFAULT_NAV_VISIBILITY: NavVisibility = {
   routines: true,
   timer: true,
   budgeting: true,
+  summary: true,
   rewards: true,
 }
 

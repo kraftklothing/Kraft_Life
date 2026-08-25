@@ -513,6 +513,7 @@ button {
 .routines-btn,
 .timer-btn,
 .spending-btn,
+.summary-btn,
 .settings-btn {
   background: var(--panel-solid);
   color: var(--accent);
@@ -525,6 +526,7 @@ button {
 .routines-btn.active,
 .timer-btn.active,
 .spending-btn.active,
+.summary-btn.active,
 .gift-btn.active,
 .settings-btn.active {
   background: var(--accent);
@@ -536,6 +538,182 @@ button {
   display: grid;
   gap: 8px;
   margin-bottom: 10px;
+}
+
+.summary-groups {
+  gap: 14px;
+}
+
+.summary-range-panel {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.summary-range-units {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.summary-range-unit,
+.summary-range-preset {
+  border: 1px solid var(--line);
+  background: var(--panel-solid);
+  color: var(--ink-soft);
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 8px 6px;
+  text-transform: capitalize;
+}
+
+.summary-range-unit.selected,
+.summary-range-preset.selected {
+  background: var(--accent-wash);
+  border-color: rgba(196, 92, 42, 0.35);
+  color: var(--accent);
+}
+
+.summary-range-unit:active,
+.summary-range-preset:active {
+  transform: scale(0.97);
+}
+
+.summary-range-amount-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.summary-range-amount-label {
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.summary-range-amount-input {
+  width: 4.5rem;
+  border: 1px solid var(--line);
+  background: var(--panel-solid);
+  border-radius: 12px;
+  padding: 8px 10px;
+  color: var(--ink);
+  font-weight: 700;
+  text-align: center;
+}
+
+.summary-range-amount-input:focus {
+  outline: 2px solid rgba(196, 92, 42, 0.35);
+  outline-offset: 1px;
+}
+
+.summary-range-amount-unit {
+  font-size: 0.9rem;
+}
+
+.summary-range-presets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.summary-chart-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 12px 10px;
+  box-shadow: var(--shadow);
+}
+
+.summary-chart-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.summary-chart-header .category-heading {
+  margin: 0;
+}
+
+.summary-chart-average {
+  margin: 0;
+  text-align: right;
+  white-space: nowrap;
+  font-size: 0.95rem;
+}
+
+.summary-chart {
+  display: grid;
+  gap: 4px;
+  padding: 4px 0 2px;
+}
+
+.summary-line-svg {
+  width: 100%;
+  height: 88px;
+  display: block;
+  overflow: visible;
+}
+
+.summary-line-baseline {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.summary-line-average {
+  stroke: var(--accent-soft);
+  stroke-width: 1.25;
+  stroke-dasharray: 4 3;
+  opacity: 0.7;
+}
+
+.summary-line-path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.summary-line-dot {
+  fill: var(--panel-solid);
+  stroke: var(--accent);
+  stroke-width: 1.8;
+}
+
+.summary-line-dot.empty {
+  fill: var(--accent-wash);
+  stroke: var(--accent-soft);
+  stroke-width: 1.2;
+  opacity: 0.55;
+}
+
+.summary-line-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 2px;
+  padding: 0 2px;
+}
+
+.summary-line-label {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  font-size: 0.65rem;
+  line-height: 1;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+}
+
+.summary-line-label.hidden {
+  visibility: hidden;
+}
+
+.summary-chart-window {
+  margin: 8px 0 0;
+  font-size: 0.8rem;
 }
 
 .spending-summary-line {

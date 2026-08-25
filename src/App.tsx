@@ -40,6 +40,7 @@ import ModeSettingsPanel from './ModeSettingsPanel'
 import NavigationSettingsPanel from './NavigationSettingsPanel'
 import { ModeIcon } from './modeIcons'
 import RoutinesView, { type ActiveRoutineRun } from './RoutinesView'
+import SummaryView from './SummaryView'
 import {
   durationToFields,
   parseDurationFields,
@@ -260,6 +261,7 @@ type MainView =
   | 'routines'
   | 'timer'
   | 'budgeting'
+  | 'summary'
   | 'rewards'
   | 'settings'
 
@@ -436,6 +438,23 @@ function NavDollarIcon() {
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path
         d="M12 3.25v17.5M16.2 8c0-1.95-1.9-3.25-4.2-3.25S7.8 6.05 7.8 8s1.1 2.85 4.2 3.45c3.1.6 4.2 1.6 4.2 3.55S14.3 18.25 12 18.25 7.8 16.95 7.8 15"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function SmileyIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="8.25" stroke="currentColor" strokeWidth="2" />
+      <circle cx="9" cy="10" r="1.15" fill="currentColor" />
+      <circle cx="15" cy="10" r="1.15" fill="currentColor" />
+      <path
+        d="M8.5 14.25c1.1 1.35 2.55 2 3.5 2s2.4-.65 3.5-2"
         stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
@@ -1545,7 +1564,7 @@ export default function App() {
   }
 
   function openAddComposer() {
-    if (mainView === 'settings') return
+    if (mainView === 'settings' || mainView === 'summary') return
     if (activeRoutineRun) return
     if (
       mainView === 'projects' ||
@@ -4984,6 +5003,15 @@ export default function App() {
         </section>
       )}
 
+      {mainView === 'summary' && (
+        <SummaryView
+          tasks={state.tasks}
+          realSpending={state.realSpending}
+          dollarLedger={state.dollarLedger}
+          todayKey={todayKey}
+        />
+      )}
+
       {notesTask ? (
         <TaskNotesPanel
           title={notesTask.title}
@@ -5304,7 +5332,9 @@ export default function App() {
       <div className={`composer${addOpen ? ' composer-open' : ''}`}>
         {!addOpen ? (
           <nav className="composer-collapsed bottom-nav" aria-label="Main views">
-            {mainView !== 'settings' && !activeRoutineRun ? (
+            {mainView !== 'settings' &&
+            mainView !== 'summary' &&
+            !activeRoutineRun ? (
               <button
                 type="button"
                 className="circle-btn plus-btn"
@@ -5420,6 +5450,19 @@ export default function App() {
                 onClick={() => goToView('budgeting')}
               >
                 <NavDollarIcon />
+              </button>
+            ) : null}
+            {state.navVisibility.summary !== false ? (
+              <button
+                type="button"
+                className={`circle-btn summary-btn${
+                  mainView === 'summary' ? ' active' : ''
+                }`}
+                aria-label="Summary"
+                aria-pressed={mainView === 'summary'}
+                onClick={() => goToView('summary')}
+              >
+                <SmileyIcon />
               </button>
             ) : null}
             <span className="nav-right-spacer" aria-hidden="true" />
