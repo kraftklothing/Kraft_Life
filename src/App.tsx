@@ -7,7 +7,7 @@ import {
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
-import { addDays, formatDayHeading, parseDateKey, toDateKey } from './dates'
+import { addDays, formatDayHeading, isVacationDay, parseDateKey, toDateKey } from './dates'
 import { appendLedgerEntry, loadState, normalizeState, pickNewerState, saveState } from './storage'
 import { useCloudSync } from './CloudSyncProvider'
 import CloudSyncSettings from './CloudSyncSettings'
@@ -506,16 +506,29 @@ function formatMonthLabel(monthKey: string): string {
   })
 }
 
-/** Days left in monthKey from today (including today). Past months → 0; future → full month. */
-function remainingDaysInMonth(monthKey: string, today: Date): number {
+/**
+ * Days left in monthKey from today (including today), skipping vacation days.
+ * Past months → 0; future → non-vacation days in that month.
+ */
+function remainingDaysInMonth(
+  monthKey: string,
+  today: Date,
+  vacationDays: Record<string, boolean> = {},
+): number {
   const [yearRaw, monthRaw] = monthKey.split('-').map(Number)
   const year = yearRaw || today.getFullYear()
   const monthIndex = (monthRaw || 1) - 1
   const daysInMonth = new Date(year, monthIndex + 1, 0).getDate()
   const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
   if (monthKey < currentMonthKey) return 0
-  if (monthKey > currentMonthKey) return daysInMonth
-  return Math.max(0, daysInMonth - today.getDate() + 1)
+
+  const startDay = monthKey > currentMonthKey ? 1 : today.getDate()
+  let count = 0
+  for (let day = startDay; day <= daysInMonth; day += 1) {
+    const dateKey = `${monthKey}-${String(day).padStart(2, '0')}`
+    if (!isVacationDay(vacationDays, dateKey)) count += 1
+  }
+  return count
 }
 
 function incomeForMonth(
@@ -1213,7 +1226,11 @@ export default function App() {
     const income = incomeForMonth(state.monthlyIncomeByMonth, spendingMonth)
     const net = income - totalSpent
     const today = startToday()
-    const daysLeft = remainingDaysInMonth(spendingMonth, today)
+    const daysLeft = remainingDaysInMonth(
+      spendingMonth,
+      today,
+      state.vacationDays,
+    )
     const dailyBreakEven = daysLeft > 0 ? net / daysLeft : null
     return {
       totalSpent,
@@ -1223,7 +1240,12 @@ export default function App() {
       daysLeft,
       dailyBreakEven,
     }
-  }, [spendingEntriesForMonth, state.monthlyIncomeByMonth, spendingMonth])
+  }, [
+    spendingEntriesForMonth,
+    state.monthlyIncomeByMonth,
+    state.vacationDays,
+    spendingMonth,
+  ])
   const activeSpendingStream = useMemo(
     () =>
       activeSpendingStreamId
@@ -5009,6 +5031,7 @@ export default function App() {
           realSpending={state.realSpending}
           dollarLedger={state.dollarLedger}
           todayKey={todayKey}
+          vacationDays={state.vacationDays}
         />
       )}
 
