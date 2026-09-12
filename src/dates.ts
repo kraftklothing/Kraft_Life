@@ -26,6 +26,23 @@ export function daysBetween(a: Date, b: Date): number {
   return Math.round(ms / 86_400_000)
 }
 
+/** True when vacation mode is on for this local date key. */
+export function isVacationDay(
+  vacationDays: Record<string, boolean> | undefined,
+  dateKey: string,
+): boolean {
+  return Boolean(vacationDays?.[dateKey])
+}
+
+/** Drop vacation days so they do not dilute averages or day counts. */
+export function excludeVacationDayKeys(
+  dayKeys: string[],
+  vacationDays: Record<string, boolean> | undefined,
+): string[] {
+  if (!vacationDays) return dayKeys
+  return dayKeys.filter((key) => !vacationDays[key])
+}
+
 export function formatDayHeading(date: Date, todayKey: string): string {
   const key = toDateKey(date)
   if (key === todayKey) return 'Today'

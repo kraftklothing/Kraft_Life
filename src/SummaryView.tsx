@@ -1,5 +1,10 @@
 import { useMemo, useState } from 'react'
-import { addDays, parseDateKey, toDateKey } from './dates'
+import {
+  addDays,
+  excludeVacationDayKeys,
+  parseDateKey,
+  toDateKey,
+} from './dates'
 import type { DollarLedgerEntry, SpendingEntry, Task } from './types'
 
 export type SummaryRangeUnit = 'days' | 'months' | 'years'
@@ -101,22 +106,38 @@ function recentYearKeys(end: Date, count: number): number[] {
   return years
 }
 
-function daysInMonthPeriod(monthKey: string, today: Date): number {
+function daysInMonthPeriod(
+  monthKey: string,
+  today: Date,
+  vacationDays?: Record<string, boolean>,
+): number {
   const start = parseMonthKey(monthKey)
   const next = shiftMonthDate(start, 1)
   const endExclusive = next <= today ? next : addDays(today, 1)
   const last = addDays(endExclusive, -1)
   if (last < start) return 1
-  return dayKeysInclusive(start, last).length
+  const active = excludeVacationDayKeys(
+    dayKeysInclusive(start, last),
+    vacationDays,
+  )
+  return Math.max(1, active.length)
 }
 
-function daysInYearPeriod(year: number, today: Date): number {
+function daysInYearPeriod(
+  year: number,
+  today: Date,
+  vacationDays?: Record<string, boolean>,
+): number {
   const start = new Date(year, 0, 1)
   const next = new Date(year + 1, 0, 1)
   const endExclusive = next <= today ? next : addDays(today, 1)
   const last = addDays(endExclusive, -1)
   if (last < start) return 1
-  return dayKeysInclusive(start, last).length
+  const active = excludeVacationDayKeys(
+    dayKeysInclusive(start, last),
+    vacationDays,
+  )
+  return Math.max(1, active.length)
 }
 
 /** Whole-window daily average from raw day totals. */
@@ -214,6 +235,7 @@ function aggregateByMonth(
   totalsByDay: Record<string, number>,
   monthKeys: string[],
   today: Date,
+  vacationDays?: Record<string, boolean>,
 ): DailyPoint[] {
   return monthKeys.map((monthKey) => {
     let total = 0
@@ -221,7 +243,7 @@ function aggregateByMonth(
       if (!dateKey.startsWith(`${monthKey}-`)) continue
       total += value
     }
-    const days = daysInMonthPeriod(monthKey, today)
+    const days = daysInMonthPeriod(monthKey, today, vacationDays)
     return {
       dateKey: `${monthKey}-01`,
       label: shortMonthLabel(monthKey),
@@ -234,6 +256,7 @@ function aggregateByYear(
   totalsByDay: Record<string, number>,
   years: number[],
   today: Date,
+  vacationDays?: Record<string, boolean>,
 ): DailyPoint[] {
   return years.map((year) => {
     const prefix = `${year}-`
@@ -242,7 +265,7 @@ function aggregateByYear(
       if (!dateKey.startsWith(prefix)) continue
       total += value
     }
-    const days = daysInYearPeriod(year, today)
+    const days = daysInYearPeriod(year, today, vacationDays)
     return {
       dateKey: `${year}-01-01`,
       label: String(year),
@@ -257,6 +280,7 @@ function buildSeriesPoints(
   rangeUnit: SummaryRangeUnit,
   today: Date,
   amount: number,
+  vacationDays?: Record<string, boolean>,
 ): { points: DailyPoint[]; average: number } {
   const average = averageDailyFromTotals(totalsByDay, dayKeys)
   if (rangeUnit === 'days') {
@@ -264,12 +288,22 @@ function buildSeriesPoints(
   }
   if (rangeUnit === 'months') {
     return {
-      points: aggregateByMonth(totalsByDay, recentMonthKeys(today, amount), today),
+      points: aggregateByMonth(
+        totalsByDay,
+        recentMonthKeys(today, amount),
+        today,
+        vacationDays,
+      ),
       average,
     }
   }
   return {
-    points: aggregateByYear(totalsByDay, recentYearKeys(today, amount), today),
+    points: aggregateByYear(
+      totalsByDay,
+      recentYearKeys(today, amount),
+      today,
+      vacationDays,
+    ),
     average,
   }
 }
@@ -487,6 +521,7 @@ interface SummaryViewProps {
   realSpending: SpendingEntry[]
   dollarLedger: DollarLedgerEntry[]
   todayKey: string
+  vacationDays?: Record<string, boolean>
 }
 
 export default function SummaryView({
@@ -494,6 +529,7 @@ export default function SummaryView({
   realSpending,
   dollarLedger,
   todayKey,
+  vacationDays = {},
 }: SummaryViewProps) {
   const [rangeUnit, setRangeUnit] = useState<SummaryRangeUnit>('days')
   const [rangeAmount, setRangeAmount] = useState(RANGE_DEFAULTS.days)
@@ -510,7 +546,10 @@ export default function SummaryView({
   const charts = useMemo(() => {
     const today = parseDateKey(todayKey)
     const amount = clampAmount(rangeUnit, rangeAmount)
-    const dayKeys = resolveDayKeys(today, rangeUnit, amount)
+    const dayKeys = excludeVacationDayKeys(
+      resolveDayKeys(today, rangeUnit, amount),
+      vacationDays,
+    )
     const windowLabel = rangeWindowLabel(rangeUnit, amount)
 
     const taskTotals = buildTaskTotalsByDay(tasks, dayKeys)
@@ -530,6 +569,7 @@ export default function SummaryView({
         rangeUnit,
         today,
         amount,
+        vacationDays,
       )
       return { id, title, unit, points, average, windowLabel }
     }
@@ -540,7 +580,15 @@ export default function SummaryView({
       make('rewards-earned', 'Avg rewards earned', 'dollars', earnedTotals),
       make('rewards-spent', 'Avg rewards spent', 'dollars', spentTotals),
     ]
-  }, [tasks, realSpending, dollarLedger, todayKey, rangeUnit, rangeAmount])
+  }, [
+    tasks,
+    realSpending,
+    dollarLedger,
+    todayKey,
+    rangeUnit,
+    rangeAmount,
+    vacationDays,
+  ])
 
   return (
     <section className="day-pane" aria-label="Summary">
