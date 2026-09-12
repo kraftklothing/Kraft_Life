@@ -205,7 +205,7 @@ function buildSpendTotalsByDay(
 function buildLedgerTotalsByDay(
   ledger: DollarLedgerEntry[],
   dayKeys: string[],
-  kind: 'earned' | 'spent',
+  kind: 'earned',
 ): Record<string, number> {
   const byDay: Record<string, number> = Object.fromEntries(
     dayKeys.map((key) => [key, 0]),
@@ -555,7 +555,6 @@ export default function SummaryView({
     const taskTotals = buildTaskTotalsByDay(tasks, dayKeys)
     const spendTotals = buildSpendTotalsByDay(realSpending, dayKeys)
     const earnedTotals = buildLedgerTotalsByDay(dollarLedger, dayKeys, 'earned')
-    const spentTotals = buildLedgerTotalsByDay(dollarLedger, dayKeys, 'spent')
 
     const make = (
       id: string,
@@ -578,7 +577,6 @@ export default function SummaryView({
       make('tasks', 'Avg tasks completed', 'count', taskTotals),
       make('spend', 'Avg spend', 'dollars', spendTotals),
       make('rewards-earned', 'Avg rewards earned', 'dollars', earnedTotals),
-      make('rewards-spent', 'Avg rewards spent', 'dollars', spentTotals),
     ]
   }, [
     tasks,
