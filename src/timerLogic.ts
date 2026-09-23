@@ -1,5 +1,8 @@
 import type { FocusTimer } from './types'
 
+/** Continuous run length that triggers the “still timing?” review. */
+export const LONG_RUN_REVIEW_SECONDS = 2 * 60 * 60
+
 /** Live elapsed seconds including the current wall-clock run segment. */
 export function liveTimerElapsedSeconds(
   timer: FocusTimer,
@@ -12,6 +15,29 @@ export function liveTimerElapsedSeconds(
     Math.floor((nowMs - timer.runningStartedAtMs) / 1000),
   )
   return base + added
+}
+
+/** Uncommitted wall-clock seconds for the current run segment. */
+export function timerRunSegmentSeconds(
+  timer: FocusTimer,
+  nowMs: number = Date.now(),
+): number {
+  if (timer.runningStartedAtMs == null) return 0
+  return Math.max(0, Math.floor((nowMs - timer.runningStartedAtMs) / 1000))
+}
+
+/** Human-readable duration for long-run review copy (e.g. `3h 12m`). */
+export function formatDurationHoursMinutes(totalSeconds: number): string {
+  const safe = Math.max(0, Math.floor(totalSeconds))
+  const hours = Math.floor(safe / 3600)
+  const mins = Math.floor((safe % 3600) / 60)
+  if (hours <= 0) return `${mins}m`
+  if (mins <= 0) return `${hours}h`
+  return `${hours}h ${mins}m`
+}
+
+export function shouldOfferLongRunReview(segmentSeconds: number): boolean {
+  return segmentSeconds >= LONG_RUN_REVIEW_SECONDS
 }
 
 /**

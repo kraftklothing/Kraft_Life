@@ -46,3 +46,22 @@ export function playTimerDing(): void {
     // Ignore autoplay / audio failures — toast still shows.
   }
 }
+
+/**
+ * Attention chime for the long-run review prompt.
+ * Plays when the page is foreground again — browsers will not sound this
+ * while the phone is asleep or the tab is suspended.
+ */
+export function playLongRunAlert(): void {
+  try {
+    const ctx = getAudioContext()
+    if (!ctx) return
+    void ctx.resume()
+    const t = ctx.currentTime
+    tone(ctx, 523.25, t, 0.22, 0.14)
+    tone(ctx, 659.25, t + 0.2, 0.22, 0.14)
+    tone(ctx, 783.99, t + 0.4, 0.35, 0.12)
+  } catch {
+    // Ignore autoplay / audio failures — review modal still shows.
+  }
+}
