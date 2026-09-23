@@ -1380,17 +1380,19 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!runningTimerId) return
-    const timer = state.timers.find((t) => t.id === runningTimerId)
-    if (!timer) return
-    const goalSeconds = Math.max(1, timer.minutesForDollar) * 60
-    const elapsed = Math.max(0, timer.elapsedSeconds ?? 0)
-    if (elapsed < goalSeconds) return
+    const due = state.timers.find((timer) => {
+      const goalSeconds = Math.max(1, timer.minutesForDollar) * 60
+      return Math.max(0, timer.elapsedSeconds ?? 0) >= goalSeconds
+    })
+    if (!due) return
+    const goalSeconds = Math.max(1, due.minutesForDollar) * 60
+    const elapsed = Math.max(0, due.elapsedSeconds ?? 0)
     const cycles = Math.floor(elapsed / goalSeconds)
     if (cycles < 1) return
     const today = toDateKey(startToday())
+    const dueId = due.id
     updateState((prev) => {
-      const current = prev.timers.find((t) => t.id === runningTimerId)
+      const current = prev.timers.find((t) => t.id === dueId)
       if (!current) return prev
       const currentElapsed = Math.max(0, current.elapsedSeconds ?? 0)
       const currentGoal = Math.max(1, current.minutesForDollar) * 60
@@ -1413,7 +1415,7 @@ export default function App() {
         dollars,
         dollarLedger,
         timers: prev.timers.map((t) =>
-          t.id === runningTimerId
+          t.id === dueId
             ? { ...t, elapsedSeconds: currentElapsed % currentGoal }
             : t,
         ),
@@ -1421,11 +1423,11 @@ export default function App() {
     })
     setToast(
       cycles === 1
-        ? `+$1 · ${timer.title}`
-        : `+$${cycles} · ${timer.title}`,
+        ? `+$1 · ${due.title}`
+        : `+$${cycles} · ${due.title}`,
     )
     if (state.timerSoundEnabled) playTimerDing()
-  }, [runningTimerId, state.timers, state.timerSoundEnabled])
+  }, [state.timers, state.timerSoundEnabled])
 
   function startCategoryEdit(id: string) {
     setEditingCategoryId(id)
