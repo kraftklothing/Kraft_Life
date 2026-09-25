@@ -51,11 +51,15 @@ import {
 import TaskNotesPanel, {
   TaskDescriptionPreview,
 } from './TaskNotesPanel'
-import { playTimerDing } from './timerDing'
+import { playLongRunAlert, playTimerDing } from './timerDing'
 import {
   commitTimerRunProgress,
+  formatDurationHoursMinutes,
   liveTimerElapsedSeconds,
+  LONG_RUN_REVIEW_SECONDS,
   runningFocusTimerId,
+  shouldOfferLongRunReview,
+  timerRunSegmentSeconds,
 } from './timerLogic'
 import {
   OPTIONAL_NAV_VIEWS,
@@ -657,6 +661,12 @@ export default function App() {
   const [editingTimerId, setEditingTimerId] = useState<string | null>(null)
   const [newTimerTitle, setNewTimerTitle] = useState('')
   const [newTimerMinutes, setNewTimerMinutes] = useState('20')
+  const [longRunReview, setLongRunReview] = useState<{
+    timerId: string
+    title: string
+    segmentSeconds: number
+    startedAtMs: number
+  } | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [draggingRewardId, setDraggingRewardId] = useState<string | null>(null)
   const [draggingTimerId, setDraggingTimerId] = useState<string | null>(null)
@@ -698,6 +708,13 @@ export default function App() {
   } | null>(null)
   const suppressTaskClickRef = useRef(false)
   const dayPaneRef = useRef<HTMLElement | null>(null)
+  const longRunReviewRef = useRef<{
+    timerId: string
+    title: string
+    segmentSeconds: number
+    startedAtMs: number
+  } | null>(null)
+  const timerSoundEnabledRef = useRef(true)
   const dragRef = useRef<{
     id: string
     startY: number
@@ -820,22 +837,78 @@ export default function App() {
   }, [state.navVisibility, mainView])
 
   useEffect(() => {
+    longRunReviewRef.current = longRunReview
+  }, [longRunReview])
+
+  useEffect(() => {
+    timerSoundEnabledRef.current = state.timerSoundEnabled
+  }, [state.timerSoundEnabled])
+
+  useEffect(() => {
     if (!runningTimerId) return
+
+    const offerLongRunReview = (review: {
+      timerId: string
+      title: string
+      segmentSeconds: number
+      startedAtMs: number
+    }) => {
+      if (longRunReviewRef.current) return
+      longRunReviewRef.current = review
+      setLongRunReview(review)
+      if (timerSoundEnabledRef.current) playLongRunAlert()
+    }
 
     const syncFromWallClock = () => {
       const now = Date.now()
+      const pending = longRunReviewRef.current
+      if (pending) {
+        const segment = Math.max(
+          0,
+          Math.floor((now - pending.startedAtMs) / 1000),
+        )
+        if (segment !== pending.segmentSeconds) {
+          const next = { ...pending, segmentSeconds: segment }
+          longRunReviewRef.current = next
+          setLongRunReview(next)
+        }
+        return
+      }
+
       setState((prev) => {
         const currentId = runningFocusTimerId(prev.timers)
         if (!currentId) return prev
         let changed = false
+        let reviewToOffer:
+          | {
+              timerId: string
+              title: string
+              segmentSeconds: number
+              startedAtMs: number
+            }
+          | null = null
         const timers = prev.timers.map((timer) => {
           if (timer.id !== currentId || timer.runningStartedAtMs == null) {
+            return timer
+          }
+          const segment = timerRunSegmentSeconds(timer, now)
+          if (shouldOfferLongRunReview(segment)) {
+            reviewToOffer = {
+              timerId: timer.id,
+              title: timer.title,
+              segmentSeconds: segment,
+              startedAtMs: timer.runningStartedAtMs,
+            }
             return timer
           }
           const next = commitTimerRunProgress(timer, now)
           if (next !== timer) changed = true
           return next
         })
+        if (reviewToOffer) {
+          queueMicrotask(() => offerLongRunReview(reviewToOffer!))
+          return prev
+        }
         return changed ? { ...prev, timers } : prev
       })
     }
@@ -843,6 +916,7 @@ export default function App() {
     // Catch up immediately (e.g. after returning from background), then
     // keep the display fresh. Wall-clock math means missed ticks while the
     // phone sleeps or the app is backgrounded do not stall the timer.
+    // A catch-up of 2h+ freezes accrual and opens the long-run review instead.
     syncFromWallClock()
     const id = window.setInterval(syncFromWallClock, 1000)
     const onVisible = () => {
@@ -1306,17 +1380,19 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (!runningTimerId) return
-    const timer = state.timers.find((t) => t.id === runningTimerId)
-    if (!timer) return
-    const goalSeconds = Math.max(1, timer.minutesForDollar) * 60
-    const elapsed = Math.max(0, timer.elapsedSeconds ?? 0)
-    if (elapsed < goalSeconds) return
+    const due = state.timers.find((timer) => {
+      const goalSeconds = Math.max(1, timer.minutesForDollar) * 60
+      return Math.max(0, timer.elapsedSeconds ?? 0) >= goalSeconds
+    })
+    if (!due) return
+    const goalSeconds = Math.max(1, due.minutesForDollar) * 60
+    const elapsed = Math.max(0, due.elapsedSeconds ?? 0)
     const cycles = Math.floor(elapsed / goalSeconds)
     if (cycles < 1) return
     const today = toDateKey(startToday())
+    const dueId = due.id
     updateState((prev) => {
-      const current = prev.timers.find((t) => t.id === runningTimerId)
+      const current = prev.timers.find((t) => t.id === dueId)
       if (!current) return prev
       const currentElapsed = Math.max(0, current.elapsedSeconds ?? 0)
       const currentGoal = Math.max(1, current.minutesForDollar) * 60
@@ -1339,7 +1415,7 @@ export default function App() {
         dollars,
         dollarLedger,
         timers: prev.timers.map((t) =>
-          t.id === runningTimerId
+          t.id === dueId
             ? { ...t, elapsedSeconds: currentElapsed % currentGoal }
             : t,
         ),
@@ -1347,11 +1423,11 @@ export default function App() {
     })
     setToast(
       cycles === 1
-        ? `+$1 · ${timer.title}`
-        : `+$${cycles} · ${timer.title}`,
+        ? `+$1 · ${due.title}`
+        : `+$${cycles} · ${due.title}`,
     )
     if (state.timerSoundEnabled) playTimerDing()
-  }, [runningTimerId, state.timers, state.timerSoundEnabled])
+  }, [state.timers, state.timerSoundEnabled])
 
   function startCategoryEdit(id: string) {
     setEditingCategoryId(id)
@@ -2876,6 +2952,10 @@ export default function App() {
   }
 
   function deleteTimer(id: string) {
+    if (longRunReviewRef.current?.timerId === id) {
+      longRunReviewRef.current = null
+      setLongRunReview(null)
+    }
     updateState((prev) => ({
       ...prev,
       timers: prev.timers.filter((t) => t.id !== id),
@@ -2889,7 +2969,42 @@ export default function App() {
     setToast('Timer deleted')
   }
 
+  function resolveLongRunReview(action: 'keep' | 'trim' | 'discard') {
+    const review = longRunReviewRef.current
+    if (!review) return
+    const now = Date.now()
+    updateState((prev) => ({
+      ...prev,
+      timers: prev.timers.map((timer) => {
+        if (timer.id !== review.timerId) return timer
+        if (action === 'keep') {
+          return commitTimerRunProgress(timer, now)
+        }
+        if (action === 'trim') {
+          return {
+            ...timer,
+            elapsedSeconds:
+              Math.max(0, timer.elapsedSeconds ?? 0) + LONG_RUN_REVIEW_SECONDS,
+            runningStartedAtMs: null,
+          }
+        }
+        return { ...timer, runningStartedAtMs: null }
+      }),
+    }))
+    longRunReviewRef.current = null
+    setLongRunReview(null)
+    if (action === 'keep') setToast('Kept — timer still running')
+    else if (action === 'trim') {
+      setToast(
+        `Trimmed to ${formatDurationHoursMinutes(LONG_RUN_REVIEW_SECONDS)} and paused`,
+      )
+    } else setToast('Run discarded')
+  }
+
   function toggleTimerRunning(timerId: string) {
+    // Long-run review owns pause/keep decisions so we never silently
+    // commit hours of forgotten catch-up from a stray toggle.
+    if (longRunReviewRef.current) return
     const now = Date.now()
     updateState((prev) => ({
       ...prev,
@@ -2909,6 +3024,10 @@ export default function App() {
   }
 
   function resetActiveTimer(timerId: string) {
+    if (longRunReviewRef.current?.timerId === timerId) {
+      longRunReviewRef.current = null
+      setLongRunReview(null)
+    }
     updateState((prev) => ({
       ...prev,
       timers: prev.timers.map((timer) =>
@@ -5083,6 +5202,49 @@ export default function App() {
                 onClick={() => setSpendConfirmReward(null)}
               >
                 Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {longRunReview ? (
+        <div className="modal-backdrop" role="presentation">
+          <div
+            className="panel modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="long-run-review-title"
+          >
+            <h2 id="long-run-review-title">Still timing?</h2>
+            <p className="muted">
+              {longRunReview.title} has been running for about{' '}
+              {formatDurationHoursMinutes(longRunReview.segmentSeconds)}. Keep
+              that time, trim this run to{' '}
+              {formatDurationHoursMinutes(LONG_RUN_REVIEW_SECONDS)}, or discard
+              it before any more dollars are earned from the catch-up.
+            </p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => resolveLongRunReview('keep')}
+              >
+                Keep
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => resolveLongRunReview('trim')}
+              >
+                Trim to {formatDurationHoursMinutes(LONG_RUN_REVIEW_SECONDS)}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => resolveLongRunReview('discard')}
+              >
+                Discard run
               </button>
             </div>
           </div>
