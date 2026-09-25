@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import {
   addDays,
   excludeVacationDayKeys,
+  isVacationDay,
   parseDateKey,
   toDateKey,
 } from './dates'
@@ -38,6 +39,8 @@ export interface DailyPoint {
   dateKey: string
   label: string
   value: number
+  /** Vacation day: keep the x position, but do not draw a line or dot. */
+  gap?: boolean
 }
 
 export interface SummaryChartSeries {
@@ -223,12 +226,17 @@ function buildLedgerTotalsByDay(
 function pointsFromDayTotals(
   totalsByDay: Record<string, number>,
   dayKeys: string[],
+  vacationDays?: Record<string, boolean>,
 ): DailyPoint[] {
-  return dayKeys.map((dateKey) => ({
-    dateKey,
-    label: shortDayLabel(dateKey),
-    value: totalsByDay[dateKey] ?? 0,
-  }))
+  return dayKeys.map((dateKey) => {
+    const gap = isVacationDay(vacationDays, dateKey)
+    return {
+      dateKey,
+      label: shortDayLabel(dateKey),
+      value: gap ? 0 : (totalsByDay[dateKey] ?? 0),
+      gap: gap || undefined,
+    }
+  })
 }
 
 function aggregateByMonth(
@@ -241,6 +249,7 @@ function aggregateByMonth(
     let total = 0
     for (const [dateKey, value] of Object.entries(totalsByDay)) {
       if (!dateKey.startsWith(`${monthKey}-`)) continue
+      if (isVacationDay(vacationDays, dateKey)) continue
       total += value
     }
     const days = daysInMonthPeriod(monthKey, today, vacationDays)
@@ -263,6 +272,7 @@ function aggregateByYear(
     let total = 0
     for (const [dateKey, value] of Object.entries(totalsByDay)) {
       if (!dateKey.startsWith(prefix)) continue
+      if (isVacationDay(vacationDays, dateKey)) continue
       total += value
     }
     const days = daysInYearPeriod(year, today, vacationDays)
@@ -276,15 +286,19 @@ function aggregateByYear(
 
 function buildSeriesPoints(
   totalsByDay: Record<string, number>,
-  dayKeys: string[],
+  chartDayKeys: string[],
+  averageDayKeys: string[],
   rangeUnit: SummaryRangeUnit,
   today: Date,
   amount: number,
   vacationDays?: Record<string, boolean>,
 ): { points: DailyPoint[]; average: number } {
-  const average = averageDailyFromTotals(totalsByDay, dayKeys)
+  const average = averageDailyFromTotals(totalsByDay, averageDayKeys)
   if (rangeUnit === 'days') {
-    return { points: pointsFromDayTotals(totalsByDay, dayKeys), average }
+    return {
+      points: pointsFromDayTotals(totalsByDay, chartDayKeys, vacationDays),
+      average,
+    }
   }
   if (rangeUnit === 'months') {
     return {
@@ -306,6 +320,26 @@ function buildSeriesPoints(
     ),
     average,
   }
+}
+
+/** SVG path that breaks across vacation gaps instead of connecting through them. */
+function linePathFromCoords(
+  coords: { x: number; y: number; point: DailyPoint }[],
+): string {
+  const parts: string[] = []
+  let drawing = false
+  for (const coord of coords) {
+    if (coord.point.gap) {
+      drawing = false
+      continue
+    }
+    const command = drawing ? 'L' : 'M'
+    parts.push(
+      `${command}${coord.x.toFixed(2)} ${coord.y.toFixed(2)}`,
+    )
+    drawing = true
+  }
+  return parts.join(' ')
 }
 
 function resolveDayKeys(
@@ -330,7 +364,8 @@ const MAX_DOTS = 40
 const MAX_LABELS = 14
 
 function SummaryLineChart({ series }: { series: SummaryChartSeries }) {
-  const maxValue = Math.max(...series.points.map((point) => point.value), 0)
+  const plottedPoints = series.points.filter((point) => !point.gap)
+  const maxValue = Math.max(...plottedPoints.map((point) => point.value), 0)
   const chartMax = Math.max(maxValue, series.average, 0.0001)
   const count = series.points.length
   const plotWidth = LINE_CHART_WIDTH - LINE_CHART_PAD_X * 2
@@ -348,12 +383,7 @@ function SummaryLineChart({ series }: { series: SummaryChartSeries }) {
     return { x, y, point, index }
   })
 
-  const linePath = coords
-    .map(
-      (coord, index) =>
-        `${index === 0 ? 'M' : 'L'}${coord.x.toFixed(2)} ${coord.y.toFixed(2)}`,
-    )
-    .join(' ')
+  const linePath = linePathFromCoords(coords)
 
   const averageY =
     LINE_CHART_PAD_Y + plotHeight - (series.average / chartMax) * plotHeight
@@ -394,9 +424,10 @@ function SummaryLineChart({ series }: { series: SummaryChartSeries }) {
               y2={averageY}
             />
           ) : null}
-          <path className="summary-line-path" d={linePath} />
+          {linePath ? <path className="summary-line-path" d={linePath} /> : null}
           {showDots
             ? coords.map(({ x, y, point }) => {
+                if (point.gap) return null
                 const tip =
                   series.unit === 'dollars'
                     ? `$${point.value.toFixed(2)}`
@@ -424,7 +455,9 @@ function SummaryLineChart({ series }: { series: SummaryChartSeries }) {
             return (
               <span
                 key={point.dateKey}
-                className={`summary-line-label${show ? '' : ' hidden'}`}
+                className={`summary-line-label${show ? '' : ' hidden'}${
+                  point.gap ? ' vacation' : ''
+                }`}
               >
                 {show ? point.label : ''}
               </span>
@@ -546,15 +579,17 @@ export default function SummaryView({
   const charts = useMemo(() => {
     const today = parseDateKey(todayKey)
     const amount = clampAmount(rangeUnit, rangeAmount)
-    const dayKeys = excludeVacationDayKeys(
-      resolveDayKeys(today, rangeUnit, amount),
-      vacationDays,
-    )
+    const chartDayKeys = resolveDayKeys(today, rangeUnit, amount)
+    const averageDayKeys = excludeVacationDayKeys(chartDayKeys, vacationDays)
     const windowLabel = rangeWindowLabel(rangeUnit, amount)
 
-    const taskTotals = buildTaskTotalsByDay(tasks, dayKeys)
-    const spendTotals = buildSpendTotalsByDay(realSpending, dayKeys)
-    const earnedTotals = buildLedgerTotalsByDay(dollarLedger, dayKeys, 'earned')
+    const taskTotals = buildTaskTotalsByDay(tasks, chartDayKeys)
+    const spendTotals = buildSpendTotalsByDay(realSpending, chartDayKeys)
+    const earnedTotals = buildLedgerTotalsByDay(
+      dollarLedger,
+      chartDayKeys,
+      'earned',
+    )
 
     const make = (
       id: string,
@@ -564,7 +599,8 @@ export default function SummaryView({
     ): SummaryChartSeries => {
       const { points, average } = buildSeriesPoints(
         totals,
-        dayKeys,
+        chartDayKeys,
+        averageDayKeys,
         rangeUnit,
         today,
         amount,

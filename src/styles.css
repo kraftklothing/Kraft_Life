@@ -711,6 +711,10 @@ button {
   visibility: hidden;
 }
 
+.summary-line-label.vacation {
+  opacity: 0.35;
+}
+
 .summary-chart-window {
   margin: 8px 0 0;
   font-size: 0.8rem;
