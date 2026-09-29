@@ -82,6 +82,7 @@ import {
   type RoutineStep,
   type SpendingEntry,
   type BudgetingStream,
+  type MonthlyIncomeSource,
   type Task,
 } from './types'
 
@@ -535,12 +536,28 @@ function remainingDaysInMonth(
   return count
 }
 
+function incomeSourcesForMonth(
+  byMonth: Record<string, MonthlyIncomeSource[]>,
+  monthKey: string,
+): MonthlyIncomeSource[] {
+  const sources = byMonth[monthKey]
+  return Array.isArray(sources) ? sources : []
+}
+
 function incomeForMonth(
-  byMonth: Record<string, number>,
+  byMonth: Record<string, MonthlyIncomeSource[]>,
   monthKey: string,
 ): number {
-  const value = byMonth[monthKey]
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0
+  return incomeSourcesForMonth(byMonth, monthKey).reduce(
+    (sum, source) => sum + source.amount,
+    0,
+  )
+}
+
+type IncomeDraftRow = {
+  id: string
+  name: string
+  amount: string
 }
 
 function formatSpendDate(dateKey: string): string {
@@ -636,7 +653,8 @@ export default function App() {
     const today = startToday()
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
   })
-  const [monthlyIncomeDraft, setMonthlyIncomeDraft] = useState('0')
+  const [incomeEditOpen, setIncomeEditOpen] = useState(false)
+  const [incomeDraftRows, setIncomeDraftRows] = useState<IncomeDraftRow[]>([])
   const [spendConfirmReward, setSpendConfirmReward] = useState<Reward | null>(
     null,
   )
@@ -824,12 +842,6 @@ export default function App() {
     const t = window.setTimeout(() => setToast(''), 2200)
     return () => window.clearTimeout(t)
   }, [toast])
-
-  useEffect(() => {
-    setMonthlyIncomeDraft(
-      String(incomeForMonth(state.monthlyIncomeByMonth, spendingMonth)),
-    )
-  }, [state.monthlyIncomeByMonth, spendingMonth])
 
   useEffect(() => {
     if (isNavViewVisible(state.navVisibility, mainView)) return
@@ -1297,6 +1309,10 @@ export default function App() {
         amount,
       }))
       .sort((a, b) => b.amount - a.amount)
+    const incomeSources = incomeSourcesForMonth(
+      state.monthlyIncomeByMonth,
+      spendingMonth,
+    )
     const income = incomeForMonth(state.monthlyIncomeByMonth, spendingMonth)
     const net = income - totalSpent
     const today = startToday()
@@ -1309,6 +1325,7 @@ export default function App() {
     return {
       totalSpent,
       income,
+      incomeSources,
       net,
       categoryBreakdown,
       daysLeft,
@@ -2728,21 +2745,90 @@ export default function App() {
     setToast(`Balance set to $${next}`)
   }
 
+  function openIncomeEdit() {
+    const sources = incomeSourcesForMonth(
+      state.monthlyIncomeByMonth,
+      spendingMonth,
+    )
+    setIncomeDraftRows(
+      sources.length > 0
+        ? sources.map((source) => ({
+            id: source.id,
+            name: source.name,
+            amount: String(source.amount),
+          }))
+        : [{ id: uid('income'), name: '', amount: '' }],
+    )
+    setIncomeEditOpen(true)
+  }
+
+  function closeIncomeEdit() {
+    setIncomeEditOpen(false)
+  }
+
+  function updateIncomeDraftRow(
+    id: string,
+    patch: Partial<Pick<IncomeDraftRow, 'name' | 'amount'>>,
+  ) {
+    setIncomeDraftRows((rows) =>
+      rows.map((row) => (row.id === id ? { ...row, ...patch } : row)),
+    )
+  }
+
+  function addIncomeDraftRow() {
+    setIncomeDraftRows((rows) => [
+      ...rows,
+      { id: uid('income'), name: '', amount: '' },
+    ])
+  }
+
+  function removeIncomeDraftRow(id: string) {
+    setIncomeDraftRows((rows) => {
+      const next = rows.filter((row) => row.id !== id)
+      return next.length > 0
+        ? next
+        : [{ id: uid('income'), name: '', amount: '' }]
+    })
+  }
+
   function saveMonthlyIncome() {
-    const parsed = Number(monthlyIncomeDraft)
-    if (!Number.isFinite(parsed) || parsed < 0) {
-      setToast('Income must be 0 or more')
-      return
+    const sources: MonthlyIncomeSource[] = []
+    for (const row of incomeDraftRows) {
+      const name = row.name.trim()
+      const amountRaw = row.amount.trim()
+      if (!name && !amountRaw) continue
+      const parsed = Number(amountRaw)
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        setToast('Each income amount must be 0 or more')
+        return
+      }
+      if (!name) {
+        setToast('Name each income type')
+        return
+      }
+      sources.push({
+        id: row.id,
+        name,
+        amount: Math.round(parsed * 100) / 100,
+      })
     }
-    const rounded = Math.round(parsed * 100) / 100
-    updateState((prev) => ({
-      ...prev,
-      monthlyIncomeByMonth: {
-        ...prev.monthlyIncomeByMonth,
-        [spendingMonth]: rounded,
-      },
-    }))
-    setToast('Monthly income updated')
+    updateState((prev) => {
+      const monthlyIncomeByMonth = { ...prev.monthlyIncomeByMonth }
+      if (sources.length === 0) {
+        delete monthlyIncomeByMonth[spendingMonth]
+      } else {
+        monthlyIncomeByMonth[spendingMonth] = sources
+      }
+      return { ...prev, monthlyIncomeByMonth }
+    })
+    setIncomeEditOpen(false)
+    setToast(
+      sources.length === 0
+        ? 'Income cleared'
+        : sources.length === 1
+          ? 'Income updated'
+          : `${sources.length} income sources saved`,
+    )
   }
 
   function addSpendingEntry() {
@@ -5034,20 +5120,30 @@ export default function App() {
                     No days left in this month to pace remaining net.
                   </p>
                 )}
-                <label>
-                  Monthly income
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min={0}
-                    step={0.01}
-                    value={monthlyIncomeDraft}
-                    onChange={(event) => setMonthlyIncomeDraft(event.target.value)}
-                  />
+                <label className="spending-income-summary">
+                  <span className="spending-income-summary-label">
+                    Monthly income
+                  </span>
+                  {spendingTotals.incomeSources.length === 0 ? (
+                    <p className="muted spending-summary-line">No income set</p>
+                  ) : (
+                    <ul className="spending-income-list">
+                      {spendingTotals.incomeSources.map((source) => (
+                        <li key={source.id} className="spending-income-row">
+                          <span>{source.name}</span>
+                          <span>${source.amount.toFixed(2)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </label>
                 <div className="add-actions">
-                  <button type="button" className="btn btn-primary" onClick={saveMonthlyIncome}>
-                    Save income
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={openIncomeEdit}
+                  >
+                    Edit income
                   </button>
                 </div>
               </div>
@@ -5162,6 +5258,90 @@ export default function App() {
           onClose={closeTaskNotes}
           onSave={saveTaskNotes}
         />
+      ) : null}
+
+      {incomeEditOpen ? (
+        <div
+          className="modal-backdrop"
+          role="presentation"
+          onClick={closeIncomeEdit}
+        >
+          <div
+            className="panel modal-card income-edit-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="income-edit-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="income-edit-title">Edit income</h2>
+            <p className="muted">
+              Add one or more named income types for this month.
+            </p>
+            <ul className="income-edit-list">
+              {incomeDraftRows.map((row, index) => (
+                <li key={row.id} className="income-edit-row">
+                  <label>
+                    Name
+                    <input
+                      type="text"
+                      value={row.name}
+                      placeholder={
+                        index === 0 ? 'Salary' : 'Side gig, refund…'
+                      }
+                      aria-label={`Income name ${index + 1}`}
+                      onChange={(event) =>
+                        updateIncomeDraftRow(row.id, {
+                          name: event.target.value,
+                        })
+                      }
+                      autoFocus={index === 0}
+                    />
+                  </label>
+                  <label>
+                    Amount
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step={0.01}
+                      value={row.amount}
+                      placeholder="0.00"
+                      aria-label={`Income amount ${index + 1}`}
+                      onChange={(event) =>
+                        updateIncomeDraftRow(row.id, {
+                          amount: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="edit-btn income-edit-remove"
+                    aria-label={`Remove income ${row.name || index + 1}`}
+                    onClick={() => removeIncomeDraftRow(row.id)}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button type="button" className="btn" onClick={addIncomeDraftRow}>
+              Add another income
+            </button>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={saveMonthlyIncome}
+              >
+                Save
+              </button>
+              <button type="button" className="btn" onClick={closeIncomeEdit}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {spendConfirmReward ? (

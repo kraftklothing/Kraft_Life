@@ -24,6 +24,7 @@ import {
   type RoutineStep,
   type SpendingEntry,
   type BudgetingStream,
+  type MonthlyIncomeSource,
   type Task,
 } from './types'
 import {
@@ -652,21 +653,53 @@ function roundIncome(value: number): number {
   return Math.max(0, Math.round(value * 100) / 100)
 }
 
+function incomeSourceId(): string {
+  return `income_${Math.random().toString(36).slice(2, 10)}`
+}
+
+/** Normalize one month's income sources (named amounts or legacy single number). */
+function normalizeIncomeSources(raw: unknown): MonthlyIncomeSource[] {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    const amount = roundIncome(raw)
+    if (amount <= 0) return []
+    return [{ id: incomeSourceId(), name: 'Income', amount }]
+  }
+  if (!Array.isArray(raw)) return []
+  const sources: MonthlyIncomeSource[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const record = item as Record<string, unknown>
+    const amountRaw = record.amount
+    if (typeof amountRaw !== 'number' || !Number.isFinite(amountRaw)) continue
+    const amount = roundIncome(amountRaw)
+    const id =
+      typeof record.id === 'string' && record.id.trim()
+        ? record.id.trim()
+        : incomeSourceId()
+    const name =
+      typeof record.name === 'string' && record.name.trim()
+        ? record.name.trim()
+        : 'Income'
+    sources.push({ id, name, amount })
+  }
+  return sources
+}
+
 /**
- * Per-month income map keyed by `YYYY-MM`.
- * Migrates legacy single `monthlyIncome` into the current calendar month
- * so existing budgets keep a value after the upgrade.
+ * Per-month named income sources keyed by `YYYY-MM`.
+ * Migrates legacy single-number values (and older `monthlyIncome`) into
+ * a labeled source list so existing budgets keep their totals.
  */
 function normalizeMonthlyIncomeByMonth(
   raw: unknown,
   legacyIncome: unknown,
-): Record<string, number> {
-  const next: Record<string, number> = {}
+): Record<string, MonthlyIncomeSource[]> {
+  const next: Record<string, MonthlyIncomeSource[]> = {}
   if (raw && typeof raw === 'object') {
     for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
       if (!/^\d{4}-\d{2}$/.test(key)) continue
-      if (typeof value !== 'number' || !Number.isFinite(value)) continue
-      next[key] = roundIncome(value)
+      const sources = normalizeIncomeSources(value)
+      if (sources.length > 0) next[key] = sources
     }
   }
   if (
@@ -676,7 +709,8 @@ function normalizeMonthlyIncomeByMonth(
   ) {
     const today = new Date()
     const monthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
-    next[monthKey] = roundIncome(legacyIncome)
+    const sources = normalizeIncomeSources(legacyIncome)
+    if (sources.length > 0) next[monthKey] = sources
   }
   return next
 }
