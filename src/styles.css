@@ -540,6 +540,71 @@ button {
   margin-bottom: 10px;
 }
 
+.spending-income-summary {
+  display: grid;
+  gap: 6px;
+}
+
+.spending-income-summary-label {
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.spending-income-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.spending-income-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.92rem;
+  color: var(--ink);
+}
+
+.income-edit-card {
+  width: min(100%, 420px);
+}
+
+.income-edit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  max-height: min(50vh, 320px);
+  overflow: auto;
+}
+
+.income-edit-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.income-edit-row label {
+  margin: 0;
+}
+
+.income-edit-remove {
+  margin-bottom: 2px;
+}
+
+@media (max-width: 420px) {
+  .income-edit-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .income-edit-row label:first-child {
+    grid-column: 1 / -1;
+  }
+}
+
 .summary-groups {
   gap: 14px;
 }

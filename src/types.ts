@@ -109,6 +109,13 @@ export interface BudgetingStream {
   name: string
 }
 
+/** A named income source for a single calendar month. */
+export interface MonthlyIncomeSource {
+  id: string
+  name: string
+  amount: number
+}
+
 /** A spent reward waiting to arrive (or be returned). */
 export interface PendingDelivery {
   id: string
@@ -310,10 +317,11 @@ export interface AppState {
   /** Dedicated Budgeting streams (separate from task categories). */
   budgetingStreams: BudgetingStream[]
   /**
-   * Budgeted income by calendar month (`YYYY-MM`).
-   * Each Budgeting-tab month is edited independently.
+   * Named income sources by calendar month (`YYYY-MM`).
+   * Each Budgeting-tab month is edited independently and may include
+   * multiple labeled amounts (salary, side gig, etc.).
    */
-  monthlyIncomeByMonth: Record<string, number>
+  monthlyIncomeByMonth: Record<string, MonthlyIncomeSource[]>
   /**
    * Which bottom-nav icons appear. Plus and Settings are always shown.
    * Hiding a view only removes its icon — data is kept.
