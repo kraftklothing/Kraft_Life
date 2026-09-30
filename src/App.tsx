@@ -5120,7 +5120,7 @@ export default function App() {
                     No days left in this month to pace remaining net.
                   </p>
                 )}
-                <label className="spending-income-summary">
+                <div className="spending-income-summary">
                   <span className="spending-income-summary-label">
                     Monthly income
                   </span>
@@ -5136,7 +5136,7 @@ export default function App() {
                       ))}
                     </ul>
                   )}
-                </label>
+                </div>
                 <div className="add-actions">
                   <button
                     type="button"
