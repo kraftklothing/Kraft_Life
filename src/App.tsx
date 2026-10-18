@@ -568,6 +568,28 @@ function formatSpendDate(dateKey: string): string {
   })
 }
 
+/** Default cost date: today when viewing this month, else last day (past) or 1st (future). */
+function defaultSpendingDateForMonth(monthKey: string): string {
+  const today = startToday()
+  const todayKey = toDateKey(today)
+  if (todayKey.startsWith(`${monthKey}-`)) return todayKey
+  const [yearRaw, monthRaw] = monthKey.split('-').map(Number)
+  const year = yearRaw || today.getFullYear()
+  const monthIndex = (monthRaw || 1) - 1
+  const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  if (monthKey < currentMonthKey) {
+    const lastDay = new Date(year, monthIndex + 1, 0).getDate()
+    return `${monthKey}-${String(lastDay).padStart(2, '0')}`
+  }
+  return `${monthKey}-01`
+}
+
+function isValidDateKey(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const parsed = parseDateKey(value)
+  return toDateKey(parsed) === value
+}
+
 /** Newest-first month keys ending at `endMonth`, length `count`. */
 function recentMonthKeys(endMonth: string, count: number): string[] {
   const keys: string[] = []
@@ -643,6 +665,9 @@ export default function App() {
   const [editingRewardId, setEditingRewardId] = useState<string | null>(null)
   const [newSpendingAmount, setNewSpendingAmount] = useState('')
   const [newSpendingStreamId, setNewSpendingStreamId] = useState('')
+  const [newSpendingDate, setNewSpendingDate] = useState(() =>
+    toDateKey(startToday()),
+  )
   const [newSpendingNote, setNewSpendingNote] = useState('')
   const [newSpendingAffectsVirtual, setNewSpendingAffectsVirtual] = useState(false)
   const [editingSpendingId, setEditingSpendingId] = useState<string | null>(null)
@@ -1293,7 +1318,10 @@ export default function App() {
     return state.realSpending
       .filter((entry) => entry.dateKey.startsWith(`${spendingMonth}-`))
       .slice()
-      .sort((a, b) => b.at - a.at)
+      .sort((a, b) => {
+        if (a.dateKey !== b.dateKey) return b.dateKey.localeCompare(a.dateKey)
+        return b.at - a.at
+      })
   }, [state.realSpending, spendingMonth])
 
   const spendingTotals = useMemo(() => {
@@ -1501,6 +1529,7 @@ export default function App() {
     setNewRewardCost('5')
     setNewSpendingAmount('')
     setNewSpendingStreamId('')
+    setNewSpendingDate(defaultSpendingDateForMonth(spendingMonth))
     setNewSpendingNote('')
     setNewSpendingAffectsVirtual(false)
   }
@@ -1734,6 +1763,7 @@ export default function App() {
         setEditingSpendingId(null)
         setNewSpendingAmount('')
         setNewSpendingStreamId('')
+        setNewSpendingDate(defaultSpendingDateForMonth(spendingMonth))
         setNewSpendingNote('')
         setNewSpendingAffectsVirtual(false)
       }
@@ -2846,13 +2876,17 @@ export default function App() {
       setToast('Choose a budgeting stream')
       return
     }
-    const today = toDateKey(startToday())
+    const dateKey = newSpendingDate.trim()
+    if (!isValidDateKey(dateKey)) {
+      setToast('Choose a valid day for this cost')
+      return
+    }
     const roundedAmount = Math.round(amount * 100) / 100
     updateState((prev) => {
       const nextEntry: SpendingEntry = {
         id: editingSpendingId ?? uid('spending'),
         at: Date.now(),
-        dateKey: today,
+        dateKey,
         amount: roundedAmount,
         streamId,
         note: newSpendingNote.trim(),
@@ -2881,7 +2915,7 @@ export default function App() {
             ? Math.max(0, prev.dollars - virtualDelta)
             : prev.dollars + Math.abs(virtualDelta),
         dollarLedger: appendLedgerEntry(prev.dollarLedger, {
-          dateKey: today,
+          dateKey,
           amount: -virtualDelta,
           kind: virtualDelta > 0 ? 'spent' : 'adjusted',
           label:
@@ -2891,9 +2925,14 @@ export default function App() {
         }),
       }
     })
+    const entryMonth = dateKey.slice(0, 7)
+    if (entryMonth !== spendingMonth) {
+      setSpendingMonth(entryMonth)
+    }
     setEditingSpendingId(null)
     setNewSpendingAmount('')
     setNewSpendingStreamId('')
+    setNewSpendingDate(dateKey)
     setNewSpendingNote('')
     setNewSpendingAffectsVirtual(false)
     setAddOpen(false)
@@ -2904,6 +2943,7 @@ export default function App() {
     setEditingSpendingId(entry.id)
     setNewSpendingAmount(String(entry.amount))
     setNewSpendingStreamId(entry.streamId)
+    setNewSpendingDate(entry.dateKey)
     setNewSpendingNote(entry.note)
     setNewSpendingAffectsVirtual(entry.impactsVirtualDollars)
     setMainView('budgeting')
@@ -2934,6 +2974,7 @@ export default function App() {
       setAddOpen(false)
       setNewSpendingAmount('')
       setNewSpendingStreamId('')
+      setNewSpendingDate(defaultSpendingDateForMonth(spendingMonth))
       setNewSpendingNote('')
       setNewSpendingAffectsVirtual(false)
     }
@@ -6324,6 +6365,15 @@ export default function App() {
                 value={newSpendingAmount}
                 onChange={(event) => setNewSpendingAmount(event.target.value)}
                 placeholder="0.00"
+              />
+            </label>
+            <label>
+              Day
+              <input
+                type="date"
+                value={newSpendingDate}
+                onChange={(event) => setNewSpendingDate(event.target.value)}
+                required
               />
             </label>
             <label>
