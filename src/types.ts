@@ -98,6 +98,8 @@ export interface SpendingEntry {
   amount: number
   /** Budgeting stream this cost belongs to. */
   streamId: string
+  /** Bank account this cost was paid from. */
+  accountId: string
   note: string
   /** When true, this spend also reduces the virtual app balance. */
   impactsVirtualDollars: boolean
@@ -105,6 +107,12 @@ export interface SpendingEntry {
 
 /** User-managed budgeting stream used only by the Budgeting tab. */
 export interface BudgetingStream {
+  id: string
+  name: string
+}
+
+/** User-managed bank account for tagging real-world spending. */
+export interface BankAccount {
   id: string
   name: string
 }
@@ -316,6 +324,8 @@ export interface AppState {
   realSpending: SpendingEntry[]
   /** Dedicated Budgeting streams (separate from task categories). */
   budgetingStreams: BudgetingStream[]
+  /** Bank accounts used to tag Budgeting transactions. */
+  bankAccounts: BankAccount[]
   /**
    * Named income sources by calendar month (`YYYY-MM`).
    * Each Budgeting-tab month is edited independently and may include
@@ -350,6 +360,12 @@ export const DEFAULT_BUDGETING_STREAMS: BudgetingStream[] = [
   { id: 'health', name: 'Health' },
   { id: 'fun', name: 'Fun' },
   { id: 'other', name: 'Other' },
+]
+
+export const DEFAULT_BANK_ACCOUNTS: BankAccount[] = [
+  { id: 'checking', name: 'Checking' },
+  { id: 'savings', name: 'Savings' },
+  { id: 'cash', name: 'Cash' },
 ]
 
 /** Built-in vacation mode id — never stored in the customizable modes list. */

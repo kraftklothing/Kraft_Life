@@ -2310,7 +2310,8 @@ form.add-panel select {
   gap: 2px;
 }
 
-.spending-stream-label {
+.spending-stream-label,
+.spending-account-label {
   margin: 0;
   font-size: 0.82rem;
   font-weight: 500;

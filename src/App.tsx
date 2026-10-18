@@ -36,6 +36,7 @@ import {
 import { nextIncompleteStep } from './projectLogic'
 import CategorySettingsPanel from './CategorySettingsPanel'
 import BudgetingStreamsSettingsPanel from './BudgetingStreamsSettingsPanel'
+import BankAccountsSettingsPanel from './BankAccountsSettingsPanel'
 import ModeSettingsPanel from './ModeSettingsPanel'
 import NavigationSettingsPanel from './NavigationSettingsPanel'
 import { ModeIcon } from './modeIcons'
@@ -82,6 +83,7 @@ import {
   type RoutineStep,
   type SpendingEntry,
   type BudgetingStream,
+  type BankAccount,
   type MonthlyIncomeSource,
   type Task,
 } from './types'
@@ -665,6 +667,7 @@ export default function App() {
   const [editingRewardId, setEditingRewardId] = useState<string | null>(null)
   const [newSpendingAmount, setNewSpendingAmount] = useState('')
   const [newSpendingStreamId, setNewSpendingStreamId] = useState('')
+  const [newSpendingAccountId, setNewSpendingAccountId] = useState('')
   const [newSpendingDate, setNewSpendingDate] = useState(() =>
     toDateKey(startToday()),
   )
@@ -696,6 +699,11 @@ export default function App() {
   const [newStreamName, setNewStreamName] = useState('')
   const [editingStreamId, setEditingStreamId] = useState<string | null>(null)
   const [draggingStreamId, setDraggingStreamId] = useState<string | null>(null)
+  const [newAccountName, setNewAccountName] = useState('')
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null)
+  const [draggingAccountId, setDraggingAccountId] = useState<string | null>(
+    null,
+  )
   const [calendarEvents, setCalendarEvents] = useState<CalendarEventItem[]>([])
   const [collapsedTaskCategoryIds, setCollapsedTaskCategoryIds] = useState<
     string[]
@@ -785,6 +793,11 @@ export default function App() {
     orderSnapshot: string[]
   } | null>(null)
   const streamDragRef = useRef<{
+    id: string
+    startY: number
+    orderSnapshot: string[]
+  } | null>(null)
+  const accountDragRef = useRef<{
     id: string
     startY: number
     orderSnapshot: string[]
@@ -1529,6 +1542,7 @@ export default function App() {
     setNewRewardCost('5')
     setNewSpendingAmount('')
     setNewSpendingStreamId('')
+    setNewSpendingAccountId('')
     setNewSpendingDate(defaultSpendingDateForMonth(spendingMonth))
     setNewSpendingNote('')
     setNewSpendingAffectsVirtual(false)
@@ -1763,6 +1777,7 @@ export default function App() {
         setEditingSpendingId(null)
         setNewSpendingAmount('')
         setNewSpendingStreamId('')
+        setNewSpendingAccountId('')
         setNewSpendingDate(defaultSpendingDateForMonth(spendingMonth))
         setNewSpendingNote('')
         setNewSpendingAffectsVirtual(false)
@@ -2864,6 +2879,7 @@ export default function App() {
   function addSpendingEntry() {
     const amount = Number(newSpendingAmount)
     const streamId = newSpendingStreamId.trim()
+    const accountId = newSpendingAccountId.trim()
     if (!Number.isFinite(amount) || amount <= 0) {
       setToast('Enter a valid spending amount')
       return
@@ -2874,6 +2890,14 @@ export default function App() {
     }
     if (!state.budgetingStreams.some((stream) => stream.id === streamId)) {
       setToast('Choose a budgeting stream')
+      return
+    }
+    if (!accountId) {
+      setToast('Choose a bank account')
+      return
+    }
+    if (!state.bankAccounts.some((account) => account.id === accountId)) {
+      setToast('Choose a bank account')
       return
     }
     const dateKey = newSpendingDate.trim()
@@ -2889,6 +2913,7 @@ export default function App() {
         dateKey,
         amount: roundedAmount,
         streamId,
+        accountId,
         note: newSpendingNote.trim(),
         impactsVirtualDollars: newSpendingAffectsVirtual,
       }
@@ -2932,6 +2957,7 @@ export default function App() {
     setEditingSpendingId(null)
     setNewSpendingAmount('')
     setNewSpendingStreamId('')
+    setNewSpendingAccountId('')
     setNewSpendingDate(dateKey)
     setNewSpendingNote('')
     setNewSpendingAffectsVirtual(false)
@@ -2943,6 +2969,7 @@ export default function App() {
     setEditingSpendingId(entry.id)
     setNewSpendingAmount(String(entry.amount))
     setNewSpendingStreamId(entry.streamId)
+    setNewSpendingAccountId(entry.accountId)
     setNewSpendingDate(entry.dateKey)
     setNewSpendingNote(entry.note)
     setNewSpendingAffectsVirtual(entry.impactsVirtualDollars)
@@ -2974,6 +3001,7 @@ export default function App() {
       setAddOpen(false)
       setNewSpendingAmount('')
       setNewSpendingStreamId('')
+      setNewSpendingAccountId('')
       setNewSpendingDate(defaultSpendingDateForMonth(spendingMonth))
       setNewSpendingNote('')
       setNewSpendingAffectsVirtual(false)
@@ -3437,6 +3465,96 @@ export default function App() {
     setDraggingStreamId(streamIdToDrag)
   }
 
+  function startAccountEdit(id: string) {
+    setEditingAccountId(id)
+  }
+
+  function finishAccountEdit(id: string, name: string) {
+    renameBankAccount(id, name)
+    setEditingAccountId((current) => (current === id ? null : current))
+  }
+
+  function cancelAccountEdit() {
+    setEditingAccountId(null)
+  }
+
+  function liveRenameBankAccount(id: string, name: string) {
+    updateState((prev) => ({
+      ...prev,
+      bankAccounts: prev.bankAccounts.map((account) =>
+        account.id === id ? { ...account, name } : account,
+      ),
+    }))
+  }
+
+  function addBankAccount() {
+    const name = newAccountName.trim()
+    if (!name) return
+    if (
+      state.bankAccounts.some(
+        (account) => account.name.toLowerCase() === name.toLowerCase(),
+      )
+    ) {
+      setToast('Account already exists')
+      return
+    }
+    const account: BankAccount = { id: uid('account'), name }
+    updateState((prev) => ({
+      ...prev,
+      bankAccounts: [...prev.bankAccounts, account],
+    }))
+    setNewAccountName('')
+    setToast('Bank account added')
+  }
+
+  function deleteBankAccount(id: string) {
+    if (state.bankAccounts.length <= 1) {
+      setToast('Keep at least one bank account')
+      return
+    }
+    const fallback = state.bankAccounts.find((account) => account.id !== id)?.id
+    if (!fallback) return
+    updateState((prev) => ({
+      ...prev,
+      bankAccounts: prev.bankAccounts.filter((account) => account.id !== id),
+      realSpending: prev.realSpending.map((entry) =>
+        entry.accountId === id ? { ...entry, accountId: fallback } : entry,
+      ),
+    }))
+    setNewSpendingAccountId((current) => (current === id ? '' : current))
+    if (editingAccountId === id) setEditingAccountId(null)
+    setToast('Bank account removed')
+  }
+
+  function renameBankAccount(id: string, name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const clash = state.bankAccounts.some(
+      (account) =>
+        account.id !== id &&
+        account.name.toLowerCase() === trimmed.toLowerCase(),
+    )
+    if (clash) {
+      setToast('Account already exists')
+      return
+    }
+    updateState((prev) => ({
+      ...prev,
+      bankAccounts: prev.bankAccounts.map((account) =>
+        account.id === id ? { ...account, name: trimmed } : account,
+      ),
+    }))
+  }
+
+  function beginAccountDrag(accountIdToDrag: string, clientY: number) {
+    accountDragRef.current = {
+      id: accountIdToDrag,
+      startY: clientY,
+      orderSnapshot: state.bankAccounts.map((account) => account.id),
+    }
+    setDraggingAccountId(accountIdToDrag)
+  }
+
   function deferTaskToNextDay(taskId: string) {
     if (isCalendarTask(taskId)) return
     const nextKey = toDateKey(addDays(parseDateKey(viewKey), 1))
@@ -3842,6 +3960,21 @@ export default function App() {
         return
       }
 
+      const accountDrag = accountDragRef.current
+      if (accountDrag) {
+        event.preventDefault()
+        const nextOrder = reorderSnapshot(accountDrag, event.clientY, 64)
+        if (!nextOrder) return
+        commit((prev) => {
+          const byId = new Map(prev.bankAccounts.map((a) => [a.id, a]))
+          const bankAccounts = nextOrder
+            .map((id) => byId.get(id))
+            .filter((a): a is BankAccount => Boolean(a))
+          return { ...prev, bankAccounts }
+        })
+        return
+      }
+
       const modeDrag = modeDragRef.current
       if (!modeDrag) return
       event.preventDefault()
@@ -3898,6 +4031,10 @@ export default function App() {
       if (streamDragRef.current) {
         streamDragRef.current = null
         setDraggingStreamId(null)
+      }
+      if (accountDragRef.current) {
+        accountDragRef.current = null
+        setDraggingAccountId(null)
       }
       if (modeDragRef.current) {
         modeDragRef.current = null
@@ -5094,12 +5231,18 @@ export default function App() {
                   <p className="muted">No transactions in this stream for this month.</p>
                 ) : (
                   <ul className="task-list">
-                    {streamMonthComparison.currentMonthEntries.map((entry) => (
+                    {streamMonthComparison.currentMonthEntries.map((entry) => {
+                      const accountName =
+                        state.bankAccounts.find(
+                          (account) => account.id === entry.accountId,
+                        )?.name ?? 'Account'
+                      return (
                       <li key={entry.id} className="task-item spending-item">
                         <div className="task-body">
                           <p className="task-title">
                             ${entry.amount.toFixed(2)}
                           </p>
+                          <p className="spending-account-label">{accountName}</p>
                           <p className="spending-date-label">
                             {formatSpendDate(entry.dateKey)}
                           </p>
@@ -5131,7 +5274,8 @@ export default function App() {
                           </button>
                         </div>
                       </li>
-                    ))}
+                      )
+                    })}
                   </ul>
                 )}
               </section>
@@ -5232,6 +5376,10 @@ export default function App() {
                         const typeName =
                           state.budgetingStreams.find((type) => type.id === entry.streamId)
                             ?.name ?? 'Other'
+                        const accountName =
+                          state.bankAccounts.find(
+                            (account) => account.id === entry.accountId,
+                          )?.name ?? 'Account'
                         return (
                           <li key={entry.id} className="task-item spending-item">
                             <div className="task-body">
@@ -5239,6 +5387,7 @@ export default function App() {
                                 ${entry.amount.toFixed(2)}
                               </p>
                               <p className="spending-stream-label">{typeName}</p>
+                              <p className="spending-account-label">{accountName}</p>
                               <p className="spending-date-label">
                                 {formatSpendDate(entry.dateKey)}
                               </p>
@@ -5517,6 +5666,23 @@ export default function App() {
                 onDelete={deleteBudgetingStream}
                 onAdd={addBudgetingStream}
                 onBeginDrag={beginStreamDrag}
+              />
+            </SettingsSection>
+
+            <SettingsSection title="Bank Accounts" ariaLabel="Bank Accounts">
+              <BankAccountsSettingsPanel
+                accounts={state.bankAccounts}
+                newName={newAccountName}
+                onNewNameChange={setNewAccountName}
+                editingId={editingAccountId}
+                draggingId={draggingAccountId}
+                onStartEdit={startAccountEdit}
+                onFinishEdit={finishAccountEdit}
+                onCancelEdit={cancelAccountEdit}
+                onLiveRename={liveRenameBankAccount}
+                onDelete={deleteBankAccount}
+                onAdd={addBankAccount}
+                onBeginDrag={beginAccountDrag}
               />
             </SettingsSection>
 
@@ -6392,6 +6558,23 @@ export default function App() {
               </select>
             </label>
             <label>
+              Bank account
+              <select
+                value={newSpendingAccountId}
+                onChange={(event) =>
+                  setNewSpendingAccountId(event.target.value)
+                }
+                required
+              >
+                <option value="">Choose an account…</option>
+                {state.bankAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
               Note (optional)
               <input
                 value={newSpendingNote}
@@ -6412,7 +6595,9 @@ export default function App() {
               <button
                 type="button"
                 className="btn btn-primary"
-                disabled={!newSpendingStreamId.trim()}
+                disabled={
+                  !newSpendingStreamId.trim() || !newSpendingAccountId.trim()
+                }
                 onClick={addSpendingEntry}
               >
                 {editingSpendingId ? 'Save cost' : 'Add cost'}

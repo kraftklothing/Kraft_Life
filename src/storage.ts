@@ -2,6 +2,7 @@ import {
   DEFAULT_MODES,
   DEFAULT_NAV_VISIBILITY,
   DEFAULT_REWARDS,
+  DEFAULT_BANK_ACCOUNTS,
   DEFAULT_BUDGETING_STREAMS,
   DEFAULT_TASK_CATEGORIES,
   DEFAULT_TIMERS,
@@ -9,6 +10,7 @@ import {
   OPTIONAL_NAV_VIEWS,
   VACATION_MODE_ID,
   type AppState,
+  type BankAccount,
   type Category,
   type DollarLedgerEntry,
   type FocusTimer,
@@ -554,7 +556,10 @@ function normalizeDollarLedger(raw: unknown): DollarLedgerEntry[] {
   return entries.slice(-MAX_LEDGER_ENTRIES)
 }
 
-function normalizeSpendingEntries(raw: unknown): SpendingEntry[] {
+function normalizeSpendingEntries(
+  raw: unknown,
+  fallbackAccountId = DEFAULT_BANK_ACCOUNTS[0].id,
+): SpendingEntry[] {
   if (!Array.isArray(raw)) return []
   const entries: SpendingEntry[] = []
   for (const item of raw) {
@@ -567,6 +572,7 @@ function normalizeSpendingEntries(raw: unknown): SpendingEntry[] {
       streamId?: unknown
       spendingTypeId?: unknown
       categoryId?: unknown
+      accountId?: unknown
       note?: unknown
       impactsVirtualDollars?: unknown
     }
@@ -583,12 +589,17 @@ function normalizeSpendingEntries(raw: unknown): SpendingEntry[] {
     const at = typeof e.at === 'number' ? e.at : Number(e.at)
     const amount = typeof e.amount === 'number' ? e.amount : Number(e.amount)
     if (!Number.isFinite(at) || !Number.isFinite(amount) || amount <= 0) continue
+    const accountId =
+      typeof e.accountId === 'string' && e.accountId.trim()
+        ? e.accountId.trim()
+        : fallbackAccountId
     entries.push({
       id: e.id,
       at,
       dateKey: e.dateKey,
       amount: Math.round(amount * 100) / 100,
       streamId,
+      accountId,
       note: typeof e.note === 'string' ? e.note : '',
       impactsVirtualDollars: e.impactsVirtualDollars === true,
     })
@@ -636,6 +647,32 @@ function normalizeBudgetingStreams(
     }
   }
   return streams
+}
+
+function normalizeBankAccounts(
+  raw: unknown,
+  spendingEntries: SpendingEntry[],
+): BankAccount[] {
+  const accounts: BankAccount[] = []
+  if (Array.isArray(raw) && raw.length > 0) {
+    for (const item of raw) {
+      if (!item || typeof item !== 'object') continue
+      const account = item as { id?: unknown; name?: unknown }
+      if (typeof account.id !== 'string' || typeof account.name !== 'string') {
+        continue
+      }
+      const name = account.name.trim()
+      if (!name) continue
+      accounts.push({ id: account.id, name })
+    }
+  }
+  const next = accounts.length > 0 ? accounts : [...DEFAULT_BANK_ACCOUNTS]
+  for (const entry of spendingEntries) {
+    if (!next.some((account) => account.id === entry.accountId)) {
+      next.push({ id: entry.accountId, name: entry.accountId })
+    }
+  }
+  return next
 }
 
 function normalizeClearedCalendarEvents(raw: unknown): Record<string, boolean> {
@@ -763,6 +800,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     dollarLedger: [],
     realSpending: [],
     budgetingStreams: DEFAULT_BUDGETING_STREAMS,
+    bankAccounts: DEFAULT_BANK_ACCOUNTS,
     monthlyIncomeByMonth: {},
     connectedCalendars: [],
     clearedCalendarEvents: {},
@@ -828,6 +866,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
       (raw as Partial<AppState> & { spendingTypes?: unknown }).spendingTypes,
       realSpending,
     ),
+    bankAccounts: normalizeBankAccounts(raw.bankAccounts, realSpending),
     monthlyIncomeByMonth: normalizeMonthlyIncomeByMonth(
       (raw as Partial<AppState> & { monthlyIncomeByMonth?: unknown })
         .monthlyIncomeByMonth,
