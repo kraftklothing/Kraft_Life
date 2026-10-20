@@ -5284,6 +5284,7 @@ export default function App() {
       {mainView === 'summary' && (
         <SummaryView
           tasks={state.tasks}
+          taskCategories={state.taskCategories}
           realSpending={state.realSpending}
           dollarLedger={state.dollarLedger}
           todayKey={todayKey}
