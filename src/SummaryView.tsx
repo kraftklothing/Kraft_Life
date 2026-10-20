@@ -6,7 +6,12 @@ import {
   parseDateKey,
   toDateKey,
 } from './dates'
-import type { DollarLedgerEntry, SpendingEntry, Task } from './types'
+import type {
+  Category,
+  DollarLedgerEntry,
+  SpendingEntry,
+  Task,
+} from './types'
 
 export type SummaryRangeUnit = 'days' | 'months' | 'years'
 
@@ -172,14 +177,29 @@ function shortMonthLabel(monthKey: string): string {
   })
 }
 
+/** Matches day-view progress: reminder categories and calendar events do not count. */
+function countsTowardTaskAverage(
+  task: Task,
+  categories: Category[],
+): boolean {
+  if (task.id.startsWith('calendar:')) return false
+  return !task.categoryIds.some((categoryId) =>
+    categories.some(
+      (category) => category.id === categoryId && category.reminders === true,
+    ),
+  )
+}
+
 function buildTaskTotalsByDay(
   tasks: Task[],
+  categories: Category[],
   dayKeys: string[],
 ): Record<string, number> {
   const byDay: Record<string, number> = Object.fromEntries(
     dayKeys.map((key) => [key, 0]),
   )
   for (const task of tasks) {
+    if (!countsTowardTaskAverage(task, categories)) continue
     for (const [dateKey, done] of Object.entries(task.completions)) {
       if (!done || !(dateKey in byDay)) continue
       byDay[dateKey] += 1
@@ -551,6 +571,7 @@ function SummaryRangePicker({
 
 interface SummaryViewProps {
   tasks: Task[]
+  taskCategories: Category[]
   realSpending: SpendingEntry[]
   dollarLedger: DollarLedgerEntry[]
   todayKey: string
@@ -559,6 +580,7 @@ interface SummaryViewProps {
 
 export default function SummaryView({
   tasks,
+  taskCategories,
   realSpending,
   dollarLedger,
   todayKey,
@@ -583,7 +605,11 @@ export default function SummaryView({
     const averageDayKeys = excludeVacationDayKeys(chartDayKeys, vacationDays)
     const windowLabel = rangeWindowLabel(rangeUnit, amount)
 
-    const taskTotals = buildTaskTotalsByDay(tasks, chartDayKeys)
+    const taskTotals = buildTaskTotalsByDay(
+      tasks,
+      taskCategories,
+      chartDayKeys,
+    )
     const spendTotals = buildSpendTotalsByDay(realSpending, chartDayKeys)
     const earnedTotals = buildLedgerTotalsByDay(
       dollarLedger,
@@ -616,6 +642,7 @@ export default function SummaryView({
     ]
   }, [
     tasks,
+    taskCategories,
     realSpending,
     dollarLedger,
     todayKey,
