@@ -1,9 +1,10 @@
+import { taskRepeats } from './taskLogic'
 import type { AppState, Goal, Task } from './types'
 
 /** Synthetic id for the goals-view Unassigned bubble (not persisted). */
 export const UNASSIGNED_GOAL_ID = 'unassigned'
 
-/** True if any linked task or project step was progressed on dateKey. */
+/** True if any linked recurring task or project step was progressed on dateKey. */
 export function goalProgressedOnDate(
   goal: Goal,
   state: AppState,
@@ -11,7 +12,7 @@ export function goalProgressedOnDate(
 ): boolean {
   for (const taskId of goal.taskIds) {
     const task = state.tasks.find((t) => t.id === taskId)
-    if (task?.completions[dateKey]) return true
+    if (task && taskRepeats(task) && task.completions[dateKey]) return true
   }
 
   for (const projectId of goal.projectIds) {
@@ -29,7 +30,7 @@ export function goalProgressedOnDate(
 export function unassignedRecurringTasks(state: AppState): Task[] {
   const assigned = new Set(state.goals.flatMap((goal) => goal.taskIds))
   return state.tasks.filter(
-    (task) => task.repetition !== 'none' && !assigned.has(task.id),
+    (task) => taskRepeats(task) && !assigned.has(task.id),
   )
 }
 

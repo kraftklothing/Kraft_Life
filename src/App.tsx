@@ -1097,6 +1097,11 @@ export default function App() {
     [state.tasks, state.goals],
   )
 
+  const recurringTasksForGoals = useMemo(
+    () => state.tasks.filter((task) => taskRepeats(task)),
+    [state.tasks],
+  )
+
   const showingUnassigned = activeGoalId === UNASSIGNED_GOAL_ID
 
   const sortedTimers = useMemo(
@@ -2491,16 +2496,25 @@ export default function App() {
   }
 
   function toggleGoalTask(goalId: string, taskId: string) {
+    const goal = state.goals.find((g) => g.id === goalId)
+    const alreadyLinked = Boolean(goal?.taskIds.includes(taskId))
+    if (!alreadyLinked) {
+      const task = state.tasks.find((t) => t.id === taskId)
+      if (!task || !taskRepeats(task)) {
+        setToast('Pick a recurring task')
+        return
+      }
+    }
     updateState((prev) => ({
       ...prev,
-      goals: prev.goals.map((goal) => {
-        if (goal.id !== goalId) return goal
-        const has = goal.taskIds.includes(taskId)
+      goals: prev.goals.map((g) => {
+        if (g.id !== goalId) return g
+        const has = g.taskIds.includes(taskId)
         return {
-          ...goal,
+          ...g,
           taskIds: has
-            ? goal.taskIds.filter((id) => id !== taskId)
-            : [...goal.taskIds, taskId],
+            ? g.taskIds.filter((id) => id !== taskId)
+            : [...g.taskIds, taskId],
         }
       }),
     }))
@@ -4707,7 +4721,9 @@ export default function App() {
                       const bullets = [
                         ...goal.taskIds.map((id) => {
                           const task = state.tasks.find((t) => t.id === id)
-                          return task ? `Task: ${task.title}` : null
+                          return task && taskRepeats(task)
+                            ? `Task: ${task.title}`
+                            : null
                         }),
                         ...goal.projectIds.map((id) => {
                           const project = state.projects.find(
@@ -4826,7 +4842,8 @@ export default function App() {
                 ) : null}
                 <h2 className="category-heading">Linked work</h2>
                 <p className="muted reorder-hint view-hint">
-                  Tap to assign or unassign tasks and projects for this goal.
+                  Tap to assign or unassign recurring tasks and projects for
+                  this goal.
                 </p>
                 {goalProgressedOnDate(activeGoal, state, todayKey) ? (
                   <p className="goal-today-note">Progressed today ✓</p>
@@ -4835,20 +4852,26 @@ export default function App() {
                 )}
 
                 <h3 className="subheading">Tasks</h3>
-                {state.tasks.length === 0 ? (
-                  <p className="muted view-hint">No tasks to link yet.</p>
+                {recurringTasksForGoals.length === 0 ? (
+                  <p className="muted view-hint">
+                    No recurring tasks to link yet.
+                  </p>
                 ) : (
                   <ul className="task-list">
-                    {state.tasks.map((task) => {
+                    {recurringTasksForGoals.map((task) => {
                       const linked = activeGoal.taskIds.includes(task.id)
                       return (
                         <li key={task.id} className="task-item assign-item">
                           <button
                             type="button"
                             className={`assign-btn${linked ? ' linked' : ''}`}
-                            onClick={() => toggleGoalTask(activeGoal.id, task.id)}
+                            onClick={() =>
+                              toggleGoalTask(activeGoal.id, task.id)
+                            }
                           >
-                            <span className="assign-mark">{linked ? '●' : '○'}</span>
+                            <span className="assign-mark">
+                              {linked ? '●' : '○'}
+                            </span>
                             <span className="task-title">{task.title}</span>
                           </button>
                         </li>
