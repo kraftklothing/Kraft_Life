@@ -2523,32 +2523,19 @@ export default function App() {
   }
 
   function deleteProjectStep(projectId: string, stepId: string) {
-    const today = toDateKey(startToday())
-    updateState((prev) => {
-      let dollars = prev.dollars
-      let dollarLedger = prev.dollarLedger
-      const projects = prev.projects.map((project) => {
-        if (project.id !== projectId) return project
-        const removed = project.steps.find((s) => s.id === stepId)
-        if (removed?.completed && removed.dollars > 0) {
-          const clawback = Math.min(dollars, removed.dollars)
-          dollars = Math.max(0, dollars - removed.dollars)
-          if (clawback > 0) {
-            dollarLedger = appendLedgerEntry(dollarLedger, {
-              dateKey: today,
-              amount: -clawback,
-              kind: 'earned',
-              label: `Removed · ${project.name}: ${removed.title}`,
-            })
-          }
-        }
-        return {
-          ...project,
-          steps: project.steps.filter((s) => s.id !== stepId),
-        }
-      })
-      return { ...prev, projects, dollars, dollarLedger }
-    })
+    // Keep earned $ when clearing a completed step — deleting is cleanup, not undo.
+    // Unchecking a step still claws back via toggleProjectStep.
+    updateState((prev) => ({
+      ...prev,
+      projects: prev.projects.map((project) =>
+        project.id !== projectId
+          ? project
+          : {
+              ...project,
+              steps: project.steps.filter((s) => s.id !== stepId),
+            },
+      ),
+    }))
     if (editingStepId === stepId) {
       setEditingStepId(null)
       setAddOpen(false)
