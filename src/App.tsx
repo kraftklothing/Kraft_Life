@@ -513,6 +513,13 @@ function formatMonthLabel(monthKey: string): string {
   })
 }
 
+function formatMonthShortLabel(monthKey: string): string {
+  const [yearRaw, monthRaw] = monthKey.split('-').map(Number)
+  return new Date(yearRaw, (monthRaw || 1) - 1, 1).toLocaleDateString(undefined, {
+    month: 'short',
+  })
+}
+
 /**
  * Days left in monthKey from today (including today), skipping vacation days.
  * Past months → 0; future → non-vacation days in that month.
@@ -1404,7 +1411,14 @@ export default function App() {
     const currentMonthEntries = spendingEntriesForMonth.filter(
       (entry) => entry.streamId === activeSpendingStreamId,
     )
-    return { months, average, currentMonthEntries }
+    /** Oldest → newest for left-to-right chart reading. */
+    const chartMonths = [...months].reverse()
+    const chartMax = Math.max(
+      ...months.map((row) => row.amount),
+      average,
+      0.01,
+    )
+    return { months, average, currentMonthEntries, chartMonths, chartMax }
   }, [
     activeSpendingStreamId,
     spendingMonth,
@@ -5195,6 +5209,67 @@ export default function App() {
                   </button>
                 </div>
               </div>
+              <section
+                className="task-group spending-month-chart-card"
+                aria-label="Monthly comparison chart"
+              >
+                <div
+                  className="spending-month-chart"
+                  role="img"
+                  aria-label={`Spending by month. 6-month average $${streamMonthComparison.average.toFixed(2)}`}
+                >
+                  <div className="spending-month-chart-plot">
+                    {streamMonthComparison.average > 0 ? (
+                      <div
+                        className="spending-month-chart-avg-line"
+                        style={{
+                          bottom: `${
+                            (streamMonthComparison.average /
+                              streamMonthComparison.chartMax) *
+                            100
+                          }%`,
+                        }}
+                        title={`Average $${streamMonthComparison.average.toFixed(2)}`}
+                      />
+                    ) : null}
+                    <div className="spending-month-chart-bars">
+                      {streamMonthComparison.chartMonths.map((row) => {
+                        const heightPct =
+                          (row.amount / streamMonthComparison.chartMax) * 100
+                        const isCurrent = row.monthKey === spendingMonth
+                        return (
+                          <div
+                            key={row.monthKey}
+                            className={`spending-month-chart-col${
+                              isCurrent ? ' current' : ''
+                            }`}
+                          >
+                            <div className="spending-month-chart-bar-track">
+                              <div
+                                className="spending-month-chart-bar"
+                                style={{ height: `${Math.max(heightPct, 1.5)}%` }}
+                                title={`${formatMonthLabel(row.monthKey)}: $${row.amount.toFixed(2)}`}
+                              />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div className="spending-month-chart-labels" aria-hidden="true">
+                    {streamMonthComparison.chartMonths.map((row) => (
+                      <span
+                        key={row.monthKey}
+                        className={`spending-month-chart-label${
+                          row.monthKey === spendingMonth ? ' current' : ''
+                        }`}
+                      >
+                        {formatMonthShortLabel(row.monthKey)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </section>
               <section className="task-group" aria-label="Monthly comparison">
                 <h2 className="category-heading">Monthly comparison</h2>
                 <ul className="task-list">
@@ -5433,6 +5508,7 @@ export default function App() {
       {mainView === 'summary' && (
         <SummaryView
           tasks={state.tasks}
+          taskCategories={state.taskCategories}
           realSpending={state.realSpending}
           dollarLedger={state.dollarLedger}
           todayKey={todayKey}

@@ -6,7 +6,12 @@ import {
   parseDateKey,
   toDateKey,
 } from './dates'
-import type { DollarLedgerEntry, SpendingEntry, Task } from './types'
+import type {
+  Category,
+  DollarLedgerEntry,
+  SpendingEntry,
+  Task,
+} from './types'
 
 export type SummaryRangeUnit = 'days' | 'months' | 'years'
 
@@ -113,16 +118,18 @@ function daysInMonthPeriod(
   monthKey: string,
   today: Date,
   vacationDays?: Record<string, boolean>,
+  /** When false, vacation days still count toward the period length. */
+  excludeVacation = true,
 ): number {
   const start = parseMonthKey(monthKey)
   const next = shiftMonthDate(start, 1)
   const endExclusive = next <= today ? next : addDays(today, 1)
   const last = addDays(endExclusive, -1)
   if (last < start) return 1
-  const active = excludeVacationDayKeys(
-    dayKeysInclusive(start, last),
-    vacationDays,
-  )
+  const keys = dayKeysInclusive(start, last)
+  const active = excludeVacation
+    ? excludeVacationDayKeys(keys, vacationDays)
+    : keys
   return Math.max(1, active.length)
 }
 
@@ -130,16 +137,18 @@ function daysInYearPeriod(
   year: number,
   today: Date,
   vacationDays?: Record<string, boolean>,
+  /** When false, vacation days still count toward the period length. */
+  excludeVacation = true,
 ): number {
   const start = new Date(year, 0, 1)
   const next = new Date(year + 1, 0, 1)
   const endExclusive = next <= today ? next : addDays(today, 1)
   const last = addDays(endExclusive, -1)
   if (last < start) return 1
-  const active = excludeVacationDayKeys(
-    dayKeysInclusive(start, last),
-    vacationDays,
-  )
+  const keys = dayKeysInclusive(start, last)
+  const active = excludeVacation
+    ? excludeVacationDayKeys(keys, vacationDays)
+    : keys
   return Math.max(1, active.length)
 }
 
@@ -172,14 +181,29 @@ function shortMonthLabel(monthKey: string): string {
   })
 }
 
+/** Matches day-view progress: reminder categories and calendar events do not count. */
+function countsTowardTaskAverage(
+  task: Task,
+  categories: Category[],
+): boolean {
+  if (task.id.startsWith('calendar:')) return false
+  return !task.categoryIds.some((categoryId) =>
+    categories.some(
+      (category) => category.id === categoryId && category.reminders === true,
+    ),
+  )
+}
+
 function buildTaskTotalsByDay(
   tasks: Task[],
+  categories: Category[],
   dayKeys: string[],
 ): Record<string, number> {
   const byDay: Record<string, number> = Object.fromEntries(
     dayKeys.map((key) => [key, 0]),
   )
   for (const task of tasks) {
+    if (!countsTowardTaskAverage(task, categories)) continue
     for (const [dateKey, done] of Object.entries(task.completions)) {
       if (!done || !(dateKey in byDay)) continue
       byDay[dateKey] += 1
@@ -227,9 +251,12 @@ function pointsFromDayTotals(
   totalsByDay: Record<string, number>,
   dayKeys: string[],
   vacationDays?: Record<string, boolean>,
+  /** When true (default), vacation days break the line and plot as gaps. */
+  gapOnVacation = true,
 ): DailyPoint[] {
   return dayKeys.map((dateKey) => {
-    const gap = isVacationDay(vacationDays, dateKey)
+    const onVacation = isVacationDay(vacationDays, dateKey)
+    const gap = gapOnVacation && onVacation
     return {
       dateKey,
       label: shortDayLabel(dateKey),
@@ -244,15 +271,22 @@ function aggregateByMonth(
   monthKeys: string[],
   today: Date,
   vacationDays?: Record<string, boolean>,
+  /** When true (default), skip vacation days in totals and divisor. */
+  excludeVacation = true,
 ): DailyPoint[] {
   return monthKeys.map((monthKey) => {
     let total = 0
     for (const [dateKey, value] of Object.entries(totalsByDay)) {
       if (!dateKey.startsWith(`${monthKey}-`)) continue
-      if (isVacationDay(vacationDays, dateKey)) continue
+      if (excludeVacation && isVacationDay(vacationDays, dateKey)) continue
       total += value
     }
-    const days = daysInMonthPeriod(monthKey, today, vacationDays)
+    const days = daysInMonthPeriod(
+      monthKey,
+      today,
+      vacationDays,
+      excludeVacation,
+    )
     return {
       dateKey: `${monthKey}-01`,
       label: shortMonthLabel(monthKey),
@@ -266,16 +300,18 @@ function aggregateByYear(
   years: number[],
   today: Date,
   vacationDays?: Record<string, boolean>,
+  /** When true (default), skip vacation days in totals and divisor. */
+  excludeVacation = true,
 ): DailyPoint[] {
   return years.map((year) => {
     const prefix = `${year}-`
     let total = 0
     for (const [dateKey, value] of Object.entries(totalsByDay)) {
       if (!dateKey.startsWith(prefix)) continue
-      if (isVacationDay(vacationDays, dateKey)) continue
+      if (excludeVacation && isVacationDay(vacationDays, dateKey)) continue
       total += value
     }
-    const days = daysInYearPeriod(year, today, vacationDays)
+    const days = daysInYearPeriod(year, today, vacationDays, excludeVacation)
     return {
       dateKey: `${year}-01-01`,
       label: String(year),
@@ -292,11 +328,21 @@ function buildSeriesPoints(
   today: Date,
   amount: number,
   vacationDays?: Record<string, boolean>,
+  /**
+   * When false, plot and average through vacation days (used for spend).
+   * Tasks / rewards still gap so vacation doesn't pull those averages down.
+   */
+  gapOnVacation = true,
 ): { points: DailyPoint[]; average: number } {
   const average = averageDailyFromTotals(totalsByDay, averageDayKeys)
   if (rangeUnit === 'days') {
     return {
-      points: pointsFromDayTotals(totalsByDay, chartDayKeys, vacationDays),
+      points: pointsFromDayTotals(
+        totalsByDay,
+        chartDayKeys,
+        vacationDays,
+        gapOnVacation,
+      ),
       average,
     }
   }
@@ -307,6 +353,7 @@ function buildSeriesPoints(
         recentMonthKeys(today, amount),
         today,
         vacationDays,
+        gapOnVacation,
       ),
       average,
     }
@@ -317,6 +364,7 @@ function buildSeriesPoints(
       recentYearKeys(today, amount),
       today,
       vacationDays,
+      gapOnVacation,
     ),
     average,
   }
@@ -551,6 +599,7 @@ function SummaryRangePicker({
 
 interface SummaryViewProps {
   tasks: Task[]
+  taskCategories: Category[]
   realSpending: SpendingEntry[]
   dollarLedger: DollarLedgerEntry[]
   todayKey: string
@@ -559,6 +608,7 @@ interface SummaryViewProps {
 
 export default function SummaryView({
   tasks,
+  taskCategories,
   realSpending,
   dollarLedger,
   todayKey,
@@ -583,7 +633,11 @@ export default function SummaryView({
     const averageDayKeys = excludeVacationDayKeys(chartDayKeys, vacationDays)
     const windowLabel = rangeWindowLabel(rangeUnit, amount)
 
-    const taskTotals = buildTaskTotalsByDay(tasks, chartDayKeys)
+    const taskTotals = buildTaskTotalsByDay(
+      tasks,
+      taskCategories,
+      chartDayKeys,
+    )
     const spendTotals = buildSpendTotalsByDay(realSpending, chartDayKeys)
     const earnedTotals = buildLedgerTotalsByDay(
       dollarLedger,
@@ -596,26 +650,31 @@ export default function SummaryView({
       title: string,
       unit: 'count' | 'dollars',
       totals: Record<string, number>,
+      gapOnVacation = true,
     ): SummaryChartSeries => {
+      const seriesAverageKeys = gapOnVacation ? averageDayKeys : chartDayKeys
       const { points, average } = buildSeriesPoints(
         totals,
         chartDayKeys,
-        averageDayKeys,
+        seriesAverageKeys,
         rangeUnit,
         today,
         amount,
         vacationDays,
+        gapOnVacation,
       )
       return { id, title, unit, points, average, windowLabel }
     }
 
     return [
       make('tasks', 'Avg tasks completed', 'count', taskTotals),
-      make('spend', 'Avg spend', 'dollars', spendTotals),
+      // Real-world spend still happens on vacation — keep the line continuous.
+      make('spend', 'Avg spend', 'dollars', spendTotals, false),
       make('rewards-earned', 'Avg rewards earned', 'dollars', earnedTotals),
     ]
   }, [
     tasks,
+    taskCategories,
     realSpending,
     dollarLedger,
     todayKey,

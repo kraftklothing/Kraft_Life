@@ -2341,6 +2341,92 @@ form.add-panel select {
   font-size: 0.95rem;
 }
 
+.spending-month-chart-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 12px 10px;
+  box-shadow: var(--shadow);
+}
+
+.spending-month-chart {
+  display: grid;
+  gap: 8px;
+}
+
+.spending-month-chart-plot {
+  position: relative;
+  height: 120px;
+}
+
+.spending-month-chart-bars {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.spending-month-chart-col {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+}
+
+.spending-month-chart-bar-track {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.spending-month-chart-bar {
+  width: 70%;
+  max-width: 28px;
+  min-height: 2px;
+  border-radius: 6px 6px 2px 2px;
+  background: var(--accent-wash);
+  border: 1px solid var(--accent-soft);
+}
+
+.spending-month-chart-col.current .spending-month-chart-bar {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.spending-month-chart-avg-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1.25px dashed var(--accent-soft);
+  opacity: 0.7;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.spending-month-chart-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.spending-month-chart-label {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: center;
+  font-size: 0.65rem;
+  line-height: 1;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+}
+
+.spending-month-chart-label.current {
+  color: var(--accent);
+  font-weight: 700;
+}
+
 .task-item.spending-month-current {
   border-color: rgba(196, 92, 42, 0.35);
   background: var(--accent-wash);
