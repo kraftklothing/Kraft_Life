@@ -83,12 +83,14 @@ function normalizeSteps(raw: unknown): ProjectStep[] {
       dollars?: unknown
       completed?: unknown
       completedOn?: unknown
+      repetition?: unknown
       order?: unknown
     }
     if (typeof s.id !== 'string' || typeof s.title !== 'string') return
     const dollars = typeof s.dollars === 'number' ? s.dollars : Number(s.dollars)
     if (!Number.isFinite(dollars) || dollars < 0) return
     const completed = Boolean(s.completed)
+    const repetition = s.repetition === 'daily' ? 'daily' : 'none'
     steps.push({
       id: s.id,
       title: s.title,
@@ -96,6 +98,7 @@ function normalizeSteps(raw: unknown): ProjectStep[] {
       completed,
       completedOn:
         completed && typeof s.completedOn === 'string' ? s.completedOn : null,
+      repetition,
       order: typeof s.order === 'number' ? s.order : index,
     })
   })
