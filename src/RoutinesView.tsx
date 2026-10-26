@@ -255,6 +255,10 @@ export default function RoutinesView({
                 {sortedRoutines.map((routine) => {
                   const total = routine.steps.length
                   const seconds = routineTotalSeconds(routine)
+                  const finishLabel =
+                    total > 0
+                      ? formatEstimatedFinishMst(seconds, nowMs)
+                      : null
                   return (
                     <li
                       key={routine.id}
@@ -289,6 +293,14 @@ export default function RoutinesView({
                               ? 'No steps yet'
                               : `${total} step${total === 1 ? '' : 's'} · ${formatCountdown(seconds)}`}
                           </span>
+                          {finishLabel ? (
+                            <span
+                              className="badge"
+                              aria-label={`If started now, done by ${finishLabel}`}
+                            >
+                              Done by {finishLabel}
+                            </span>
+                          ) : null}
                           {routine.completionReward > 0 ? (
                             <span className="badge">
                               +${routine.completionReward} if all done
@@ -365,7 +377,12 @@ export default function RoutinesView({
               </button>
             </div>
             <p className="muted reorder-hint view-hint">
-              Drag to set the order. Linked tasks mark off in Tasks when you
+              If started now · done by{' '}
+              {formatEstimatedFinishMst(
+                routineTotalSeconds(activeRoutine),
+                nowMs,
+              )}
+              . Drag to set the order. Linked tasks mark off in Tasks when you
               complete them here. Custom steps never earn task money. Finish
               every step (no skips) for the +$
               {activeRoutine.completionReward} routine reward.
