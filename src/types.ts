@@ -57,8 +57,9 @@ export interface Task {
   /** Per-day completion map keyed by YYYY-MM-DD. */
   completions: Record<string, boolean>
   /**
-   * Days the task was moved/deferred off of (YYYY-MM-DD → true).
-   * Deferred days hide the task and exclude it from that day's % complete.
+   * Days the task was moved onward from (YYYY-MM-DD → true).
+   * Those days keep the task on the to-do list and in that day's % complete
+   * until it is done — even if startDate now points at a later day.
    */
   deferredDates?: Record<string, boolean>
   /**
