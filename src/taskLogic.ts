@@ -218,6 +218,30 @@ export function withDeferredDate(task: Task, dateKey: string): Task {
   }
 }
 
+/** Clear a deferred day (e.g. when rescheduling the task back onto that day). */
+export function withoutDeferredDate(task: Task, dateKey: string): Task {
+  if (!task.deferredDates?.[dateKey]) return task
+  const { [dateKey]: _removed, ...rest } = task.deferredDates
+  return {
+    ...task,
+    deferredDates: Object.keys(rest).length > 0 ? rest : undefined,
+  }
+}
+
+/**
+ * A task scheduled for a day should not also be marked deferred on that same
+ * day — that combination hides it from its own start day while rollover still
+ * shows it tomorrow (the "moved to today but missing until tomorrow" glitch).
+ */
+export function clearDeferredOnStartDate(
+  deferredDates: Record<string, boolean> | undefined,
+  startDate: string,
+): Record<string, boolean> | undefined {
+  if (!deferredDates?.[startDate]) return deferredDates
+  const { [startDate]: _removed, ...rest } = deferredDates
+  return Object.keys(rest).length > 0 ? rest : undefined
+}
+
 export function occurrenceForDate(task: Task, dateKey: string): string | null {
   // Moved-on days stay out of the list and out of % complete (unless done that day).
   if (isDeferredOn(task, dateKey) && !task.completions[dateKey]) {
