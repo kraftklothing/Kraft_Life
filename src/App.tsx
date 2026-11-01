@@ -622,6 +622,22 @@ function totalForStreamInMonth(
   return Math.round(total * 100) / 100
 }
 
+/** Prefer the default `fun` id, then any stream whose name starts with "Fun". */
+function findFunStream(streams: BudgetingStream[]): BudgetingStream | null {
+  const byId = streams.find((stream) => stream.id === 'fun')
+  if (byId) return byId
+  return (
+    streams.find((stream) => {
+      const name = stream.name.trim().toLowerCase()
+      return name === 'fun' || name.startsWith('fun ') || name.startsWith('fun(')
+    }) ?? null
+  )
+}
+
+function roundMoney(amount: number): number {
+  return Math.round(amount * 100) / 100
+}
+
 export default function App() {
   const { scheduleSave, takeLoadedState, cloudLoadCount, unlocked } = useCloudSync()
   const [state, setState] = useState<AppState>(() => loadState())
@@ -680,6 +696,8 @@ export default function App() {
   )
   const [newSpendingNote, setNewSpendingNote] = useState('')
   const [newSpendingAffectsVirtual, setNewSpendingAffectsVirtual] = useState(false)
+  const [newSpendingSplitStream, setNewSpendingSplitStream] = useState(false)
+  const [newSpendingFunAmount, setNewSpendingFunAmount] = useState('')
   const [editingSpendingId, setEditingSpendingId] = useState<string | null>(null)
   const [activeSpendingStreamId, setActiveSpendingStreamId] = useState<
     string | null
@@ -1431,6 +1449,21 @@ export default function App() {
     spendingEntriesForMonth,
   ])
 
+  const funBudgetingStream = findFunStream(state.budgetingStreams)
+  const splitFunAmountValue = Number(newSpendingFunAmount)
+  const splitTotalAmountValue = Number(newSpendingAmount)
+  const splitNotFunRemainder =
+    newSpendingSplitStream &&
+    Number.isFinite(splitTotalAmountValue) &&
+    splitTotalAmountValue > 0 &&
+    Number.isFinite(splitFunAmountValue) &&
+    splitFunAmountValue > 0
+      ? roundMoney(splitTotalAmountValue - splitFunAmountValue)
+      : null
+  const splitNotFunStreamName =
+    state.budgetingStreams.find((stream) => stream.id === newSpendingStreamId)
+      ?.name ?? 'not-fun stream'
+
   function updateState(updater: (prev: AppState) => AppState) {
     setState((prev) => {
       const next = updater(prev)
@@ -1565,6 +1598,8 @@ export default function App() {
     setNewSpendingDate(defaultSpendingDateForMonth(spendingMonth))
     setNewSpendingNote('')
     setNewSpendingAffectsVirtual(false)
+    setNewSpendingSplitStream(false)
+    setNewSpendingFunAmount('')
   }
 
   function toggleComposerCategory(id: string) {
@@ -1800,6 +1835,8 @@ export default function App() {
         setNewSpendingDate(defaultSpendingDateForMonth(spendingMonth))
         setNewSpendingNote('')
         setNewSpendingAffectsVirtual(false)
+        setNewSpendingSplitStream(false)
+        setNewSpendingFunAmount('')
       }
       setAddOpen(true)
       setAddError('')
@@ -2891,6 +2928,18 @@ export default function App() {
     )
   }
 
+  function resetSpendingComposerFields(dateKey = defaultSpendingDateForMonth(spendingMonth)) {
+    setEditingSpendingId(null)
+    setNewSpendingAmount('')
+    setNewSpendingStreamId('')
+    setNewSpendingAccountId('')
+    setNewSpendingDate(dateKey)
+    setNewSpendingNote('')
+    setNewSpendingAffectsVirtual(false)
+    setNewSpendingSplitStream(false)
+    setNewSpendingFunAmount('')
+  }
+
   function addSpendingEntry() {
     const amount = Number(newSpendingAmount)
     const streamId = newSpendingStreamId.trim()
@@ -2900,11 +2949,19 @@ export default function App() {
       return
     }
     if (!streamId) {
-      setToast('Choose a budgeting stream')
+      setToast(
+        newSpendingSplitStream
+          ? 'Choose a not-fun budgeting stream'
+          : 'Choose a budgeting stream',
+      )
       return
     }
     if (!state.budgetingStreams.some((stream) => stream.id === streamId)) {
-      setToast('Choose a budgeting stream')
+      setToast(
+        newSpendingSplitStream
+          ? 'Choose a not-fun budgeting stream'
+          : 'Choose a budgeting stream',
+      )
       return
     }
     if (!accountId) {
@@ -2920,32 +2977,91 @@ export default function App() {
       setToast('Choose a valid day for this cost')
       return
     }
-    const roundedAmount = Math.round(amount * 100) / 100
-    updateState((prev) => {
-      const nextEntry: SpendingEntry = {
-        id: editingSpendingId ?? uid('spending'),
-        at: Date.now(),
-        dateKey,
-        amount: roundedAmount,
-        streamId,
-        accountId,
-        note: newSpendingNote.trim(),
-        impactsVirtualDollars: newSpendingAffectsVirtual,
+    const roundedAmount = roundMoney(amount)
+    const note = newSpendingNote.trim()
+    const now = Date.now()
+
+    let nextEntries: SpendingEntry[]
+    if (newSpendingSplitStream) {
+      const funStream = findFunStream(state.budgetingStreams)
+      if (!funStream) {
+        setToast('Add a Fun budgeting stream first')
+        return
       }
+      if (streamId === funStream.id) {
+        setToast('Pick a different stream for the not-fun half')
+        return
+      }
+      const funAmount = Number(newSpendingFunAmount)
+      if (!Number.isFinite(funAmount) || funAmount <= 0) {
+        setToast('Enter a Fun amount greater than 0')
+        return
+      }
+      const roundedFun = roundMoney(funAmount)
+      const roundedNotFun = roundMoney(roundedAmount - roundedFun)
+      if (roundedNotFun <= 0) {
+        setToast('Fun amount must be less than the total')
+        return
+      }
+      if (roundMoney(roundedFun + roundedNotFun) !== roundedAmount) {
+        setToast('Split amounts must add up to the total')
+        return
+      }
+      nextEntries = [
+        {
+          id: uid('spending'),
+          at: now,
+          dateKey,
+          amount: roundedFun,
+          streamId: funStream.id,
+          accountId,
+          note,
+          impactsVirtualDollars: newSpendingAffectsVirtual,
+        },
+        {
+          id: editingSpendingId ?? uid('spending'),
+          at: now,
+          dateKey,
+          amount: roundedNotFun,
+          streamId,
+          accountId,
+          note,
+          impactsVirtualDollars: newSpendingAffectsVirtual,
+        },
+      ]
+    } else {
+      nextEntries = [
+        {
+          id: editingSpendingId ?? uid('spending'),
+          at: now,
+          dateKey,
+          amount: roundedAmount,
+          streamId,
+          accountId,
+          note,
+          impactsVirtualDollars: newSpendingAffectsVirtual,
+        },
+      ]
+    }
+
+    updateState((prev) => {
       let realSpending: SpendingEntry[]
       if (editingSpendingId) {
-        realSpending = prev.realSpending.map((entry) =>
-          entry.id === editingSpendingId ? nextEntry : entry,
-        )
+        realSpending = [
+          ...nextEntries,
+          ...prev.realSpending.filter((entry) => entry.id !== editingSpendingId),
+        ]
       } else {
-        realSpending = [nextEntry, ...prev.realSpending]
+        realSpending = [...nextEntries, ...prev.realSpending]
       }
       const old = editingSpendingId
         ? prev.realSpending.find((entry) => entry.id === editingSpendingId)
         : null
       const oldImpact = old?.impactsVirtualDollars ? old.amount : 0
-      const newImpact = nextEntry.impactsVirtualDollars ? roundedAmount : 0
-      const virtualDelta = newImpact - oldImpact
+      const newImpact = newSpendingAffectsVirtual
+        ? nextEntries.reduce((sum, entry) => sum + entry.amount, 0)
+        : 0
+      const virtualDelta = roundMoney(newImpact - oldImpact)
       if (virtualDelta === 0) return { ...prev, realSpending }
       return {
         ...prev,
@@ -2960,7 +3076,7 @@ export default function App() {
           kind: virtualDelta > 0 ? 'spent' : 'adjusted',
           label:
             virtualDelta > 0
-              ? `Real spend${newSpendingNote.trim() ? ` · ${newSpendingNote.trim()}` : ''}`
+              ? `Real spend${note ? ` · ${note}` : ''}`
               : 'Real spend adjustment',
         }),
       }
@@ -2969,15 +3085,19 @@ export default function App() {
     if (entryMonth !== spendingMonth) {
       setSpendingMonth(entryMonth)
     }
-    setEditingSpendingId(null)
-    setNewSpendingAmount('')
-    setNewSpendingStreamId('')
-    setNewSpendingAccountId('')
-    setNewSpendingDate(dateKey)
-    setNewSpendingNote('')
-    setNewSpendingAffectsVirtual(false)
+    const wasEditing = Boolean(editingSpendingId)
+    const wasSplit = newSpendingSplitStream
+    resetSpendingComposerFields(dateKey)
     setAddOpen(false)
-    setToast(editingSpendingId ? 'Spending updated' : 'Spending added')
+    setToast(
+      wasSplit
+        ? wasEditing
+          ? 'Spending split updated'
+          : 'Spending split added'
+        : wasEditing
+          ? 'Spending updated'
+          : 'Spending added',
+    )
   }
 
   function openEditSpendingEntry(entry: SpendingEntry) {
@@ -2988,6 +3108,8 @@ export default function App() {
     setNewSpendingDate(entry.dateKey)
     setNewSpendingNote(entry.note)
     setNewSpendingAffectsVirtual(entry.impactsVirtualDollars)
+    setNewSpendingSplitStream(false)
+    setNewSpendingFunAmount('')
     setMainView('budgeting')
     setAddOpen(true)
   }
@@ -3012,14 +3134,8 @@ export default function App() {
       }
     })
     if (editingSpendingId === id) {
-      setEditingSpendingId(null)
       setAddOpen(false)
-      setNewSpendingAmount('')
-      setNewSpendingStreamId('')
-      setNewSpendingAccountId('')
-      setNewSpendingDate(defaultSpendingDateForMonth(spendingMonth))
-      setNewSpendingNote('')
-      setNewSpendingAffectsVirtual(false)
+      resetSpendingComposerFields()
     }
     setToast('Spending deleted')
   }
@@ -6629,20 +6745,91 @@ export default function App() {
               />
             </label>
             <label>
-              Budgeting stream
+              {newSpendingSplitStream ? 'Not-fun stream' : 'Budgeting stream'}
               <select
                 value={newSpendingStreamId}
                 onChange={(event) => setNewSpendingStreamId(event.target.value)}
                 required
               >
-                <option value="">Choose a stream…</option>
-                {state.budgetingStreams.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.name}
-                  </option>
-                ))}
+                <option value="">
+                  {newSpendingSplitStream
+                    ? 'Choose not-fun stream…'
+                    : 'Choose a stream…'}
+                </option>
+                {state.budgetingStreams
+                  .filter(
+                    (type) =>
+                      !newSpendingSplitStream ||
+                      !funBudgetingStream ||
+                      type.id !== funBudgetingStream.id,
+                  )
+                  .map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
               </select>
             </label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={newSpendingSplitStream}
+                onChange={(event) => {
+                  const checked = event.target.checked
+                  setNewSpendingSplitStream(checked)
+                  if (!checked) {
+                    setNewSpendingFunAmount('')
+                    return
+                  }
+                  if (
+                    funBudgetingStream &&
+                    newSpendingStreamId === funBudgetingStream.id
+                  ) {
+                    setNewSpendingStreamId('')
+                  }
+                }}
+              />
+              Split stream
+            </label>
+            {newSpendingSplitStream ? (
+              <div className="split-stream-expand" aria-live="polite">
+                <p className="split-stream-lead">
+                  Split this cost between{' '}
+                  <strong>{funBudgetingStream?.name ?? 'Fun'}</strong> and{' '}
+                  <strong>{splitNotFunStreamName}</strong>.
+                </p>
+                {!funBudgetingStream ? (
+                  <p className="muted">
+                    Add a Fun budgeting stream in Settings to use split.
+                  </p>
+                ) : (
+                  <>
+                    <label>
+                      Fun amount
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min={0.01}
+                        step={0.01}
+                        value={newSpendingFunAmount}
+                        onChange={(event) =>
+                          setNewSpendingFunAmount(event.target.value)
+                        }
+                        placeholder="0.00"
+                      />
+                    </label>
+                    <p className="split-stream-remainder">
+                      {splitNotFunRemainder != null && splitNotFunRemainder > 0
+                        ? `Not fun (${splitNotFunStreamName}): $${splitNotFunRemainder.toFixed(2)}`
+                        : splitNotFunRemainder != null &&
+                            splitNotFunRemainder <= 0
+                          ? 'Fun amount must be less than the total'
+                          : 'Enter a Fun amount — the rest goes to not fun'}
+                    </p>
+                  </>
+                )}
+              </div>
+            ) : null}
             <label>
               Bank account
               <select
@@ -6673,7 +6860,9 @@ export default function App() {
               <input
                 type="checkbox"
                 checked={newSpendingAffectsVirtual}
-                onChange={(event) => setNewSpendingAffectsVirtual(event.target.checked)}
+                onChange={(event) =>
+                  setNewSpendingAffectsVirtual(event.target.checked)
+                }
               />
               Also subtract this from virtual app money
             </label>
@@ -6682,7 +6871,10 @@ export default function App() {
                 type="button"
                 className="btn btn-primary"
                 disabled={
-                  !newSpendingStreamId.trim() || !newSpendingAccountId.trim()
+                  !newSpendingStreamId.trim() ||
+                  !newSpendingAccountId.trim() ||
+                  (newSpendingSplitStream &&
+                    (!funBudgetingStream || !newSpendingFunAmount.trim()))
                 }
                 onClick={addSpendingEntry}
               >

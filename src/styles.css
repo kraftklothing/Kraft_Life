@@ -807,6 +807,34 @@ button {
   font-size: 0.95rem;
 }
 
+.split-stream-expand {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.55);
+  animation: fade-in 0.18s ease both;
+}
+
+.split-stream-lead,
+.split-stream-remainder {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+
+.split-stream-lead strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.split-stream-expand label {
+  margin: 0;
+}
+
 .goal-item {
   grid-template-columns: auto 1fr auto;
   align-items: start;
