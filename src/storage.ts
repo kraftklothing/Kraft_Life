@@ -34,6 +34,7 @@ import {
   normalizeConnectedCalendars,
   readLegacyLocalCalendars,
 } from './calendarSession'
+import { clearDeferredOnStartDate } from './taskLogic'
 
 const STORAGE_KEY = 'kraft-life-v1'
 const MAX_LEDGER_ENTRIES = 400
@@ -403,7 +404,12 @@ function normalizeTasks(raw: unknown): Task[] {
       startDate: t.startDate,
       completions:
         t.completions && typeof t.completions === 'object' ? t.completions : {},
-      deferredDates: normalizeDeferredDates(t.deferredDates),
+      // Drop deferredDates[startDate] — that combo hid tasks from their own
+      // start day after move-away-then-back (see withoutDeferredDate).
+      deferredDates: clearDeferredOnStartDate(
+        normalizeDeferredDates(t.deferredDates),
+        t.startDate,
+      ),
       visibleInModes: normalizeVisibleInModes(t),
       order: typeof t.order === 'number' ? t.order : 0,
       createdAt: typeof t.createdAt === 'number' ? t.createdAt : Date.now(),

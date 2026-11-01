@@ -26,6 +26,7 @@ import {
   taskVisibleInDayMode,
   taskVisibleInMode,
   withDeferredDate,
+  withoutDeferredDate,
 } from './taskLogic'
 import {
   goalProgressedOnDate,
@@ -1651,15 +1652,21 @@ export default function App() {
         tasks: prev.tasks.map((task) => {
           if (task.id !== editingTaskId) return task
           dayChanged = dayKey !== task.startDate
-          const updated: Task = {
-            ...task,
-            title: trimmed,
-            categoryIds: selectedCategories,
-            repetition,
-            customRepeat: keepsCustomRepeat ? customRepeat : undefined,
-            startDate: dayKey,
-            visibleInModes: { ...visibleInModes },
-          }
+          // Rescheduling onto a day must clear that day's deferral — otherwise
+          // today→future→today left deferredDates[today] set, so the task said
+          // it started today but stayed hidden until rollover tomorrow.
+          let updated: Task = withoutDeferredDate(
+            {
+              ...task,
+              title: trimmed,
+              categoryIds: selectedCategories,
+              repetition,
+              customRepeat: keepsCustomRepeat ? customRepeat : undefined,
+              startDate: dayKey,
+              visibleInModes: { ...visibleInModes },
+            },
+            dayKey,
+          )
           // Only mark the viewed day deferred when the edit actually makes the
           // task leave that day. Rolled-over one-offs keep their original
           // startDate in the Day field, so dayKey !== viewKey alone used to
@@ -1667,12 +1674,10 @@ export default function App() {
           const movedOffView =
             taskVisibleOnDate(task, viewKey) &&
             !taskVisibleOnDate(updated, viewKey)
-          return {
-            ...updated,
-            deferredDates: movedOffView
-              ? { ...task.deferredDates, [viewKey]: true }
-              : task.deferredDates,
+          if (movedOffView) {
+            updated = withDeferredDate(updated, viewKey)
           }
+          return updated
         }),
       }))
       if (dayChanged) {
@@ -3581,7 +3586,10 @@ export default function App() {
         let next = withDeferredDate(task, viewKey)
         // One-shot tasks: advance the scheduled day to match the move.
         if (next.repetition === 'none' && next.startDate <= viewKey) {
-          next = { ...next, startDate: nextKey }
+          next = withoutDeferredDate(
+            { ...next, startDate: nextKey },
+            nextKey,
+          )
         }
         return next
       }),
