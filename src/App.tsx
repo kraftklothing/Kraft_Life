@@ -8,7 +8,14 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { addDays, formatDayHeading, isVacationDay, parseDateKey, toDateKey } from './dates'
-import { appendLedgerEntry, loadState, normalizeState, pickNewerState, saveState } from './storage'
+import {
+  appendEarnedLedgerEntry,
+  appendLedgerEntry,
+  loadState,
+  normalizeState,
+  pickNewerState,
+  saveState,
+} from './storage'
 import { useCloudSync } from './CloudSyncProvider'
 import CloudSyncSettings from './CloudSyncSettings'
 import CalendarSettings from './CalendarSettings'
@@ -1488,19 +1495,22 @@ export default function App() {
       if (earnedCycles < 1) return prev
       let dollars = prev.dollars
       let dollarLedger = prev.dollarLedger
+      let earnedByDay = prev.earnedByDay
       for (let i = 0; i < earnedCycles; i += 1) {
         dollars += 1
-        dollarLedger = appendLedgerEntry(dollarLedger, {
+        const earned = appendEarnedLedgerEntry(dollarLedger, earnedByDay, {
           dateKey: today,
           amount: 1,
-          kind: 'earned',
           label: current.title,
         })
+        dollarLedger = earned.dollarLedger
+        earnedByDay = earned.earnedByDay
       }
       return {
         ...prev,
         dollars,
         dollarLedger,
+        earnedByDay,
         timers: prev.timers.map((t) =>
           t.id === dueId
             ? { ...t, elapsedSeconds: currentElapsed % currentGoal }
@@ -1908,6 +1918,7 @@ export default function App() {
     updateState((prev) => {
       let dollars = prev.dollars
       let dollarLedger = prev.dollarLedger
+      let earnedByDay = prev.earnedByDay
       const tasks = prev.tasks.map((task) => {
         if (task.id !== taskId) return task
         const occurrence = occurrenceForDate(task, viewKey)
@@ -1931,17 +1942,18 @@ export default function App() {
           )
           if (!isReminderTask) {
             dollars += 1
-            dollarLedger = appendLedgerEntry(dollarLedger, {
+            const earned = appendEarnedLedgerEntry(dollarLedger, earnedByDay, {
               dateKey: viewKey,
               amount: 1,
-              kind: 'earned',
               label: task.title,
             })
+            dollarLedger = earned.dollarLedger
+            earnedByDay = earned.earnedByDay
           }
         }
         return { ...task, completions: nextCompletions }
       })
-      return { ...prev, tasks, dollars, dollarLedger }
+      return { ...prev, tasks, dollars, dollarLedger, earnedByDay }
     })
   }
 
@@ -2076,6 +2088,7 @@ export default function App() {
     updateState((prev) => {
       let dollars = prev.dollars
       let dollarLedger = prev.dollarLedger
+      let earnedByDay = prev.earnedByDay
       const projects = prev.projects.map((project) => {
         if (project.id !== projectId) return project
         const steps = project.steps.map((step) => {
@@ -2086,30 +2099,36 @@ export default function App() {
               const clawback = Math.min(dollars, step.dollars)
               dollars = Math.max(0, dollars - step.dollars)
               if (clawback > 0) {
-                dollarLedger = appendLedgerEntry(dollarLedger, {
-                  dateKey: today,
-                  amount: -clawback,
-                  kind: 'earned',
-                  label: `Undo · ${label}`,
-                })
+                const earned = appendEarnedLedgerEntry(
+                  dollarLedger,
+                  earnedByDay,
+                  {
+                    dateKey: today,
+                    amount: -clawback,
+                    label: `Undo · ${label}`,
+                  },
+                )
+                dollarLedger = earned.dollarLedger
+                earnedByDay = earned.earnedByDay
               }
             }
             return { ...step, completed: false, completedOn: null }
           }
           dollars += step.dollars
           if (step.dollars > 0) {
-            dollarLedger = appendLedgerEntry(dollarLedger, {
+            const earned = appendEarnedLedgerEntry(dollarLedger, earnedByDay, {
               dateKey: today,
               amount: step.dollars,
-              kind: 'earned',
               label,
             })
+            dollarLedger = earned.dollarLedger
+            earnedByDay = earned.earnedByDay
           }
           return { ...step, completed: true, completedOn: today }
         })
         return { ...project, steps }
       })
-      return { ...prev, projects, dollars, dollarLedger }
+      return { ...prev, projects, dollars, dollarLedger, earnedByDay }
     })
   }
 
@@ -2395,6 +2414,7 @@ export default function App() {
     updateState((prev) => {
       let dollars = prev.dollars
       let dollarLedger = prev.dollarLedger
+      let earnedByDay = prev.earnedByDay
       let changed = false
       const tasks = prev.tasks.map((task) => {
         if (task.id !== taskId) return task
@@ -2411,17 +2431,18 @@ export default function App() {
         )
         if (!isReminderTask) {
           dollars += 1
-          dollarLedger = appendLedgerEntry(dollarLedger, {
+          const earned = appendEarnedLedgerEntry(dollarLedger, earnedByDay, {
             dateKey,
             amount: 1,
-            kind: 'earned',
             label: task.title,
           })
+          dollarLedger = earned.dollarLedger
+          earnedByDay = earned.earnedByDay
         }
         return { ...task, completions: nextCompletions }
       })
       if (!changed) return prev
-      return { ...prev, tasks, dollars, dollarLedger }
+      return { ...prev, tasks, dollars, dollarLedger, earnedByDay }
     })
   }
 
@@ -2439,16 +2460,23 @@ export default function App() {
       skippedStepIds.length === 0 && completedStepIds.length === steps.length
     if (allCompleted && routine.completionReward > 0) {
       const today = toDateKey(startToday())
-      updateState((prev) => ({
-        ...prev,
-        dollars: prev.dollars + routine.completionReward,
-        dollarLedger: appendLedgerEntry(prev.dollarLedger, {
-          dateKey: today,
-          amount: routine.completionReward,
-          kind: 'earned',
-          label: `${routine.name} · full routine`,
-        }),
-      }))
+      updateState((prev) => {
+        const earned = appendEarnedLedgerEntry(
+          prev.dollarLedger,
+          prev.earnedByDay,
+          {
+            dateKey: today,
+            amount: routine.completionReward,
+            label: `${routine.name} · full routine`,
+          },
+        )
+        return {
+          ...prev,
+          dollars: prev.dollars + routine.completionReward,
+          dollarLedger: earned.dollarLedger,
+          earnedByDay: earned.earnedByDay,
+        }
+      })
       setToast(`Routine complete · +$${routine.completionReward}`)
     } else if (allCompleted) {
       setToast('Routine complete')
@@ -5554,7 +5582,7 @@ export default function App() {
           tasks={state.tasks}
           taskCategories={state.taskCategories}
           realSpending={state.realSpending}
-          dollarLedger={state.dollarLedger}
+          earnedByDay={state.earnedByDay}
           todayKey={todayKey}
           vacationDays={state.vacationDays}
         />
