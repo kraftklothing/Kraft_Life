@@ -133,6 +133,8 @@ export interface PendingDelivery {
   createdAt: number
 }
 
+export type ProjectStepRepetition = 'none' | 'daily'
+
 export interface ProjectStep {
   id: string
   title: string
@@ -141,7 +143,20 @@ export interface ProjectStep {
   completed: boolean
   /** Local date YYYY-MM-DD when the step was completed, if any. */
   completedOn?: string | null
+  /**
+   * When `daily`, completion only counts for `completedOn` — the next day the
+   * step shows incomplete again and can earn $ again. Default `none` (one-shot).
+   */
+  repetition?: ProjectStepRepetition
   order: number
+}
+
+export const PROJECT_STEP_REPETITION_LABELS: Record<
+  ProjectStepRepetition,
+  string
+> = {
+  none: 'Does not repeat',
+  daily: 'Daily',
 }
 
 export interface Project {
