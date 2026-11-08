@@ -8,7 +8,14 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { addDays, formatDayHeading, isVacationDay, parseDateKey, toDateKey } from './dates'
-import { appendLedgerEntry, loadState, normalizeState, pickNewerState, saveState } from './storage'
+import {
+  appendEarnedLedgerEntry,
+  appendLedgerEntry,
+  loadState,
+  normalizeState,
+  pickNewerState,
+  saveState,
+} from './storage'
 import { useCloudSync } from './CloudSyncProvider'
 import CloudSyncSettings from './CloudSyncSettings'
 import CalendarSettings from './CalendarSettings'
@@ -26,6 +33,7 @@ import {
   taskVisibleInDayMode,
   taskVisibleInMode,
   withDeferredDate,
+  withoutDeferredDate,
 } from './taskLogic'
 import {
   goalProgressedOnDate,
@@ -33,7 +41,12 @@ import {
   unassignedProgressedOnDate,
   unassignedRecurringTasks,
 } from './goalLogic'
-import { nextIncompleteStep } from './projectLogic'
+import {
+  nextIncompleteStep,
+  stepCompleteForDate,
+  stepRepeats,
+  stepRepetition,
+} from './projectLogic'
 import CategorySettingsPanel from './CategorySettingsPanel'
 import BudgetingStreamsSettingsPanel from './BudgetingStreamsSettingsPanel'
 import BankAccountsSettingsPanel from './BankAccountsSettingsPanel'
@@ -64,6 +77,7 @@ import {
 } from './timerLogic'
 import {
   OPTIONAL_NAV_VIEWS,
+  PROJECT_STEP_REPETITION_LABELS,
   REPETITION_LABELS,
   WEEKDAY_OPTIONS,
   type AppState,
@@ -77,6 +91,7 @@ import {
   type PendingDelivery,
   type Project,
   type ProjectStep,
+  type ProjectStepRepetition,
   type Repetition,
   type Reward,
   type Routine,
@@ -714,6 +729,8 @@ export default function App() {
   const [newProjectName, setNewProjectName] = useState('')
   const [newStepTitle, setNewStepTitle] = useState('')
   const [newStepDollars, setNewStepDollars] = useState('5')
+  const [newStepRepetition, setNewStepRepetition] =
+    useState<ProjectStepRepetition>('none')
   const [newGoalName, setNewGoalName] = useState('')
   const [newGoalDescription, setNewGoalDescription] = useState('')
   const [toast, setToast] = useState('')
@@ -1511,19 +1528,22 @@ export default function App() {
       if (earnedCycles < 1) return prev
       let dollars = prev.dollars
       let dollarLedger = prev.dollarLedger
+      let earnedByDay = prev.earnedByDay
       for (let i = 0; i < earnedCycles; i += 1) {
         dollars += 1
-        dollarLedger = appendLedgerEntry(dollarLedger, {
+        const earned = appendEarnedLedgerEntry(dollarLedger, earnedByDay, {
           dateKey: today,
           amount: 1,
-          kind: 'earned',
           label: current.title,
         })
+        dollarLedger = earned.dollarLedger
+        earnedByDay = earned.earnedByDay
       }
       return {
         ...prev,
         dollars,
         dollarLedger,
+        earnedByDay,
         timers: prev.timers.map((t) =>
           t.id === dueId
             ? { ...t, elapsedSeconds: currentElapsed % currentGoal }
@@ -1586,6 +1606,7 @@ export default function App() {
     setNewProjectName('')
     setNewStepTitle('')
     setNewStepDollars('5')
+    setNewStepRepetition('none')
     setNewGoalName('')
     setNewGoalDescription('')
     setNewTimerTitle('')
@@ -1686,15 +1707,21 @@ export default function App() {
         tasks: prev.tasks.map((task) => {
           if (task.id !== editingTaskId) return task
           dayChanged = dayKey !== task.startDate
-          const updated: Task = {
-            ...task,
-            title: trimmed,
-            categoryIds: selectedCategories,
-            repetition,
-            customRepeat: keepsCustomRepeat ? customRepeat : undefined,
-            startDate: dayKey,
-            visibleInModes: { ...visibleInModes },
-          }
+          // Rescheduling onto a day must clear that day's deferral — otherwise
+          // today→future→today left deferredDates[today] set, so the task said
+          // it started today but stayed hidden until rollover tomorrow.
+          let updated: Task = withoutDeferredDate(
+            {
+              ...task,
+              title: trimmed,
+              categoryIds: selectedCategories,
+              repetition,
+              customRepeat: keepsCustomRepeat ? customRepeat : undefined,
+              startDate: dayKey,
+              visibleInModes: { ...visibleInModes },
+            },
+            dayKey,
+          )
           // Only mark the viewed day deferred when the edit actually makes the
           // task leave that day. Rolled-over one-offs keep their original
           // startDate in the Day field, so dayKey !== viewKey alone used to
@@ -1702,12 +1729,10 @@ export default function App() {
           const movedOffView =
             taskVisibleOnDate(task, viewKey) &&
             !taskVisibleOnDate(updated, viewKey)
-          return {
-            ...updated,
-            deferredDates: movedOffView
-              ? { ...task.deferredDates, [viewKey]: true }
-              : task.deferredDates,
+          if (movedOffView) {
+            updated = withDeferredDate(updated, viewKey)
           }
+          return updated
         }),
       }))
       if (dayChanged) {
@@ -1930,6 +1955,7 @@ export default function App() {
     updateState((prev) => {
       let dollars = prev.dollars
       let dollarLedger = prev.dollarLedger
+      let earnedByDay = prev.earnedByDay
       const tasks = prev.tasks.map((task) => {
         if (task.id !== taskId) return task
         const occurrence = occurrenceForDate(task, viewKey)
@@ -1953,17 +1979,18 @@ export default function App() {
           )
           if (!isReminderTask) {
             dollars += 1
-            dollarLedger = appendLedgerEntry(dollarLedger, {
+            const earned = appendEarnedLedgerEntry(dollarLedger, earnedByDay, {
               dateKey: viewKey,
               amount: 1,
-              kind: 'earned',
               label: task.title,
             })
+            dollarLedger = earned.dollarLedger
+            earnedByDay = earned.earnedByDay
           }
         }
         return { ...task, completions: nextCompletions }
       })
-      return { ...prev, tasks, dollars, dollarLedger }
+      return { ...prev, tasks, dollars, dollarLedger, earnedByDay }
     })
   }
 
@@ -2046,7 +2073,7 @@ export default function App() {
             ...project,
             steps: project.steps.map((step) =>
               step.id === editingStepId
-                ? { ...step, title, dollars }
+                ? { ...step, title, dollars, repetition: newStepRepetition }
                 : step,
             ),
           }
@@ -2055,6 +2082,7 @@ export default function App() {
       setEditingStepId(null)
       setNewStepTitle('')
       setNewStepDollars('5')
+      setNewStepRepetition('none')
       setToast('Step updated')
       return true
     }
@@ -2069,6 +2097,7 @@ export default function App() {
           dollars,
           completed: false,
           completedOn: null,
+          repetition: newStepRepetition,
           order: maxOrder + 1,
         }
         return { ...project, steps: [...project.steps, step] }
@@ -2076,6 +2105,7 @@ export default function App() {
     }))
     setNewStepTitle('')
     setNewStepDollars('5')
+    setNewStepRepetition('none')
     setToast('Step added')
     return true
   }
@@ -2085,6 +2115,7 @@ export default function App() {
     setEditingProjectId(null)
     setNewStepTitle(step.title)
     setNewStepDollars(String(step.dollars))
+    setNewStepRepetition(stepRepetition(step))
     setAddOpen(true)
     setAddError('')
   }
@@ -2094,40 +2125,47 @@ export default function App() {
     updateState((prev) => {
       let dollars = prev.dollars
       let dollarLedger = prev.dollarLedger
+      let earnedByDay = prev.earnedByDay
       const projects = prev.projects.map((project) => {
         if (project.id !== projectId) return project
         const steps = project.steps.map((step) => {
           if (step.id !== stepId) return step
           const label = `${project.name}: ${step.title}`
-          if (step.completed) {
+          if (stepCompleteForDate(step, today)) {
             if (step.dollars > 0) {
               const clawback = Math.min(dollars, step.dollars)
               dollars = Math.max(0, dollars - step.dollars)
               if (clawback > 0) {
-                dollarLedger = appendLedgerEntry(dollarLedger, {
-                  dateKey: today,
-                  amount: -clawback,
-                  kind: 'earned',
-                  label: `Undo · ${label}`,
-                })
+                const earned = appendEarnedLedgerEntry(
+                  dollarLedger,
+                  earnedByDay,
+                  {
+                    dateKey: today,
+                    amount: -clawback,
+                    label: `Undo · ${label}`,
+                  },
+                )
+                dollarLedger = earned.dollarLedger
+                earnedByDay = earned.earnedByDay
               }
             }
             return { ...step, completed: false, completedOn: null }
           }
           dollars += step.dollars
           if (step.dollars > 0) {
-            dollarLedger = appendLedgerEntry(dollarLedger, {
+            const earned = appendEarnedLedgerEntry(dollarLedger, earnedByDay, {
               dateKey: today,
               amount: step.dollars,
-              kind: 'earned',
               label,
             })
+            dollarLedger = earned.dollarLedger
+            earnedByDay = earned.earnedByDay
           }
           return { ...step, completed: true, completedOn: today }
         })
         return { ...project, steps }
       })
-      return { ...prev, projects, dollars, dollarLedger }
+      return { ...prev, projects, dollars, dollarLedger, earnedByDay }
     })
   }
 
@@ -2413,6 +2451,7 @@ export default function App() {
     updateState((prev) => {
       let dollars = prev.dollars
       let dollarLedger = prev.dollarLedger
+      let earnedByDay = prev.earnedByDay
       let changed = false
       const tasks = prev.tasks.map((task) => {
         if (task.id !== taskId) return task
@@ -2429,17 +2468,18 @@ export default function App() {
         )
         if (!isReminderTask) {
           dollars += 1
-          dollarLedger = appendLedgerEntry(dollarLedger, {
+          const earned = appendEarnedLedgerEntry(dollarLedger, earnedByDay, {
             dateKey,
             amount: 1,
-            kind: 'earned',
             label: task.title,
           })
+          dollarLedger = earned.dollarLedger
+          earnedByDay = earned.earnedByDay
         }
         return { ...task, completions: nextCompletions }
       })
       if (!changed) return prev
-      return { ...prev, tasks, dollars, dollarLedger }
+      return { ...prev, tasks, dollars, dollarLedger, earnedByDay }
     })
   }
 
@@ -2457,16 +2497,23 @@ export default function App() {
       skippedStepIds.length === 0 && completedStepIds.length === steps.length
     if (allCompleted && routine.completionReward > 0) {
       const today = toDateKey(startToday())
-      updateState((prev) => ({
-        ...prev,
-        dollars: prev.dollars + routine.completionReward,
-        dollarLedger: appendLedgerEntry(prev.dollarLedger, {
-          dateKey: today,
-          amount: routine.completionReward,
-          kind: 'earned',
-          label: `${routine.name} · full routine`,
-        }),
-      }))
+      updateState((prev) => {
+        const earned = appendEarnedLedgerEntry(
+          prev.dollarLedger,
+          prev.earnedByDay,
+          {
+            dateKey: today,
+            amount: routine.completionReward,
+            label: `${routine.name} · full routine`,
+          },
+        )
+        return {
+          ...prev,
+          dollars: prev.dollars + routine.completionReward,
+          dollarLedger: earned.dollarLedger,
+          earnedByDay: earned.earnedByDay,
+        }
+      })
       setToast(`Routine complete · +$${routine.completionReward}`)
     } else if (allCompleted) {
       setToast('Routine complete')
@@ -3697,7 +3744,10 @@ export default function App() {
         let next = withDeferredDate(task, viewKey)
         // One-shot tasks: advance the scheduled day to match the move.
         if (next.repetition === 'none' && next.startDate <= viewKey) {
-          next = { ...next, startDate: nextKey }
+          next = withoutDeferredDate(
+            { ...next, startDate: nextKey },
+            nextKey,
+          )
         }
         return next
       }),
@@ -4609,11 +4659,11 @@ export default function App() {
                   </p>
                   <ul className="task-list">
                     {sortedProjects.map((project) => {
-                      const done = project.steps.filter(
-                        (s) => s.completed,
+                      const done = project.steps.filter((s) =>
+                        stepCompleteForDate(s, todayKey),
                       ).length
                       const total = project.steps.length
-                      const nextStep = nextIncompleteStep(project)
+                      const nextStep = nextIncompleteStep(project, todayKey)
                       return (
                         <li
                           className={`task-item project-item${
@@ -4689,18 +4739,20 @@ export default function App() {
                 <ul className="task-list">
                   {[...activeProject.steps]
                     .sort((a, b) => a.order - b.order)
-                    .map((step) => (
+                    .map((step) => {
+                      const doneToday = stepCompleteForDate(step, todayKey)
+                      return (
                       <li
                         key={step.id}
                         className={`task-item${
-                          step.completed ? ' completed' : ''
+                          doneToday ? ' completed' : ''
                         }${draggingStepId === step.id ? ' dragging' : ''}`}
                       >
                         <button
                           type="button"
                           className="check"
                           aria-label={
-                            step.completed
+                            doneToday
                               ? 'Mark step incomplete'
                               : 'Mark step complete'
                           }
@@ -4714,6 +4766,15 @@ export default function App() {
                           <p className="task-title">{step.title}</p>
                           <div className="badges">
                             <span className="badge">+${step.dollars}</span>
+                            {stepRepeats(step) ? (
+                              <span className="badge rep">
+                                {
+                                  PROJECT_STEP_REPETITION_LABELS[
+                                    stepRepetition(step)
+                                  ]
+                                }
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                         <div className="task-actions">
@@ -4746,7 +4807,8 @@ export default function App() {
                           </button>
                         </div>
                       </li>
-                    ))}
+                      )
+                    })}
                 </ul>
               </section>
             </div>
@@ -5636,7 +5698,7 @@ export default function App() {
           tasks={state.tasks}
           taskCategories={state.taskCategories}
           realSpending={state.realSpending}
-          dollarLedger={state.dollarLedger}
+          earnedByDay={state.earnedByDay}
           todayKey={todayKey}
           vacationDays={state.vacationDays}
         />
@@ -6307,6 +6369,27 @@ export default function App() {
                     value={newStepDollars}
                     onChange={(e) => setNewStepDollars(e.target.value)}
                   />
+                </label>
+                <label>
+                  Repeat
+                  <select
+                    value={newStepRepetition}
+                    onChange={(e) =>
+                      setNewStepRepetition(
+                        e.target.value as ProjectStepRepetition,
+                      )
+                    }
+                  >
+                    {(
+                      Object.keys(
+                        PROJECT_STEP_REPETITION_LABELS,
+                      ) as ProjectStepRepetition[]
+                    ).map((key) => (
+                      <option key={key} value={key}>
+                        {PROJECT_STEP_REPETITION_LABELS[key]}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <div className="add-actions">
                   <button

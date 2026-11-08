@@ -34,9 +34,12 @@ import {
   normalizeConnectedCalendars,
   readLegacyLocalCalendars,
 } from './calendarSession'
+import { clearDeferredOnStartDate } from './taskLogic'
 
 const STORAGE_KEY = 'kraft-life-v1'
+/** Detail history for today’s clock UI — Summary uses `earnedByDay` instead. */
 const MAX_LEDGER_ENTRIES = 400
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/
 
 function normalizeCategories(raw: unknown): Category[] | null {
   if (!Array.isArray(raw) || raw.length === 0) return null
@@ -83,12 +86,14 @@ function normalizeSteps(raw: unknown): ProjectStep[] {
       dollars?: unknown
       completed?: unknown
       completedOn?: unknown
+      repetition?: unknown
       order?: unknown
     }
     if (typeof s.id !== 'string' || typeof s.title !== 'string') return
     const dollars = typeof s.dollars === 'number' ? s.dollars : Number(s.dollars)
     if (!Number.isFinite(dollars) || dollars < 0) return
     const completed = Boolean(s.completed)
+    const repetition = s.repetition === 'daily' ? 'daily' : 'none'
     steps.push({
       id: s.id,
       title: s.title,
@@ -96,6 +101,7 @@ function normalizeSteps(raw: unknown): ProjectStep[] {
       completed,
       completedOn:
         completed && typeof s.completedOn === 'string' ? s.completedOn : null,
+      repetition,
       order: typeof s.order === 'number' ? s.order : index,
     })
   })
@@ -403,7 +409,12 @@ function normalizeTasks(raw: unknown): Task[] {
       startDate: t.startDate,
       completions:
         t.completions && typeof t.completions === 'object' ? t.completions : {},
-      deferredDates: normalizeDeferredDates(t.deferredDates),
+      // Drop deferredDates[startDate] — that combo hid tasks from their own
+      // start day after move-away-then-back (see withoutDeferredDate).
+      deferredDates: clearDeferredOnStartDate(
+        normalizeDeferredDates(t.deferredDates),
+        t.startDate,
+      ),
       visibleInModes: normalizeVisibleInModes(t),
       order: typeof t.order === 'number' ? t.order : 0,
       createdAt: typeof t.createdAt === 'number' ? t.createdAt : Date.now(),
@@ -781,6 +792,105 @@ export function appendLedgerEntry(
   return [...ledger, next].slice(-MAX_LEDGER_ENTRIES)
 }
 
+/** Add (or subtract, for clawbacks) earned $ for a local day. */
+export function recordEarnedByDay(
+  earnedByDay: Record<string, number>,
+  dateKey: string,
+  amount: number,
+): Record<string, number> {
+  if (!amount) return earnedByDay
+  const next = { ...earnedByDay }
+  const value = (next[dateKey] ?? 0) + amount
+  if (value === 0) delete next[dateKey]
+  else next[dateKey] = value
+  return next
+}
+
+/**
+ * Append an earned ledger row and keep the durable per-day earned total in sync.
+ * Use for every `kind: 'earned'` change (including negative clawbacks).
+ */
+export function appendEarnedLedgerEntry(
+  ledger: DollarLedgerEntry[],
+  earnedByDay: Record<string, number>,
+  entry: Omit<DollarLedgerEntry, 'id' | 'at' | 'kind'> & {
+    id?: string
+    at?: number
+    amount: number
+  },
+): { dollarLedger: DollarLedgerEntry[]; earnedByDay: Record<string, number> } {
+  return {
+    dollarLedger: appendLedgerEntry(ledger, { ...entry, kind: 'earned' }),
+    earnedByDay: recordEarnedByDay(earnedByDay, entry.dateKey, entry.amount),
+  }
+}
+
+/** $1 per completed non-reminder, non-calendar task — same floor as Summary. */
+function taskCompletionDollarsByDay(
+  tasks: Task[],
+  categories: Category[],
+): Record<string, number> {
+  const byDay: Record<string, number> = {}
+  for (const task of tasks) {
+    if (task.id.startsWith('calendar:')) continue
+    const isReminder = task.categoryIds.some((categoryId) =>
+      categories.some(
+        (category) => category.id === categoryId && category.reminders === true,
+      ),
+    )
+    if (isReminder) continue
+    for (const [dateKey, done] of Object.entries(task.completions)) {
+      if (!done) continue
+      byDay[dateKey] = (byDay[dateKey] ?? 0) + 1
+    }
+  }
+  return byDay
+}
+
+function normalizeEarnedByDay(raw: unknown): Record<string, number> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const out: Record<string, number> = {}
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!DATE_KEY_RE.test(key)) continue
+    const n = typeof value === 'number' ? value : Number(value)
+    if (!Number.isFinite(n) || n === 0) continue
+    out[key] = Math.trunc(n)
+  }
+  return out
+}
+
+/**
+ * Build durable daily earned totals from the (possibly truncated) ledger,
+ * then floor each day at task completions so pre-ledger / pruned history
+ * cannot show rewards below tasks completed.
+ *
+ * When `existing` is null the field was never saved — seed from the ledger.
+ * When it is a record (even empty), keep it and only raise days to the task floor
+ * so we do not double-count after live `appendEarnedLedgerEntry` updates.
+ */
+function synthesizeEarnedByDay(
+  ledger: DollarLedgerEntry[],
+  tasks: Task[],
+  categories: Category[],
+  existing: Record<string, number> | null,
+): Record<string, number> {
+  const byDay: Record<string, number> = existing ? { ...existing } : {}
+  if (existing === null) {
+    for (const entry of ledger) {
+      if (entry.kind !== 'earned') continue
+      byDay[entry.dateKey] = (byDay[entry.dateKey] ?? 0) + entry.amount
+    }
+  }
+  const taskFloor = taskCompletionDollarsByDay(tasks, categories)
+  for (const [dateKey, count] of Object.entries(taskFloor)) {
+    if (count > (byDay[dateKey] ?? 0)) byDay[dateKey] = count
+  }
+  for (const key of Object.keys(byDay)) {
+    if ((byDay[key] ?? 0) <= 0) delete byDay[key]
+  }
+  return byDay
+}
+
 export function normalizeState(raw: Partial<AppState> | null | undefined): AppState {
   const fallback: AppState = {
     tasks: [],
@@ -798,6 +908,7 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     showPercent: false,
     timerSoundEnabled: true,
     dollarLedger: [],
+    earnedByDay: {},
     realSpending: [],
     budgetingStreams: DEFAULT_BUDGETING_STREAMS,
     bankAccounts: DEFAULT_BANK_ACCOUNTS,
@@ -842,9 +953,21 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     legacy.vacationDays,
     legacy.modeDays,
   )
+  const tasks = normalizeTasks(raw.tasks)
+  const dollarLedger = normalizeDollarLedger(raw.dollarLedger)
+  const savedEarnedByDay =
+    raw !== null && typeof raw === 'object' && 'earnedByDay' in raw
+      ? (normalizeEarnedByDay(raw.earnedByDay) ?? {})
+      : null
+  const earnedByDay = synthesizeEarnedByDay(
+    dollarLedger,
+    tasks,
+    taskCategories,
+    savedEarnedByDay,
+  )
 
   return {
-    tasks: normalizeTasks(raw.tasks),
+    tasks,
     taskCategories,
     dollars: typeof raw.dollars === 'number' ? raw.dollars : 0,
     rewards: rewards !== null ? rewards : DEFAULT_REWARDS,
@@ -859,7 +982,8 @@ export function normalizeState(raw: Partial<AppState> | null | undefined): AppSt
     showPercent: Boolean(raw.showPercent),
     // Missing field defaults on so existing saves keep the new ding audible.
     timerSoundEnabled: raw.timerSoundEnabled !== false,
-    dollarLedger: normalizeDollarLedger(raw.dollarLedger),
+    dollarLedger,
+    earnedByDay,
     realSpending,
     budgetingStreams: normalizeBudgetingStreams(
       raw.budgetingStreams,
