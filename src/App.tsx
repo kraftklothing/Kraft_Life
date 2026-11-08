@@ -577,6 +577,59 @@ type IncomeDraftRow = {
   amount: string
 }
 
+type SpendingSortMode = 'date' | 'account'
+
+type SpendingAccountGroup = {
+  accountId: string
+  accountName: string
+  latestDateKey: string
+  entries: SpendingEntry[]
+}
+
+function compareSpendingEntriesByDate(a: SpendingEntry, b: SpendingEntry): number {
+  if (a.dateKey !== b.dateKey) return b.dateKey.localeCompare(a.dateKey)
+  return b.at - a.at
+}
+
+function groupSpendingByAccount(
+  entries: SpendingEntry[],
+  bankAccounts: BankAccount[],
+): SpendingAccountGroup[] {
+  const accountOrder = new Map(
+    bankAccounts.map((account, index) => [account.id, index]),
+  )
+  const accountNames = new Map(
+    bankAccounts.map((account) => [account.id, account.name]),
+  )
+  const byAccount = new Map<string, SpendingEntry[]>()
+
+  for (const entry of entries) {
+    const bucket = byAccount.get(entry.accountId)
+    if (bucket) bucket.push(entry)
+    else byAccount.set(entry.accountId, [entry])
+  }
+
+  return [...byAccount.entries()]
+    .map(([accountId, accountEntries]) => {
+      const sorted = accountEntries.slice().sort(compareSpendingEntriesByDate)
+      return {
+        accountId,
+        accountName: accountNames.get(accountId) ?? 'Account',
+        latestDateKey: sorted[0]?.dateKey ?? '',
+        entries: sorted,
+      }
+    })
+    .sort((a, b) => {
+      if (a.latestDateKey !== b.latestDateKey) {
+        return b.latestDateKey.localeCompare(a.latestDateKey)
+      }
+      const aOrder = accountOrder.get(a.accountId) ?? Number.MAX_SAFE_INTEGER
+      const bOrder = accountOrder.get(b.accountId) ?? Number.MAX_SAFE_INTEGER
+      if (aOrder !== bOrder) return aOrder - bOrder
+      return a.accountName.localeCompare(b.accountName)
+    })
+}
+
 function formatSpendDate(dateKey: string): string {
   return parseDateKey(dateKey).toLocaleDateString(undefined, {
     weekday: 'short',
@@ -692,6 +745,8 @@ export default function App() {
   const [activeSpendingStreamId, setActiveSpendingStreamId] = useState<
     string | null
   >(null)
+  const [spendingSortMode, setSpendingSortMode] =
+    useState<SpendingSortMode>('date')
   const [spendingMonth, setSpendingMonth] = useState(() => {
     const today = startToday()
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
@@ -1353,11 +1408,13 @@ export default function App() {
     return state.realSpending
       .filter((entry) => entry.dateKey.startsWith(`${spendingMonth}-`))
       .slice()
-      .sort((a, b) => {
-        if (a.dateKey !== b.dateKey) return b.dateKey.localeCompare(a.dateKey)
-        return b.at - a.at
-      })
+      .sort(compareSpendingEntriesByDate)
   }, [state.realSpending, spendingMonth])
+
+  const spendingEntriesByAccount = useMemo(
+    () => groupSpendingByAccount(spendingEntriesForMonth, state.bankAccounts),
+    [spendingEntriesForMonth, state.bankAccounts],
+  )
 
   const spendingTotals = useMemo(() => {
     let totalSpent = 0
@@ -5486,9 +5543,118 @@ export default function App() {
                 </section>
 
                 <section className="task-group" aria-label="Spending entries">
-                  <h2 className="category-heading">Transactions</h2>
+                  <div className="spending-transactions-header">
+                    <h2 className="category-heading">Transactions</h2>
+                    {spendingEntriesForMonth.length > 0 ? (
+                      <div
+                        className="spending-sort-toggle"
+                        role="group"
+                        aria-label="Sort transactions"
+                      >
+                        <button
+                          type="button"
+                          className={`spending-sort-option${
+                            spendingSortMode === 'date' ? ' selected' : ''
+                          }`}
+                          aria-pressed={spendingSortMode === 'date'}
+                          onClick={() => setSpendingSortMode('date')}
+                        >
+                          Date
+                        </button>
+                        <button
+                          type="button"
+                          className={`spending-sort-option${
+                            spendingSortMode === 'account' ? ' selected' : ''
+                          }`}
+                          aria-pressed={spendingSortMode === 'account'}
+                          onClick={() => setSpendingSortMode('account')}
+                        >
+                          Account
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                   {spendingEntriesForMonth.length === 0 ? (
                     <p className="muted">Tap plus to add your first real-world expense.</p>
+                  ) : spendingSortMode === 'account' ? (
+                    <div className="spending-account-groups">
+                      {spendingEntriesByAccount.map((group) => (
+                        <div
+                          key={group.accountId}
+                          className="spending-account-group"
+                          aria-label={`${group.accountName} transactions`}
+                        >
+                          <div className="spending-account-group-header">
+                            <h3 className="spending-account-group-title">
+                              {group.accountName}
+                            </h3>
+                            <span className="spending-account-group-latest">
+                              Latest {formatSpendDate(group.latestDateKey)}
+                            </span>
+                          </div>
+                          <ul className="task-list">
+                            {group.entries.map((entry) => {
+                              const typeName =
+                                state.budgetingStreams.find(
+                                  (type) => type.id === entry.streamId,
+                                )?.name ?? 'Other'
+                              return (
+                                <li
+                                  key={entry.id}
+                                  className="task-item spending-item"
+                                >
+                                  <div className="task-body">
+                                    <p className="task-title">
+                                      ${entry.amount.toFixed(2)}
+                                    </p>
+                                    <p className="spending-stream-label">
+                                      {typeName}
+                                    </p>
+                                    <p className="spending-date-label">
+                                      {formatSpendDate(entry.dateKey)}
+                                    </p>
+                                    {entry.note ? (
+                                      <p className="spending-note-label">
+                                        {entry.note}
+                                      </p>
+                                    ) : null}
+                                    {entry.impactsVirtualDollars ? (
+                                      <div className="badges">
+                                        <span className="badge">
+                                          Affects virtual $
+                                        </span>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                  <div className="task-actions">
+                                    <button
+                                      type="button"
+                                      className="edit-btn"
+                                      aria-label="Edit spending entry"
+                                      onClick={() =>
+                                        openEditSpendingEntry(entry)
+                                      }
+                                    >
+                                      <PencilIcon />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="edit-btn"
+                                      aria-label="Delete spending entry"
+                                      onClick={() =>
+                                        deleteSpendingEntry(entry.id)
+                                      }
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
                   ) : (
                     <ul className="task-list">
                       {spendingEntriesForMonth.map((entry) => {
