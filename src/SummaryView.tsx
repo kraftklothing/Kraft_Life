@@ -6,12 +6,7 @@ import {
   parseDateKey,
   toDateKey,
 } from './dates'
-import type {
-  Category,
-  DollarLedgerEntry,
-  SpendingEntry,
-  Task,
-} from './types'
+import type { Category, SpendingEntry, Task } from './types'
 
 export type SummaryRangeUnit = 'days' | 'months' | 'years'
 
@@ -229,20 +224,24 @@ function buildSpendTotalsByDay(
   return byDay
 }
 
-function buildLedgerTotalsByDay(
-  ledger: DollarLedgerEntry[],
+/**
+ * Rewards earned for Summary: durable per-day totals, floored at task
+ * completions ($1 each). Extra earnings (timers, routines, projects) can
+ * push a day above the task count; the ledger alone cannot undercount
+ * tasks when older detail rows were pruned.
+ */
+function buildEarnedTotalsByDay(
+  earnedByDay: Record<string, number>,
+  taskTotals: Record<string, number>,
   dayKeys: string[],
-  kind: 'earned',
 ): Record<string, number> {
   const byDay: Record<string, number> = Object.fromEntries(
     dayKeys.map((key) => [key, 0]),
   )
-  for (const entry of ledger) {
-    if (entry.kind !== kind || !(entry.dateKey in byDay)) continue
-    byDay[entry.dateKey] += Math.abs(entry.amount)
-  }
   for (const key of dayKeys) {
-    byDay[key] = Math.round((byDay[key] ?? 0) * 100) / 100
+    const earned = earnedByDay[key] ?? 0
+    const taskFloor = taskTotals[key] ?? 0
+    byDay[key] = Math.round(Math.max(earned, taskFloor, 0) * 100) / 100
   }
   return byDay
 }
@@ -601,7 +600,7 @@ interface SummaryViewProps {
   tasks: Task[]
   taskCategories: Category[]
   realSpending: SpendingEntry[]
-  dollarLedger: DollarLedgerEntry[]
+  earnedByDay: Record<string, number>
   todayKey: string
   vacationDays?: Record<string, boolean>
 }
@@ -610,7 +609,7 @@ export default function SummaryView({
   tasks,
   taskCategories,
   realSpending,
-  dollarLedger,
+  earnedByDay,
   todayKey,
   vacationDays = {},
 }: SummaryViewProps) {
@@ -639,10 +638,10 @@ export default function SummaryView({
       chartDayKeys,
     )
     const spendTotals = buildSpendTotalsByDay(realSpending, chartDayKeys)
-    const earnedTotals = buildLedgerTotalsByDay(
-      dollarLedger,
+    const earnedTotals = buildEarnedTotalsByDay(
+      earnedByDay,
+      taskTotals,
       chartDayKeys,
-      'earned',
     )
 
     const make = (
@@ -676,7 +675,7 @@ export default function SummaryView({
     tasks,
     taskCategories,
     realSpending,
-    dollarLedger,
+    earnedByDay,
     todayKey,
     rangeUnit,
     rangeAmount,

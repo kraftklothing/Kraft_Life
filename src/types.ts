@@ -335,6 +335,12 @@ export interface AppState {
   timerSoundEnabled: boolean
   /** Recent $ earned / spent / balance edits (newest last). */
   dollarLedger: DollarLedgerEntry[]
+  /**
+   * Cumulative $ earned per local day (YYYY-MM-DD).
+   * Survives `dollarLedger` truncation so Summary averages stay accurate;
+   * each completed non-reminder task contributes at least $1.
+   */
+  earnedByDay: Record<string, number>
   /** Real-world spending logs, separated from rewards/virtual earn-spend loop. */
   realSpending: SpendingEntry[]
   /** Dedicated Budgeting streams (separate from task categories). */
