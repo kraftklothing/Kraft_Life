@@ -772,6 +772,8 @@ export default function App() {
   >(null)
   const [spendingSortMode, setSpendingSortMode] =
     useState<SpendingSortMode>('date')
+  const [collapsedSpendingAccountIds, setCollapsedSpendingAccountIds] =
+    useState<string[]>([])
   const [spendingMonth, setSpendingMonth] = useState(() => {
     const today = startToday()
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
@@ -1640,6 +1642,12 @@ export default function App() {
 
   function toggleTaskCategoryCollapsed(id: string) {
     setCollapsedTaskCategoryIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
+    )
+  }
+
+  function toggleSpendingAccountCollapsed(id: string) {
+    setCollapsedSpendingAccountIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     )
   }
@@ -5722,82 +5730,107 @@ export default function App() {
                     <p className="muted">Tap plus to add your first real-world expense.</p>
                   ) : spendingSortMode === 'account' ? (
                     <div className="spending-account-groups">
-                      {spendingEntriesByAccount.map((group) => (
-                        <div
-                          key={group.accountId}
-                          className="spending-account-group"
-                          aria-label={`${group.accountName} transactions`}
-                        >
-                          <div className="spending-account-group-header">
-                            <h3 className="spending-account-group-title">
-                              {group.accountName}
-                            </h3>
-                            <span className="spending-account-group-latest">
-                              Latest {formatSpendDate(group.latestDateKey)}
-                            </span>
-                          </div>
-                          <ul className="task-list">
-                            {group.entries.map((entry) => {
-                              const typeName =
-                                state.budgetingStreams.find(
-                                  (type) => type.id === entry.streamId,
-                                )?.name ?? 'Other'
-                              return (
-                                <li
-                                  key={entry.id}
-                                  className="task-item spending-item"
-                                >
-                                  <div className="task-body">
-                                    <p className="task-title">
-                                      ${entry.amount.toFixed(2)}
-                                    </p>
-                                    <p className="spending-stream-label">
-                                      {typeName}
-                                    </p>
-                                    <p className="spending-date-label">
-                                      {formatSpendDate(entry.dateKey)}
-                                    </p>
-                                    {entry.note ? (
-                                      <p className="spending-note-label">
-                                        {entry.note}
-                                      </p>
-                                    ) : null}
-                                    {entry.impactsVirtualDollars ? (
-                                      <div className="badges">
-                                        <span className="badge">
-                                          Affects virtual $
-                                        </span>
+                      {spendingEntriesByAccount.map((group) => {
+                        const collapsed =
+                          collapsedSpendingAccountIds.includes(group.accountId)
+                        return (
+                          <div
+                            key={group.accountId}
+                            className={`spending-account-group${
+                              collapsed ? ' collapsed' : ''
+                            }`}
+                            aria-label={`${group.accountName} transactions`}
+                          >
+                            <button
+                              type="button"
+                              className="spending-account-group-toggle"
+                              aria-expanded={!collapsed}
+                              onClick={() =>
+                                toggleSpendingAccountCollapsed(group.accountId)
+                              }
+                            >
+                              <h3 className="spending-account-group-title">
+                                {group.accountName}
+                              </h3>
+                              <span className="spending-account-group-meta">
+                                <span className="spending-account-group-latest">
+                                  Latest{' '}
+                                  {formatSpendDate(group.latestDateKey)}
+                                </span>
+                                {collapsed ? (
+                                  <span className="spending-account-group-count">
+                                    {group.entries.length} txn
+                                    {group.entries.length === 1 ? '' : 's'}
+                                  </span>
+                                ) : null}
+                                <ChevronIcon open={!collapsed} />
+                              </span>
+                            </button>
+                            {collapsed ? null : (
+                              <ul className="task-list">
+                                {group.entries.map((entry) => {
+                                  const typeName =
+                                    state.budgetingStreams.find(
+                                      (type) => type.id === entry.streamId,
+                                    )?.name ?? 'Other'
+                                  return (
+                                    <li
+                                      key={entry.id}
+                                      className="task-item spending-item"
+                                    >
+                                      <div className="task-body">
+                                        <p className="task-title">
+                                          ${entry.amount.toFixed(2)}
+                                        </p>
+                                        <p className="spending-stream-label">
+                                          {typeName}
+                                        </p>
+                                        <p className="spending-date-label">
+                                          {formatSpendDate(entry.dateKey)}
+                                        </p>
+                                        {entry.note ? (
+                                          <p className="spending-note-label">
+                                            {entry.note}
+                                          </p>
+                                        ) : null}
+                                        {entry.impactsVirtualDollars ? (
+                                          <div className="badges">
+                                            <span className="badge">
+                                              Affects virtual $
+                                            </span>
+                                          </div>
+                                        ) : null}
                                       </div>
-                                    ) : null}
-                                  </div>
-                                  <div className="task-actions">
-                                    <button
-                                      type="button"
-                                      className="edit-btn"
-                                      aria-label="Edit spending entry"
-                                      onClick={() =>
-                                        openEditSpendingEntry(entry)
-                                      }
-                                    >
-                                      <PencilIcon />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="edit-btn"
-                                      aria-label="Delete spending entry"
-                                      onClick={() =>
-                                        deleteSpendingEntry(entry.id)
-                                      }
-                                    >
-                                      ✕
-                                    </button>
-                                  </div>
-                                </li>
-                              )
-                            })}
-                          </ul>
-                        </div>
-                      ))}
+                                      <div className="task-actions">
+                                        <button
+                                          type="button"
+                                          className="edit-btn"
+                                          aria-label="Edit spending entry"
+                                          onClick={() =>
+                                            openEditSpendingEntry(entry)
+                                          }
+                                        >
+                                          <PencilIcon />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="edit-btn"
+                                          aria-label="Delete spending entry"
+                                          onClick={() =>
+                                            deleteSpendingEntry(entry.id)
+                                          }
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    </li>
+                                  )
+                                })}
+                              </ul>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   ) : (
                     <ul className="task-list">
